@@ -1,0 +1,18 @@
+%enDbg
+configType 2
+streamByConnection 1
+globalMute 0
+ignoreEEPROM 1
+filePath adi_a2b_system_autoconfig_XLR.dat
+start
+print Connect the required nodes 
+print Press 'Enter' after all nodes are discovered 
+wait
+getNwInfo
+pause
+print Programming all the EEPROMs, this may take several minutes
+updateEEPROMAll ..\..\..\cfg\adi_a2b_node_ModuleInfo_1.3.0.0_XLR.dat 0x50
+print Closing the terminal... 
+sleep 2000
+quit
+

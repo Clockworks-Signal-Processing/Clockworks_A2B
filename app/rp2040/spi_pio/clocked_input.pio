@@ -1,0 +1,82 @@
+;/*=============================================================================
+;*
+;* Project: MID2A2B
+;*
+;* Copyright (c) 2023 - Analog Devices Inc. All Rights Reserved.
+;* See LICENSE_ADI_BSD.txt for additional licensing terms. You must include that file with all source you use.
+;*
+;*=============================================================================
+;*
+;* \file:   clocked_input.pio
+;* \author: AmeNote Inc, Michael Loh
+;* \brief:  PIO for use as A2B Sub node (SPI Slave) on the MIDI2A2B board.
+;*
+;*=============================================================================
+;*/
+
+;
+; Copyright (c) 2022 AmeNote Inc.
+;
+
+.program clocked_input
+
+; SPI Mode 3 Slave
+; When data available to transfer, will wait for CSn to assert low and start to
+; transfer the data. This works with fixed sizes only.
+;
+
+; Defines of pin positions for ProtoZOA
+;.define public PIO_SPI_SCK_PIN 20
+;.define public PIO_SPI_CSN_PIN 22
+
+; Defines of pin positions for MIDI2A2B
+.define public PIO_SPI_SCK_PIN 15
+.define public PIO_SPI_CSN_PIN 14
+
+
+.wrap_target
+    pull block                      ; wait until data to transmit indicating that
+                                    ; dma transfer started
+    wait 1 gpio PIO_SPI_CSN_PIN     ; do not want to start transferring data in
+                                    ; middle of a transaction from main
+    wait 0 gpio PIO_SPI_CSN_PIN     ; wait for CSn low
+    wait 1 gpio PIO_SPI_SCK_PIN     ; wait for correct state of SCK pin NEEDED?
+bitloop:
+    wait 0 gpio PIO_SPI_SCK_PIN     ; wait for first clock
+    out pins, 1                     ; provide first bit on MISO
+    wait 1 gpio PIO_SPI_SCK_PIN     ; wait for sampling edge on clock
+    in pins, 1                      ; sample input data MOSI
+    jmp !OSRE bitloop               ; if there is still data to process, loop back
+                                    ; for another bit
+                                    ; data transferred, wait for next CSn
+
+% c-sdk {
+static inline void clocked_input_program_init(PIO pio, uint sm, uint offset, uint mosiPin, uint sckPin, uint csnPin, uint misoPin) {
+    pio_sm_config c = clocked_input_program_get_default_config(offset);
+
+    // Set the In base
+    sm_config_set_out_pins(&c, misoPin, 1);
+    sm_config_set_in_pins(&c, mosiPin);
+
+    // Shifting to left matches the customary MSB-first ordering of SPI.
+    sm_config_set_out_shift( &c, false, true, 8 );
+    sm_config_set_in_shift( &c, false, true, 8 );
+    sm_config_set_clkdiv(&c, 1); // run SM as fast as we can
+
+    // Determine and set pin directions
+    pio_sm_set_pins_with_mask(pio, sm, (1u<<misoPin), (1u<<misoPin));
+    uint32_t pin_dirs = (1u<<misoPin); // bit 0-in, 1-out
+    uint32_t pin_mask = (1u<<mosiPin) | (1u<<sckPin) | (1u<<csnPin) | (1u<<misoPin);
+    pio_sm_set_pindirs_with_mask(pio, sm, pin_dirs, pin_mask);
+
+    // Connect these GPIOs to this PIO block
+    pio_gpio_init(pio, mosiPin);
+    pio_gpio_init(pio, sckPin);
+    pio_gpio_init(pio, csnPin);
+    pio_gpio_init(pio, misoPin);
+
+    // Load our configuration, and start the program from the beginning
+    pio_sm_init(pio, sm, offset, &c);
+    pio_sm_set_enabled(pio, sm, true);
+}
+%}

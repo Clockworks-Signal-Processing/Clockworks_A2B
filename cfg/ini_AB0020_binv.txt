@@ -1,0 +1,13 @@
+%enDbg
+configType 2
+streamByConnection 1
+globalMute 0
+ignoreEEPROM 0
+filePath 12ch_evm_12bb_autoconfig.dat
+autoApply 1
+start
+print AB0020 main board: built-in bus config (ADAU1761 0x39, EEPROM 0x50)
+print Connect the required nodes
+print Press 'Enter' after all nodes are discovered
+wait
+getNwInfo

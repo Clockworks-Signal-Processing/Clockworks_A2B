@@ -1,0 +1,13 @@
+%enDbg
+configType 0
+streamByConnection 1
+globalMute 0
+ignoreEEPROM 0
+autoApply 1
+xcvrBInv 0 1
+start
+print AB0020 main board: built-in bus config (ADAU1761 0x39, EEPROM 0x50)
+print Connect the required nodes
+print Press 'Enter' after all nodes are discovered
+wait
+getNwInfo

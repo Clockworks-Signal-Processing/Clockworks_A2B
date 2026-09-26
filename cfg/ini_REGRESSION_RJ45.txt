@@ -1,0 +1,33 @@
+%enDbg
+configType 2
+streamByConnection 1
+globalMute 0
+ignoreEEPROM 0
+autoApply 1
+test 1
+filePath adi_a2b_system_autoconfig_RJ45.dat
+start
+print Connect the required nodes 
+print Press 'Enter' after all nodes are discovered 
+wait
+getNwInfo
+getBwInfo
+getDiscTime
+addCon 0:0 1:0
+addCon -1:0 0:0
+applyRouting
+rdm 10
+rdm 11
+rdm 7C
+rds 2 0B
+rds 2 0C
+rds 2 0D
+rds 2 0E
+rds 2 60
+rds 2 65
+clearAllCon
+getNodePwrInfo
+getNodeInfo
+quit
+
+

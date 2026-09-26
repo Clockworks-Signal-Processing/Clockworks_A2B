@@ -1,0 +1,69 @@
+{
+    "configurations": [
+        {
+            "name": "Pico",
+            "includePath": [
+                "${workspaceFolder}/**",
+                "${userHome}/.pico-sdk/sdk/2.0.0/**"
+            ],
+            "forcedInclude": [
+                "${userHome}/.pico-sdk/sdk/2.0.0/src/common/pico_base_headers/include/pico.h",
+                "${workspaceFolder}/build/generated/pico_base/pico/config_autogen.h"
+            ],
+            "defines": [],
+            "compilerPath": "${userHome}/.pico-sdk/toolchain/13_2_Rel1/bin/arm-none-eabi-gcc.exe",
+            "compileCommands": "${workspaceFolder}/build/compile_commands.json",
+            "cStandard": "c17",
+            "cppStandard": "c++14",
+            "intelliSenseMode": "linux-gcc-arm"
+        },
+        {
+            // 64-bit Linux / Raspberry Pi (app/linux_rpi). Select it from the status bar
+            // (configuration name, bottom right, with a C file open). Headers come from
+            // the Debian WSL distro; the gcc-cross path includes the gcc version (14).
+            "name": "Linux arm64",
+            "includePath": [
+                "${workspaceFolder}/app/linux_rpi",
+                "${workspaceFolder}/app/linux_rpi/platform",
+                "${workspaceFolder}/app/common",
+                "${workspaceFolder}/a2bpnp",
+                "${workspaceFolder}/a2bstack/a2bstack/inc",
+                "${workspaceFolder}/a2bstack/a2bstack/inc/a2b",
+                "${workspaceFolder}/a2bstack/a2bstack/src",
+                "${workspaceFolder}/a2bstack/a2bplugin-master/inc",
+                "${workspaceFolder}/a2bstack/a2bplugin-master/src",
+                "${workspaceFolder}/a2bstack/a2bplugin-slave/inc",
+                "${workspaceFolder}/a2bstack/a2bplugin-slave/src",
+                "${workspaceFolder}/a2bstack/a2bstack-protobuf/inc",
+                "${workspaceFolder}/a2bcommchannel/inc",
+                "\\\\wsl.localhost\\Debian\\usr\\lib\\gcc-cross\\aarch64-linux-gnu\\14\\include",
+                "\\\\wsl.localhost\\Debian\\usr\\aarch64-linux-gnu\\include",
+                "\\\\wsl.localhost\\Debian\\usr\\include"
+            ],
+            "defines": [
+                "A2B_STATIC_PLUGIN",
+                "A2B_LINK_STATIC=1",
+                "PB_FIELD_16BIT=1",
+                "_CRT_SECURE_NO_WARNINGS",
+                "__linux__",
+                "__gnu_linux__",
+                "__aarch64__",
+                "__LP64__"
+            ],
+            "compilerPath": "",
+            "cStandard": "gnu11",
+            "cppStandard": "gnu++17",
+            "intelliSenseMode": "linux-gcc-arm64"
+        },
+        {
+            // 64-bit Windows (app/windows). Uses the compile commands written by the
+            // Windows Debug build, so build it once ("Windows: Build (Debug)") first.
+            "name": "Windows",
+            "compileCommands": "${workspaceFolder}/app/windows/build/Debug/compile_commands.json",
+            "cStandard": "gnu11",
+            "cppStandard": "gnu++17",
+            "intelliSenseMode": "windows-gcc-x64"
+        }
+    ],
+    "version": 4
+}

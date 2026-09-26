@@ -1,0 +1,90 @@
+{
+    "cmake.options.statusBarVisibility": "hidden",
+    "cmake.options.advanced": {
+        "build": {
+            "statusBarVisibility": "hidden"
+        },
+        "launch": {
+            "statusBarVisibility": "hidden"
+        },
+        "debug": {
+            "statusBarVisibility": "hidden"
+        }
+    },
+    "cmake.configureOnEdit": false,
+    "cmake.automaticReconfigure": false,
+    "cmake.configureOnOpen": false,
+    "cmake.generator": "Ninja",
+    "cmake.cmakePath": "${userHome}/.pico-sdk/cmake/v3.28.6/bin/cmake",
+    "C_Cpp.debugShortcut": false,
+    "terminal.integrated.env.windows": {
+        "PICO_SDK_PATH": "${env:USERPROFILE}/.pico-sdk/sdk/2.0.0",
+        "PICO_TOOLCHAIN_PATH": "${env:USERPROFILE}/.pico-sdk/toolchain/13_2_Rel1",
+        "Path": "${env:USERPROFILE}/.pico-sdk/toolchain/13_2_Rel1/bin;${env:USERPROFILE}/.pico-sdk/picotool/2.0.0/picotool;${env:USERPROFILE}/.pico-sdk/cmake/v3.28.6/bin;${env:USERPROFILE}/.pico-sdk/ninja/v1.12.1;${env:PATH}"
+    },
+    "terminal.integrated.env.osx": {
+        "PICO_SDK_PATH": "${env:HOME}/.pico-sdk/sdk/2.0.0",
+        "PICO_TOOLCHAIN_PATH": "${env:HOME}/.pico-sdk/toolchain/13_2_Rel1",
+        "PATH": "${env:HOME}/.pico-sdk/toolchain/13_2_Rel1/bin:${env:HOME}/.pico-sdk/picotool/2.0.0/picotool:${env:HOME}/.pico-sdk/cmake/v3.28.6/bin:${env:HOME}/.pico-sdk/ninja/v1.12.1:${env:PATH}"
+    },
+    "terminal.integrated.env.linux": {
+        "PICO_SDK_PATH": "${env:HOME}/.pico-sdk/sdk/2.0.0",
+        "PICO_TOOLCHAIN_PATH": "${env:HOME}/.pico-sdk/toolchain/13_2_Rel1",
+        "PATH": "${env:HOME}/.pico-sdk/toolchain/13_2_Rel1/bin:${env:HOME}/.pico-sdk/picotool/2.0.0/picotool:${env:HOME}/.pico-sdk/cmake/v3.28.6/bin:${env:HOME}/.pico-sdk/ninja/v1.12.1:${env:PATH}"
+    },
+    "raspberry-pi-pico.cmakeAutoConfigure": true,
+    "raspberry-pi-pico.useCmakeTools": false,
+    "raspberry-pi-pico.cmakePath": "${HOME}/.pico-sdk/cmake/v3.28.6/bin/cmake",
+    "raspberry-pi-pico.ninjaPath": "${HOME}/.pico-sdk/ninja/v1.12.1/ninja",
+    "raspberry-pi-pico.python3Path": "${HOME}/.pico-sdk/python/3.12.1/python.exe",
+    // The Raspberry Pi's address and user ("a2b.piHost", "a2b.piUser") differ from PC to
+    // PC, so they go in each PC's VS Code User settings, not here: a value here would
+    // override them.
+    // Startup script (in cfg\) for the Windows app, used by "Windows Debug" and
+    // "Windows: Release (run)". ini_AB0020.txt: Clockworks AB0020, compiled-in config.
+    "a2b.windowsStartupScript": "ini_AB0020.txt",
+    // The A2B sidebar menu (tools/vscode-a2b-menu): per target, what Clean / Build /
+    // Debug / Release run. "task:<label>" runs a task from tasks.json; "launch:<name>"
+    // starts a launch.json configuration. Items whose task or configuration doesn't
+    // exist yet show as "not set up yet".
+    "a2b.menu": [
+        {
+            "target": "RP2040",
+            "items": {
+                "Clean": "task:RP2040: Clean",
+                "Build": "task:RP2040: Build (Debug)",
+                "Debug": "launch:Pico Debug (Cortex-Debug)",
+                "Release": "task:RP2040: Release (load and run)"
+            }
+        },
+        {
+            "target": "Raspberry Pi (Linux arm64)",
+            "items": {
+                "Clean": "task:Linux arm64: Clean",
+                "Build": "task:Linux arm64: Build (Debug)",
+                "Debug": "launch:Pi Debug (gdbserver, arm64)",
+                "Release": "task:Linux arm64: Release (deploy and run)"
+            }
+        },
+        {
+            "target": "Windows",
+            "items": {
+                "Clean": "task:Windows: Clean",
+                "Build": "task:Windows: Build (Debug)",
+                "Debug": "launch:Windows Debug",
+                "Release": "task:Windows: Release (run)"
+            }
+        }
+    ],
+    // Lines of history kept per terminal (VS Code's default is 1000). Pi runs are also
+    // logged to ~/a2b_pnp.log on the Pi; "Linux arm64: Get log from Pi" copies it here.
+    "terminal.integrated.scrollback": 100000,
+    "files.associations": {
+        "a2bapp_defs.h": "c",
+        "cmd_platform.h": "c",
+        "a2bpnp.h": "c",
+        "a2bapp_rp2040.h": "c",
+        "a2bapp_common.h": "c",
+        "adi_a2b_externs.h": "c"
+    }
+}

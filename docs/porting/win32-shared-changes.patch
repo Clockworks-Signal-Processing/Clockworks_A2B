@@ -1,0 +1,94 @@
+# Windows (win32) changes to SHARED files, relative to ADI A2B PnP 1.3.0.
+# Source: D:\Projects\A2BPnP-win32\Target\software (last built 2025-01-15).
+# These were NOT applied to the shared code in this repo (the shared code is the
+# RP2040 'lappy' version). Reconcile them when porting win32 to the shared core.
+#   a/ = ADI 1.3.0 release    b/ = Windows copy
+
+diff --git a/a2bpnp/a2bpnp_calc.c b/a2bpnp/a2bpnp_calc.c
+index 39e590b..f2fff83 100644
+--- a/a2bpnp/a2bpnp_calc.c
++++ b/a2bpnp/a2bpnp_calc.c
+@@ -2222,6 +2222,8 @@ a2b_UInt32 calcMstrRespCycs(a2b_App_t *pApp_Info)
+ 
+     a2b_UInt32 respCycle = (a2b_UInt32)(ceil((tmpMaxDS + tmpMinUS) / 2.0));
+ 
++	A2B_APP_DBG_LOG("\n\rRESPCYC = 0x%02x \n\r", respCycle);
++	
+     return respCycle;
+ 
+ }
+diff --git a/app/common/a2bapp_common.c b/app/common/a2bapp_common.c
+index 929882a..055970e 100644
+--- a/app/common/a2bapp_common.c
++++ b/app/common/a2bapp_common.c
+@@ -42,57 +42,47 @@ a2bpnp_MainNodeAppInfo  mainN =
+ 		.DeviceName = "MAIN",	/*Device Name*/
+ 		.nDeviceType = 2,		/*No. of device capabilities*/
+ 		.DeviceType = {AUDIO_OUT, AUDIO_IN},  /*Supported device capabilities*/
+-		.nTxGroups = 4,			/*No. of Tx groups*/
+-		.nRxGroups = 4,			/*No. of Rx groups*/
++		.nTxGroups = 3,			/*No. of Tx groups*/
++		.nRxGroups = 3,			/*No. of Rx groups*/
+ 		.TxGroups = {{			/*Details of Tx groups*/
+ 						.GroupID = 0,
+ 						.GroupName = "G0",
+-						.nGroupChannels = 2,
+-						.GroupChannels = {0,1}
++						.nGroupChannels = 12,
++						.GroupChannels = {0,1,2,3,4,5,6,7,8,9,10,11}
+ 					},
+ 					{			/*Details of Tx groups*/
+ 						.GroupID = 1,
+ 						.GroupName = "G1",
+ 						.nGroupChannels = 2,
+-						.GroupChannels = {2,3}
++						.GroupChannels = {12,13}
+ 					},
+ 					{	/*Details of Tx groups*/
+ 						.GroupID = 2,
+ 						.GroupName = "G2",
+ 						.nGroupChannels = 2,
+-						.GroupChannels = {4,5}
+-					},
+-					{	/*Details of Tx groups*/
+-						.GroupID = 3,
+-						.GroupName = "G3",
+-						.nGroupChannels = 2,
+-						.GroupChannels = {6,7}
+-					},
++						.GroupChannels = {14,15}
++					}
++
+ 					},
+ 		.RxGroups = {{			/*Details of Rx groups*/
+ 						.GroupID = 0,
+ 						.GroupName = "G0",
+-						.nGroupChannels = 2,
+-						.GroupChannels = {0,1}
++						.nGroupChannels = 12,
++						.GroupChannels = {0,1,2,3,4,5,6,7,8,9,10,11}
+ 					},
+ 					{			/*Details of Rx groups*/
+ 						.GroupID = 1,
+ 						.GroupName = "G1",
+ 						.nGroupChannels = 2,
+-						.GroupChannels = {2,3}
++						.GroupChannels = {12,13}
+ 					},
+ 					{			/*Details of Rx groups*/
+ 						.GroupID = 2,
+ 						.GroupName = "G2",
+ 						.nGroupChannels = 2,
+-						.GroupChannels = {4,5}
++						.GroupChannels = {14,15}
++					}
+ 					},
+-					{			/*Details of Rx groups*/
+-						.GroupID = 3,
+-						.GroupName = "G3",
+-						.nGroupChannels = 2,
+-						.GroupChannels = {6,7}
+-					}},
+ 		.dtEnabled = true,		/*Data Tunnel ON/OFF*/
+ };
+ 

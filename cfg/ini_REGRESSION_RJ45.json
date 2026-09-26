@@ -1,0 +1,156 @@
+{
+  "commands": [
+    {
+      "name": "getBw",
+      "features": [
+        {
+          "BWValue": 30
+        },
+        {
+          "MaxBWNode": 3
+        }
+      ]
+    },
+    {
+      "name": "getNwInfo",
+      "features": [
+        {
+          "nNodes": 4
+        },
+        {
+          "nStreams": 3
+        },
+		{
+          "DataTunnel": 1
+        }
+      ]
+    },
+    {
+      "name": "clearAllCon",
+      "features": [
+        {
+          "nStreams": 0
+        }
+      ]
+    },
+	{
+      "name": "clearStream",
+      "features": [
+        {
+          "nStreams": 0
+        }
+      ]
+    },
+    {
+      "name": "getDiscTime",
+      "features": [
+        {
+          "discTime": 8
+        }
+      ]
+    },
+	{
+      "name": "getNodeInfo",
+      "features": [
+        {
+          "nTxGroups": 2
+        },
+        {
+          "nRxGroups": 2
+        },
+        {
+          "dtRole": 0
+        },
+        {
+          "swVersion": "1.4.0"
+        }		
+      ]
+    },
+    {
+      "name": "getNodePwrInfo",
+      "features": [
+        {
+          "maxPwr": 0
+        },
+        {
+          "minPwr": 0
+        }
+      ]
+    },
+    {
+      "name": "addTunnel",
+      "features": [
+        {
+          "nDTStream": 1
+        }
+      ]
+    },
+    {
+      "name": "removeTunnel",
+      "features": [
+        {
+          "nDTStream": 0
+        }
+      ]
+    },
+    {
+      "name": "rdm",
+	  "address": [
+		{
+			"reg":"10",
+			"value": 0
+		},
+		{
+			"reg":"11",
+			"value": 0
+		},
+		{
+			"reg":"12",
+			"value": 0
+		},
+		{
+			"reg":"7C",
+			"value": 0
+		},
+		{
+			"reg":"0D",
+			"value": 0
+		},
+		{
+			"reg":"0E",
+			"value": 0
+		}
+	  ]
+    },
+	{
+      "name": "rds",
+	  "node": 2,
+	  "address": [
+		{
+			"reg":"0B",
+			"value": 0
+		},
+		{
+			"reg":"0C",
+			"value": 0
+		},
+		{
+			"reg":"0D",
+			"value": 0
+		},
+		{
+			"reg":"0E",
+			"value": 0
+		},
+		{
+			"reg":"60",
+			"value": 0
+		},
+		{
+			"reg":"65",
+			"value": 0
+		}
+	  ]
+    }	
+  ]
+}

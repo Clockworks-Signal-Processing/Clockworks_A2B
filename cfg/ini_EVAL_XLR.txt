@@ -1,0 +1,20 @@
+%deepDbg
+%enDbg
+configType 2
+maxNumNodes 2
+streamByConnection 1
+globalMute 0
+ignoreEEPROM 0
+autoApply 1
+filePath adi_a2b_system_autoconfig_XLR.dat
+start
+print Connect the required nodes 
+print Press 'Enter' after all nodes are discovered 
+wait
+getNwInfo
+addCon 0:0 1:0
+addCon -1:0 0:0
+applyRouting
+help
+
+

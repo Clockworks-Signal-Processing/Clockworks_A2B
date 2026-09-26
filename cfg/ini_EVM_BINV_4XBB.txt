@@ -1,0 +1,21 @@
+ver
+enDbg
+print deepDbg is next 
+deepDbg
+configType 2
+streamByConnection 1
+globalMute 0
+ignoreEEPROM 0
+autoApply 1
+filePath evm_binv_4bb.dat
+start
+print Connect the required nodes 
+print Press 'Enter' after all nodes are discovered 
+wait
+getNwInfo
+addCon -1:0 0:0
+addCon 0:0 1:0
+applyRouting
+help
+
+

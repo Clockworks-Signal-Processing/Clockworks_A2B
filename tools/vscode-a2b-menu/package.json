@@ -1,0 +1,124 @@
+{
+    "name": "a2b-menu",
+    "displayName": "A2B Menu",
+    "description": "Sidebar menu for the A2B_PnP project: Clean, Build, Debug and Release for each target.",
+    "version": "0.5.0",
+    "publisher": "clockworks",
+    "private": true,
+    "license": "UNLICENSED",
+    "engines": {
+        "vscode": "^1.80.0"
+    },
+    "categories": [
+        "Other"
+    ],
+    "main": "./extension.js",
+    "activationEvents": [
+        "onStartupFinished"
+    ],
+    "contributes": {
+        "viewsContainers": {
+            "activitybar": [
+                {
+                    "id": "a2b",
+                    "title": "A2B",
+                    "icon": "media/a2b.svg"
+                }
+            ]
+        },
+        "views": {
+            "a2b": [
+                {
+                    "id": "a2bTargets",
+                    "name": "Targets",
+                    "when": "a2bMenu.hasMenu"
+                }
+            ]
+        },
+        "commands": [
+            {
+                "command": "a2bMenu.refresh",
+                "title": "Refresh",
+                "category": "A2B",
+                "icon": "$(refresh)"
+            },
+            {
+                "command": "a2bMenu.run",
+                "title": "Run Menu Item",
+                "category": "A2B"
+            },
+            {
+                "command": "a2bMenu.stopAll",
+                "title": "Stop All Debug Sessions and Tasks",
+                "category": "A2B",
+                "icon": "$(debug-stop)"
+            }
+        ],
+        "menus": {
+            "view/title": [
+                {
+                    "command": "a2bMenu.stopAll",
+                    "when": "view == a2bTargets",
+                    "group": "navigation@1"
+                },
+                {
+                    "command": "a2bMenu.refresh",
+                    "when": "view == a2bTargets",
+                    "group": "navigation@2"
+                }
+            ],
+            "commandPalette": [
+                {
+                    "command": "a2bMenu.run",
+                    "when": "false"
+                }
+            ]
+        },
+        "configuration": {
+            "title": "A2B",
+            "properties": {
+                "a2b.menu": {
+                    "type": "array",
+                    "default": [],
+                    "description": "Sidebar menu sections. Each item value is \"task:<task label>\" or \"launch:<launch configuration name>\".",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "target": {
+                                "type": "string",
+                                "description": "Section heading."
+                            },
+                            "items": {
+                                "type": "object",
+                                "description": "Clean / Build / Debug / Release (or other names) mapped to \"task:...\" or \"launch:...\".",
+                                "additionalProperties": {
+                                    "type": "string"
+                                }
+                            }
+                        }
+                    }
+                },
+                "a2b.piHost": {
+                    "type": "string",
+                    "default": "",
+                    "description": "Raspberry Pi address, used by the Linux arm64 tasks and the Pi Debug launch configuration. It differs from PC to PC, so set it in your User settings."
+                },
+                "a2b.piUser": {
+                    "type": "string",
+                    "default": "",
+                    "description": "User name on the Raspberry Pi. Set it in your User settings, like a2b.piHost."
+                },
+                "a2b.windowsStartupScript": {
+                    "type": "string",
+                    "default": "ini_EVAL_RJ45.txt",
+                    "description": "Startup script (a file in cfg\\) the Windows app runs, passed by the Windows Debug launch configuration and the Windows: Release (run) task."
+                },
+                "a2b.msys2Root": {
+                    "type": "string",
+                    "default": "C:/msys64",
+                    "description": "MSYS2 installation folder, used by the Windows build tasks and the Windows Debug launch configuration (UCRT64 tools in <this>/ucrt64/bin)."
+                }
+            }
+        }
+    }
+}

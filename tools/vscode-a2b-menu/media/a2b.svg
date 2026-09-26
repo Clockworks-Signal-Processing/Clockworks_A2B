@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#C5C5C5" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+  <!-- main node (square) daisy-chained to two sub-nodes (circles) -->
+  <rect x="1.75" y="8.75" width="6.5" height="6.5" rx="1"/>
+  <circle cx="13.5" cy="12" r="2.5"/>
+  <circle cx="20.25" cy="12" r="2.5"/>
+  <path d="M8.25 12H11M16 12h1.75"/>
+</svg>

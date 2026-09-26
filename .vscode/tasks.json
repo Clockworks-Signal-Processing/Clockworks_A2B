@@ -1,0 +1,398 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "Compile Project",
+            "type": "process",
+            "isBuildCommand": true,
+            "command": "${userHome}/.pico-sdk/ninja/v1.12.1/ninja",
+            "args": ["-C", "${workspaceFolder}/build"],
+            "group": "build",
+            "presentation": {
+                "reveal": "always",
+                "panel": "dedicated"
+            },
+            "problemMatcher": "$gcc",
+            "windows": {
+                "command": "${env:USERPROFILE}/.pico-sdk/ninja/v1.12.1/ninja.exe"
+            }
+        },
+        {
+            "label": "Run Project",
+            "type": "process",
+            "command": "${env:HOME}/.pico-sdk/picotool/2.0.0/picotool/picotool",
+            "args": [
+                "load",
+                "${command:raspberry-pi-pico.launchTargetPath}",
+                "-fx"
+            ],
+            "presentation": {
+                "reveal": "always",
+                "panel": "dedicated"
+            },
+            "problemMatcher": [],
+            "windows": {
+                "command": "${env:USERPROFILE}/.pico-sdk/picotool/2.0.0/picotool/picotool.exe"
+            }
+        },
+        {
+            "label": "Flash",
+            "type": "process",
+            "command": "${userHome}/.pico-sdk/openocd/0.12.0+dev/openocd.exe",
+            "args": [
+                "-s",
+                "${env:USERPROFILE}/.pico-sdk/openocd/0.12.0+dev/scripts",
+                "-f",
+                "interface/cmsis-dap.cfg",
+                "-f",
+                "target/${command:raspberry-pi-pico.getTarget}.cfg",
+                "-c",
+                "adapter speed 5000; program \"${command:raspberry-pi-pico.launchTargetPath}\" verify reset exit"
+            ],
+            "problemMatcher": [],
+            "windows": {
+                "command": "${env:USERPROFILE}/.pico-sdk/openocd/0.12.0+dev/openocd.exe",
+            }
+        },
+        // -------------------------------------------------------------------
+        // RP2040: Debug build in build/, Release build in build_release/ (the A2B menu
+        // uses these). build/ is also the Pico extension's folder: its Compile Project,
+        // Run Project and Flash tasks and the "Pico Debug" launch configurations use it.
+        // -------------------------------------------------------------------
+        {
+            "label": "RP2040: Clean",
+            "type": "process",
+            "command": "${env:USERPROFILE}/.pico-sdk/cmake/v3.28.6/bin/cmake.exe",
+            "args": ["-E", "rm", "-rf", "build", "build_release"],
+            "options": { "cwd": "${workspaceFolder}" },
+            "presentation": { "reveal": "always", "panel": "shared" },
+            "problemMatcher": []
+        },
+        {
+            "label": "RP2040: Configure (Debug)",
+            "hide": true,
+            "type": "process",
+            "command": "${env:USERPROFILE}/.pico-sdk/cmake/v3.28.6/bin/cmake.exe",
+            "args": [
+                "-S", ".", "-B", "build", "-G", "Ninja", "-DCMAKE_BUILD_TYPE=Debug",
+                "-DCMAKE_MAKE_PROGRAM=${env:USERPROFILE}/.pico-sdk/ninja/v1.12.1/ninja.exe"
+            ],
+            "options": { "cwd": "${workspaceFolder}" },
+            "presentation": { "reveal": "always", "panel": "shared" },
+            "problemMatcher": []
+        },
+        {
+            "label": "RP2040: Build (Debug)",
+            "type": "process",
+            "command": "${env:USERPROFILE}/.pico-sdk/cmake/v3.28.6/bin/cmake.exe",
+            "args": ["--build", "build"],
+            "options": { "cwd": "${workspaceFolder}" },
+            "dependsOn": "RP2040: Configure (Debug)",
+            "group": "build",
+            "presentation": { "reveal": "always", "panel": "shared" },
+            "problemMatcher": {
+                "base": "$gcc",
+                "fileLocation": ["autoDetect", "${workspaceFolder}"]
+            }
+        },
+        {
+            "label": "RP2040: Configure (Release)",
+            "hide": true,
+            "type": "process",
+            "command": "${env:USERPROFILE}/.pico-sdk/cmake/v3.28.6/bin/cmake.exe",
+            "args": [
+                "-S", ".", "-B", "build_release", "-G", "Ninja", "-DCMAKE_BUILD_TYPE=Release",
+                "-DCMAKE_MAKE_PROGRAM=${env:USERPROFILE}/.pico-sdk/ninja/v1.12.1/ninja.exe"
+            ],
+            "options": { "cwd": "${workspaceFolder}" },
+            "presentation": { "reveal": "always", "panel": "shared" },
+            "problemMatcher": []
+        },
+        {
+            "label": "RP2040: Build (Release)",
+            "type": "process",
+            "command": "${env:USERPROFILE}/.pico-sdk/cmake/v3.28.6/bin/cmake.exe",
+            "args": ["--build", "build_release"],
+            "options": { "cwd": "${workspaceFolder}" },
+            "dependsOn": "RP2040: Configure (Release)",
+            "group": "build",
+            "presentation": { "reveal": "always", "panel": "shared" },
+            "problemMatcher": {
+                "base": "$gcc",
+                "fileLocation": ["autoDetect", "${workspaceFolder}"]
+            }
+        },
+        {
+            // Builds Release, then programs it through the debug probe (CMSIS-DAP) and
+            // restarts the board. Program output: the Pico's USB serial port.
+            "label": "RP2040: Release (load and run)",
+            "type": "process",
+            "command": "${env:USERPROFILE}/.pico-sdk/openocd/0.12.0+dev/openocd.exe",
+            "args": [
+                "-s", "${env:USERPROFILE}/.pico-sdk/openocd/0.12.0+dev/scripts",
+                "-f", "interface/cmsis-dap.cfg",
+                "-f", "target/${command:raspberry-pi-pico.getTarget}.cfg",
+                "-c", "adapter speed 5000; program build_release/A2B_PnP_RP2040.elf verify reset exit"
+            ],
+            "options": { "cwd": "${workspaceFolder}" },
+            "dependsOn": "RP2040: Build (Release)",
+            "presentation": { "reveal": "always", "panel": "shared" },
+            "problemMatcher": []
+        },
+        // -------------------------------------------------------------------
+        // Linux / Raspberry Pi (64-bit arm64) — built in the Debian WSL distro by
+        // app/linux_rpi/build.sh. See app/linux_rpi/README.md for the one-time setup.
+        // Every ssh/scp gives up after 5 s if the Pi can't be reached, and ends about
+        // 15 s after the Pi stops answering (e.g. power-cycled), so no task hangs.
+        // -------------------------------------------------------------------
+        {
+            "label": "Linux arm64: Clean",
+            "type": "process",
+            "command": "wsl.exe",
+            "args": [
+                "-d", "Debian", "--cd", "${workspaceFolder}", "--exec",
+                "bash", "app/linux_rpi/build.sh", "clean"
+            ],
+            "presentation": {
+                "reveal": "always",
+                "panel": "dedicated"
+            },
+            "problemMatcher": []
+        },
+        {
+            "label": "Linux arm64: Build (Debug)",
+            "type": "process",
+            "command": "wsl.exe",
+            "args": [
+                "-d", "Debian", "--cd", "${workspaceFolder}", "--exec",
+                "bash", "app/linux_rpi/build.sh", "Debug"
+            ],
+            "group": "build",
+            "presentation": {
+                "reveal": "always",
+                "panel": "dedicated"
+            },
+            "problemMatcher": {
+                "base": "$gcc",
+                "fileLocation": "absolute"
+            }
+        },
+        {
+            // Stops a2b_pnp / gdbserver on the Pi, so a new copy can be deployed.
+            "label": "Linux arm64: Stop on Pi",
+            "type": "process",
+            "command": "ssh",
+            "args": [
+                "-o", "ConnectTimeout=5", "-o", "ServerAliveInterval=5", "-o", "ServerAliveCountMax=3",
+                "${config:a2b.piUser}@${config:a2b.piHost}",
+                "pkill -x gdbserver; pkill -x a2b_pnp; exit 0"
+            ],
+            "presentation": {
+                "reveal": "always",
+                "panel": "dedicated"
+            },
+            "problemMatcher": []
+        },
+        {
+            // Pi address and user: "a2b.piHost" / "a2b.piUser" in each PC's VS Code User settings.
+            "label": "Linux arm64: Deploy to Pi",
+            "type": "process",
+            "command": "scp",
+            "args": [
+                "-o", "ConnectTimeout=5", "-o", "ServerAliveInterval=5", "-o", "ServerAliveCountMax=3",
+                "${workspaceFolder}/app/linux_rpi/build/a2b_pnp",
+                "${config:a2b.piUser}@${config:a2b.piHost}:a2b_pnp"
+            ],
+            "dependsOn": ["Linux arm64: Build (Debug)", "Linux arm64: Stop on Pi"],
+            "dependsOrder": "sequence",
+            "presentation": {
+                "reveal": "always",
+                "panel": "dedicated"
+            },
+            "problemMatcher": []
+        },
+        {
+            "label": "Linux arm64: Run on Pi",
+            "type": "process",
+            "command": "ssh",
+            "args": [
+                "-o", "ConnectTimeout=5", "-o", "ServerAliveInterval=5", "-o", "ServerAliveCountMax=3",
+                "-t",
+                "${config:a2b.piUser}@${config:a2b.piHost}",
+                "chmod +x ./a2b_pnp && stdbuf -oL ./a2b_pnp 2>&1 | tee a2b_pnp.log"
+            ],
+            "presentation": {
+                "reveal": "always",
+                "panel": "dedicated",
+                "focus": true
+            },
+            "problemMatcher": []
+        },
+        {
+            "label": "Linux arm64: Build (Release)",
+            "type": "process",
+            "command": "wsl.exe",
+            "args": [
+                "-d", "Debian", "--cd", "${workspaceFolder}", "--exec",
+                "bash", "app/linux_rpi/build.sh", "Release"
+            ],
+            "group": "build",
+            "presentation": {
+                "reveal": "always",
+                "panel": "dedicated"
+            },
+            "problemMatcher": {
+                "base": "$gcc",
+                "fileLocation": "absolute"
+            }
+        },
+        {
+            // Same place on the Pi (~/a2b_pnp) as the Debug build.
+            "label": "Linux arm64: Deploy Release to Pi",
+            "type": "process",
+            "command": "scp",
+            "args": [
+                "-o", "ConnectTimeout=5", "-o", "ServerAliveInterval=5", "-o", "ServerAliveCountMax=3",
+                "${workspaceFolder}/app/linux_rpi/build/release/a2b_pnp",
+                "${config:a2b.piUser}@${config:a2b.piHost}:a2b_pnp"
+            ],
+            "dependsOn": ["Linux arm64: Build (Release)", "Linux arm64: Stop on Pi"],
+            "dependsOrder": "sequence",
+            "presentation": {
+                "reveal": "always",
+                "panel": "dedicated"
+            },
+            "problemMatcher": []
+        },
+        {
+            "label": "Linux arm64: Release (deploy and run)",
+            "type": "process",
+            "command": "ssh",
+            "args": [
+                "-o", "ConnectTimeout=5", "-o", "ServerAliveInterval=5", "-o", "ServerAliveCountMax=3",
+                "-t",
+                "${config:a2b.piUser}@${config:a2b.piHost}",
+                "chmod +x ./a2b_pnp && stdbuf -oL ./a2b_pnp 2>&1 | tee a2b_pnp.log"
+            ],
+            "dependsOn": "Linux arm64: Deploy Release to Pi",
+            "presentation": {
+                "reveal": "always",
+                "panel": "dedicated",
+                "focus": true
+            },
+            "problemMatcher": []
+        },
+        {
+            // Used by the "Pi Debug (gdbserver)" launch configuration: builds, deploys,
+            // then starts gdbserver on port 2345. The program's own output appears in
+            // this task's terminal. Needs gdbserver on the Pi (sudo apt install gdbserver).
+            // No -t: a pseudo-terminal would break the "Listening on port" match below.
+            "label": "Linux arm64: Start gdbserver on Pi",
+            "type": "process",
+            "command": "ssh",
+            "args": [
+                "-o", "ConnectTimeout=5", "-o", "ServerAliveInterval=5", "-o", "ServerAliveCountMax=3",
+                "${config:a2b.piUser}@${config:a2b.piHost}",
+                "command -v gdbserver >/dev/null || { echo 'gdbserver is not installed on the Pi. Install it there with: sudo apt install gdbserver'; exit 1; }; chmod +x ./a2b_pnp && stdbuf -oL gdbserver :2345 ./a2b_pnp 2>&1 | tee a2b_pnp.log"
+            ],
+            "dependsOn": "Linux arm64: Deploy to Pi",
+            "isBackground": true,
+            "presentation": {
+                "reveal": "always",
+                "panel": "dedicated"
+            },
+            "problemMatcher": {
+                // Never matches a problem; only the background begin/end patterns matter.
+                "pattern": {
+                    "regexp": "^(NOMATCH)(.*)$",
+                    "file": 1,
+                    "message": 2
+                },
+                "background": {
+                    "activeOnStart": true,
+                    "beginsPattern": "^Process .* created",
+                    "endsPattern": "^Listening on port"
+                }
+            }
+        },
+        {
+            // Copies the Pi's ~/a2b_pnp.log (output of the last Run or debug session)
+            // to app/linux_rpi/build/a2b_pnp.log, to open in VS Code.
+            "label": "Linux arm64: Get log from Pi",
+            "type": "process",
+            "command": "scp",
+            "args": [
+                "-o", "ConnectTimeout=5", "-o", "ServerAliveInterval=5", "-o", "ServerAliveCountMax=3",
+                "${config:a2b.piUser}@${config:a2b.piHost}:a2b_pnp.log",
+                "${workspaceFolder}/app/linux_rpi/build/a2b_pnp.log"
+            ],
+            "presentation": {
+                "reveal": "silent",
+                "panel": "dedicated"
+            },
+            "problemMatcher": []
+        },
+        // -------------------------------------------------------------------
+        // Windows (64-bit, MSYS2 UCRT64) — built by app/windows/build.ps1 into
+        // app/windows/build/<Debug|Release>. MSYS2's location is "a2b.msys2Root"
+        // (default C:/msys64; set it in your VS Code user settings if different).
+        // The program runs in app/windows/build: its default paths to cfg\ are ..\..\..\cfg.
+        // -------------------------------------------------------------------
+        {
+            "label": "Windows: Clean",
+            "type": "process",
+            "command": "powershell.exe",
+            "args": [
+                "-NoProfile", "-ExecutionPolicy", "Bypass",
+                "-File", "${workspaceFolder}/app/windows/build.ps1", "clean"
+            ],
+            "presentation": { "reveal": "always", "panel": "shared" },
+            "problemMatcher": []
+        },
+        {
+            "label": "Windows: Build (Debug)",
+            "type": "process",
+            "command": "powershell.exe",
+            "args": [
+                "-NoProfile", "-ExecutionPolicy", "Bypass",
+                "-File", "${workspaceFolder}/app/windows/build.ps1", "Debug",
+                "-Msys2Root", "${config:a2b.msys2Root}"
+            ],
+            "group": "build",
+            "presentation": { "reveal": "always", "panel": "shared" },
+            "problemMatcher": {
+                "base": "$gcc",
+                "fileLocation": ["autoDetect", "${workspaceFolder}"]
+            }
+        },
+        {
+            "label": "Windows: Build (Release)",
+            "type": "process",
+            "command": "powershell.exe",
+            "args": [
+                "-NoProfile", "-ExecutionPolicy", "Bypass",
+                "-File", "${workspaceFolder}/app/windows/build.ps1", "Release",
+                "-Msys2Root", "${config:a2b.msys2Root}"
+            ],
+            "group": "build",
+            "presentation": { "reveal": "always", "panel": "shared" },
+            "problemMatcher": {
+                "base": "$gcc",
+                "fileLocation": ["autoDetect", "${workspaceFolder}"]
+            }
+        },
+        {
+            // Builds Release, then runs it in this terminal (type commands at the A2B> prompt;
+            // "quit" or Ctrl+C ends it). The USBi needs the WinUSB driver (see README.md).
+            "label": "Windows: Release (run)",
+            "type": "process",
+            "command": "${workspaceFolder}/app/windows/build/Release/a2b_pnp.exe",
+            // Startup script in cfg\: "a2b.windowsStartupScript" in .vscode/settings.json
+            "args": ["${config:a2b.windowsStartupScript}"],
+            "options": { "cwd": "${workspaceFolder}/app/windows/build" },
+            "dependsOn": "Windows: Build (Release)",
+            "presentation": { "reveal": "always", "panel": "dedicated", "focus": true },
+            "problemMatcher": []
+        }
+    ]
+}
