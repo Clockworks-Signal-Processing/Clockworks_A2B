@@ -1,0 +1,31 @@
+# Build output
+build/
+build_*/
+bin/
+*.uf2
+*.elf
+*.bin
+*.dis
+*.map
+*.hex
+*.o
+*.obj
+*.a
+*.lib
+*.dll
+*.exe
+
+# Editor / tool state
+.vscode/.cortex-debug.*.state.json
+.claude/
+*.orig
+*.bak
+
+# Written by the console app on quit (exported connections), read back at start
+cfg/connection.json
+
+# Python bytecode (a2bcpp/tools)
+__pycache__/
+
+# SS+ crud
+Settings/

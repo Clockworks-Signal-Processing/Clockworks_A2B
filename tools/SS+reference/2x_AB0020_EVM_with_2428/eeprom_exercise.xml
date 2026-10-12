@@ -1,0 +1,29 @@
+<?xml version="1.0" standalone="no"?>
+<ROM>
+  <page modetype="Mode 0">
+    <action instr="writeXbytes" addr_width="2" data_width="1" len="3" addr="0" i2caddr="80" AddrIncr="0" CellName="EEPROM1" ParamName="Peripheral Register">00</action>
+	<action instr="delay" ParamName="Delay">00FF</action>
+	<action instr="writeXbytes" addr_width="2" data_width="1" len="3" addr="1" i2caddr="80" AddrIncr="0" CellName="EEPROM1" ParamName="Peripheral Register">00</action>
+	<action instr="delay" ParamName="Delay">00FF</action>
+	<action instr="writeXbytes" addr_width="2" data_width="1" len="3" addr="2" i2caddr="80" AddrIncr="0" CellName="EEPROM1" ParamName="Peripheral Register">00</action>
+	<action instr="delay" ParamName="Delay">00FF</action>
+	<action instr="writeXbytes" addr_width="2" data_width="1" len="3" addr="3" i2caddr="80" AddrIncr="0" CellName="EEPROM1" ParamName="Peripheral Register">00</action>
+    <action instr="delay" ParamName="Delay">00FF</action>
+	<action instr="read" addr_width="2" data_width="1" len="3" addr="0" i2caddr="80" AddrIncr="0" CellName="EEPROM1" ParamName="Peripheral Register" />
+    <action instr="read" addr_width="2" data_width="1" len="3" addr="1" i2caddr="80" AddrIncr="0" CellName="EEPROM1" ParamName="Peripheral Register" />
+    <action instr="read" addr_width="2" data_width="1" len="3" addr="2" i2caddr="80" AddrIncr="0" CellName="EEPROM1" ParamName="Peripheral Register" />
+    <action instr="read" addr_width="2" data_width="1" len="3" addr="3" i2caddr="80" AddrIncr="0" CellName="EEPROM1" ParamName="Peripheral Register" />
+    <action instr="writeXbytes" addr_width="2" data_width="1" len="3" addr="0" i2caddr="80" AddrIncr="0" CellName="EEPROM1" ParamName="Peripheral Register">FF</action>
+	<action instr="delay" ParamName="Delay">00FF</action>
+	<action instr="writeXbytes" addr_width="2" data_width="1" len="3" addr="1" i2caddr="80" AddrIncr="0" CellName="EEPROM1" ParamName="Peripheral Register">FE</action>
+    <action instr="delay" ParamName="Delay">00FF</action>
+	<action instr="writeXbytes" addr_width="2" data_width="1" len="3" addr="2" i2caddr="80" AddrIncr="0" CellName="EEPROM1" ParamName="Peripheral Register">0D</action>
+    <action instr="delay" ParamName="Delay">00FF</action>
+	<action instr="writeXbytes" addr_width="2" data_width="1" len="3" addr="3" i2caddr="80" AddrIncr="0" CellName="EEPROM1" ParamName="Peripheral Register">0C</action>
+    <action instr="delay" ParamName="Delay">00FF</action>
+	<action instr="read" addr_width="2" data_width="1" len="3" addr="0" i2caddr="80" AddrIncr="0" CellName="EEPROM1" ParamName="Peripheral Register" />
+    <action instr="read" addr_width="2" data_width="1" len="3" addr="1" i2caddr="80" AddrIncr="0" CellName="EEPROM1" ParamName="Peripheral Register" />
+    <action instr="read" addr_width="2" data_width="1" len="3" addr="2" i2caddr="80" AddrIncr="0" CellName="EEPROM1" ParamName="Peripheral Register" />
+    <action instr="read" addr_width="2" data_width="1" len="3" addr="3" i2caddr="80" AddrIncr="0" CellName="EEPROM1" ParamName="Peripheral Register" />
+  </page>
+</ROM>

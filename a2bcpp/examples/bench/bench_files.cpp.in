@@ -1,0 +1,17 @@
+/**
+ * @file bench_files.cpp
+ * @brief Files the bench console has built in as text, generated at build time
+ *        (examples/clockworks.cmake) from tools/SS+reference: the Clockworks boards'
+ *        codec programs, SigmaStudio's XML exports, read by ParseSigmaXml().
+ *
+ * ClockWorks Signal Processing LLC
+ */
+
+#include "clockworks_boards.h"
+
+namespace clockworks {
+
+// From tools/SS+reference/2x_AB0020_EVM_with_2437/AB0020-sub-node-ADAU1761.xml.
+extern const char kAb0020SubNodeProgram[] = R"A2BXML(@A2B_AB0020_SUB_NODE_XML@)A2BXML";
+
+}  // namespace clockworks

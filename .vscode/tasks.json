@@ -1,0 +1,562 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        // -------------------------------------------------------------------
+        // RP2040 fixed (a2bcpp/examples/fixed/rp2040): Debug build in build/a2b-fixed-rp2040, Release build in
+        // build/a2b-fixed-rp2040-release (the A2B menu uses these). Each configure sets the build type: the
+        // example doesn't, and the Pico SDK would default to Release.
+        // -------------------------------------------------------------------
+        {
+            "label": "RP2040 fixed: Clean",
+            "type": "process",
+            "command": "${env:USERPROFILE}/.pico-sdk/cmake/v3.28.6/bin/cmake.exe",
+            "args": ["-E", "rm", "-rf", "build/a2b-fixed-rp2040", "build/a2b-fixed-rp2040-release"],
+            "options": { "cwd": "${workspaceFolder}" },
+            "presentation": { "reveal": "always", "panel": "shared" },
+            "problemMatcher": []
+        },
+        {
+            "label": "RP2040 fixed: Configure (Debug)",
+            "hide": true,
+            "type": "process",
+            "command": "${env:USERPROFILE}/.pico-sdk/cmake/v3.28.6/bin/cmake.exe",
+            "args": [
+                "-S", "a2bcpp/examples/fixed/rp2040", "-B", "build/a2b-fixed-rp2040", "-G", "Ninja", "-DCMAKE_BUILD_TYPE=Debug",
+                "-DCMAKE_MAKE_PROGRAM=${env:USERPROFILE}/.pico-sdk/ninja/v1.12.1/ninja.exe"
+            ],
+            // The same environment as the integrated terminal's (settings.json): without
+            // it, a PICO_SDK_PATH set in the user's environment makes the example skip the
+            // extension's setup and then not find the toolchain or picotool.
+            "options": {
+                "cwd": "${workspaceFolder}",
+                "env": {
+                    "PICO_SDK_PATH": "${env:USERPROFILE}/.pico-sdk/sdk/2.0.0",
+                    "PICO_TOOLCHAIN_PATH": "${env:USERPROFILE}/.pico-sdk/toolchain/13_2_Rel1",
+                    "Path": "${env:USERPROFILE}/.pico-sdk/toolchain/13_2_Rel1/bin;${env:USERPROFILE}/.pico-sdk/picotool/2.0.0/picotool;${env:USERPROFILE}/.pico-sdk/cmake/v3.28.6/bin;${env:USERPROFILE}/.pico-sdk/ninja/v1.12.1;${env:PATH}"
+                }
+            },
+            "presentation": { "reveal": "always", "panel": "shared" },
+            "problemMatcher": []
+        },
+        {
+            "label": "RP2040 fixed: Build (Debug)",
+            "type": "process",
+            "command": "${env:USERPROFILE}/.pico-sdk/cmake/v3.28.6/bin/cmake.exe",
+            "args": ["--build", "build/a2b-fixed-rp2040"],
+            // The same environment as the integrated terminal's (settings.json): without
+            // it, a PICO_SDK_PATH set in the user's environment makes the example skip the
+            // extension's setup and then not find the toolchain or picotool.
+            "options": {
+                "cwd": "${workspaceFolder}",
+                "env": {
+                    "PICO_SDK_PATH": "${env:USERPROFILE}/.pico-sdk/sdk/2.0.0",
+                    "PICO_TOOLCHAIN_PATH": "${env:USERPROFILE}/.pico-sdk/toolchain/13_2_Rel1",
+                    "Path": "${env:USERPROFILE}/.pico-sdk/toolchain/13_2_Rel1/bin;${env:USERPROFILE}/.pico-sdk/picotool/2.0.0/picotool;${env:USERPROFILE}/.pico-sdk/cmake/v3.28.6/bin;${env:USERPROFILE}/.pico-sdk/ninja/v1.12.1;${env:PATH}"
+                }
+            },
+            "dependsOn": "RP2040 fixed: Configure (Debug)",
+            "group": "build",
+            "presentation": { "reveal": "always", "panel": "shared" },
+            "problemMatcher": {
+                "base": "$gcc",
+                "fileLocation": ["autoDetect", "${workspaceFolder}"]
+            }
+        },
+        {
+            "label": "RP2040 fixed: Configure (Release)",
+            "hide": true,
+            "type": "process",
+            "command": "${env:USERPROFILE}/.pico-sdk/cmake/v3.28.6/bin/cmake.exe",
+            "args": [
+                "-S", "a2bcpp/examples/fixed/rp2040", "-B", "build/a2b-fixed-rp2040-release", "-G", "Ninja", "-DCMAKE_BUILD_TYPE=Release",
+                "-DCMAKE_MAKE_PROGRAM=${env:USERPROFILE}/.pico-sdk/ninja/v1.12.1/ninja.exe"
+            ],
+            // The same environment as the integrated terminal's (settings.json): without
+            // it, a PICO_SDK_PATH set in the user's environment makes the example skip the
+            // extension's setup and then not find the toolchain or picotool.
+            "options": {
+                "cwd": "${workspaceFolder}",
+                "env": {
+                    "PICO_SDK_PATH": "${env:USERPROFILE}/.pico-sdk/sdk/2.0.0",
+                    "PICO_TOOLCHAIN_PATH": "${env:USERPROFILE}/.pico-sdk/toolchain/13_2_Rel1",
+                    "Path": "${env:USERPROFILE}/.pico-sdk/toolchain/13_2_Rel1/bin;${env:USERPROFILE}/.pico-sdk/picotool/2.0.0/picotool;${env:USERPROFILE}/.pico-sdk/cmake/v3.28.6/bin;${env:USERPROFILE}/.pico-sdk/ninja/v1.12.1;${env:PATH}"
+                }
+            },
+            "presentation": { "reveal": "always", "panel": "shared" },
+            "problemMatcher": []
+        },
+        {
+            "label": "RP2040 fixed: Build (Release)",
+            "type": "process",
+            "command": "${env:USERPROFILE}/.pico-sdk/cmake/v3.28.6/bin/cmake.exe",
+            "args": ["--build", "build/a2b-fixed-rp2040-release"],
+            // The same environment as the integrated terminal's (settings.json): without
+            // it, a PICO_SDK_PATH set in the user's environment makes the example skip the
+            // extension's setup and then not find the toolchain or picotool.
+            "options": {
+                "cwd": "${workspaceFolder}",
+                "env": {
+                    "PICO_SDK_PATH": "${env:USERPROFILE}/.pico-sdk/sdk/2.0.0",
+                    "PICO_TOOLCHAIN_PATH": "${env:USERPROFILE}/.pico-sdk/toolchain/13_2_Rel1",
+                    "Path": "${env:USERPROFILE}/.pico-sdk/toolchain/13_2_Rel1/bin;${env:USERPROFILE}/.pico-sdk/picotool/2.0.0/picotool;${env:USERPROFILE}/.pico-sdk/cmake/v3.28.6/bin;${env:USERPROFILE}/.pico-sdk/ninja/v1.12.1;${env:PATH}"
+                }
+            },
+            "dependsOn": "RP2040 fixed: Configure (Release)",
+            "group": "build",
+            "presentation": { "reveal": "always", "panel": "shared" },
+            "problemMatcher": {
+                "base": "$gcc",
+                "fileLocation": ["autoDetect", "${workspaceFolder}"]
+            }
+        },
+        {
+            // Builds Release, then programs it through the debug probe (CMSIS-DAP) and
+            // restarts the board. Program output: the Pico's uart0 (GP0/GP1, 230400 baud).
+            "label": "RP2040 fixed: Release (load and run)",
+            "type": "process",
+            "command": "${env:USERPROFILE}/.pico-sdk/openocd/0.12.0+dev/openocd.exe",
+            "args": [
+                "-s", "${env:USERPROFILE}/.pico-sdk/openocd/0.12.0+dev/scripts",
+                "-f", "interface/cmsis-dap.cfg",
+                "-f", "target/rp2040.cfg",
+                "-c", "adapter speed 5000; program build/a2b-fixed-rp2040-release/a2b_fixed.elf verify reset exit"
+            ],
+            "options": { "cwd": "${workspaceFolder}" },
+            "dependsOn": "RP2040 fixed: Build (Release)",
+            "presentation": { "reveal": "always", "panel": "shared" },
+            "problemMatcher": []
+        },
+        // -------------------------------------------------------------------
+        // RP2040 minimal (a2bcpp/examples/minimal/rp2040): Debug build in build/a2b-minimal-rp2040, Release build in
+        // build/a2b-minimal-rp2040-release (the A2B menu uses these). Each configure sets the build type: the
+        // example doesn't, and the Pico SDK would default to Release.
+        // -------------------------------------------------------------------
+        {
+            "label": "RP2040 minimal: Clean",
+            "type": "process",
+            "command": "${env:USERPROFILE}/.pico-sdk/cmake/v3.28.6/bin/cmake.exe",
+            "args": ["-E", "rm", "-rf", "build/a2b-minimal-rp2040", "build/a2b-minimal-rp2040-release"],
+            "options": { "cwd": "${workspaceFolder}" },
+            "presentation": { "reveal": "always", "panel": "shared" },
+            "problemMatcher": []
+        },
+        {
+            "label": "RP2040 minimal: Configure (Debug)",
+            "hide": true,
+            "type": "process",
+            "command": "${env:USERPROFILE}/.pico-sdk/cmake/v3.28.6/bin/cmake.exe",
+            "args": [
+                "-S", "a2bcpp/examples/minimal/rp2040", "-B", "build/a2b-minimal-rp2040", "-G", "Ninja", "-DCMAKE_BUILD_TYPE=Debug",
+                "-DCMAKE_MAKE_PROGRAM=${env:USERPROFILE}/.pico-sdk/ninja/v1.12.1/ninja.exe"
+            ],
+            // The same environment as the integrated terminal's (settings.json): without
+            // it, a PICO_SDK_PATH set in the user's environment makes the example skip the
+            // extension's setup and then not find the toolchain or picotool.
+            "options": {
+                "cwd": "${workspaceFolder}",
+                "env": {
+                    "PICO_SDK_PATH": "${env:USERPROFILE}/.pico-sdk/sdk/2.0.0",
+                    "PICO_TOOLCHAIN_PATH": "${env:USERPROFILE}/.pico-sdk/toolchain/13_2_Rel1",
+                    "Path": "${env:USERPROFILE}/.pico-sdk/toolchain/13_2_Rel1/bin;${env:USERPROFILE}/.pico-sdk/picotool/2.0.0/picotool;${env:USERPROFILE}/.pico-sdk/cmake/v3.28.6/bin;${env:USERPROFILE}/.pico-sdk/ninja/v1.12.1;${env:PATH}"
+                }
+            },
+            "presentation": { "reveal": "always", "panel": "shared" },
+            "problemMatcher": []
+        },
+        {
+            "label": "RP2040 minimal: Build (Debug)",
+            "type": "process",
+            "command": "${env:USERPROFILE}/.pico-sdk/cmake/v3.28.6/bin/cmake.exe",
+            "args": ["--build", "build/a2b-minimal-rp2040"],
+            // The same environment as the integrated terminal's (settings.json): without
+            // it, a PICO_SDK_PATH set in the user's environment makes the example skip the
+            // extension's setup and then not find the toolchain or picotool.
+            "options": {
+                "cwd": "${workspaceFolder}",
+                "env": {
+                    "PICO_SDK_PATH": "${env:USERPROFILE}/.pico-sdk/sdk/2.0.0",
+                    "PICO_TOOLCHAIN_PATH": "${env:USERPROFILE}/.pico-sdk/toolchain/13_2_Rel1",
+                    "Path": "${env:USERPROFILE}/.pico-sdk/toolchain/13_2_Rel1/bin;${env:USERPROFILE}/.pico-sdk/picotool/2.0.0/picotool;${env:USERPROFILE}/.pico-sdk/cmake/v3.28.6/bin;${env:USERPROFILE}/.pico-sdk/ninja/v1.12.1;${env:PATH}"
+                }
+            },
+            "dependsOn": "RP2040 minimal: Configure (Debug)",
+            "group": "build",
+            "presentation": { "reveal": "always", "panel": "shared" },
+            "problemMatcher": {
+                "base": "$gcc",
+                "fileLocation": ["autoDetect", "${workspaceFolder}"]
+            }
+        },
+        {
+            "label": "RP2040 minimal: Configure (Release)",
+            "hide": true,
+            "type": "process",
+            "command": "${env:USERPROFILE}/.pico-sdk/cmake/v3.28.6/bin/cmake.exe",
+            "args": [
+                "-S", "a2bcpp/examples/minimal/rp2040", "-B", "build/a2b-minimal-rp2040-release", "-G", "Ninja", "-DCMAKE_BUILD_TYPE=Release",
+                "-DCMAKE_MAKE_PROGRAM=${env:USERPROFILE}/.pico-sdk/ninja/v1.12.1/ninja.exe"
+            ],
+            // The same environment as the integrated terminal's (settings.json): without
+            // it, a PICO_SDK_PATH set in the user's environment makes the example skip the
+            // extension's setup and then not find the toolchain or picotool.
+            "options": {
+                "cwd": "${workspaceFolder}",
+                "env": {
+                    "PICO_SDK_PATH": "${env:USERPROFILE}/.pico-sdk/sdk/2.0.0",
+                    "PICO_TOOLCHAIN_PATH": "${env:USERPROFILE}/.pico-sdk/toolchain/13_2_Rel1",
+                    "Path": "${env:USERPROFILE}/.pico-sdk/toolchain/13_2_Rel1/bin;${env:USERPROFILE}/.pico-sdk/picotool/2.0.0/picotool;${env:USERPROFILE}/.pico-sdk/cmake/v3.28.6/bin;${env:USERPROFILE}/.pico-sdk/ninja/v1.12.1;${env:PATH}"
+                }
+            },
+            "presentation": { "reveal": "always", "panel": "shared" },
+            "problemMatcher": []
+        },
+        {
+            "label": "RP2040 minimal: Build (Release)",
+            "type": "process",
+            "command": "${env:USERPROFILE}/.pico-sdk/cmake/v3.28.6/bin/cmake.exe",
+            "args": ["--build", "build/a2b-minimal-rp2040-release"],
+            // The same environment as the integrated terminal's (settings.json): without
+            // it, a PICO_SDK_PATH set in the user's environment makes the example skip the
+            // extension's setup and then not find the toolchain or picotool.
+            "options": {
+                "cwd": "${workspaceFolder}",
+                "env": {
+                    "PICO_SDK_PATH": "${env:USERPROFILE}/.pico-sdk/sdk/2.0.0",
+                    "PICO_TOOLCHAIN_PATH": "${env:USERPROFILE}/.pico-sdk/toolchain/13_2_Rel1",
+                    "Path": "${env:USERPROFILE}/.pico-sdk/toolchain/13_2_Rel1/bin;${env:USERPROFILE}/.pico-sdk/picotool/2.0.0/picotool;${env:USERPROFILE}/.pico-sdk/cmake/v3.28.6/bin;${env:USERPROFILE}/.pico-sdk/ninja/v1.12.1;${env:PATH}"
+                }
+            },
+            "dependsOn": "RP2040 minimal: Configure (Release)",
+            "group": "build",
+            "presentation": { "reveal": "always", "panel": "shared" },
+            "problemMatcher": {
+                "base": "$gcc",
+                "fileLocation": ["autoDetect", "${workspaceFolder}"]
+            }
+        },
+        {
+            // Builds Release, then programs it through the debug probe (CMSIS-DAP) and
+            // restarts the board. Program output: the Pico's uart0 (GP0/GP1, 230400 baud).
+            "label": "RP2040 minimal: Release (load and run)",
+            "type": "process",
+            "command": "${env:USERPROFILE}/.pico-sdk/openocd/0.12.0+dev/openocd.exe",
+            "args": [
+                "-s", "${env:USERPROFILE}/.pico-sdk/openocd/0.12.0+dev/scripts",
+                "-f", "interface/cmsis-dap.cfg",
+                "-f", "target/rp2040.cfg",
+                "-c", "adapter speed 5000; program build/a2b-minimal-rp2040-release/a2b_minimal.elf verify reset exit"
+            ],
+            "options": { "cwd": "${workspaceFolder}" },
+            "dependsOn": "RP2040 minimal: Build (Release)",
+            "presentation": { "reveal": "always", "panel": "shared" },
+            "problemMatcher": []
+        },
+        // -------------------------------------------------------------------
+        // Raspberry Pi (64-bit arm64): the bench console a2b_bench (a2bcpp/examples/bench),
+        // built in the Debian WSL distro by a2bcpp/tools/build_pi.sh into
+        // build/a2b-bench-pi/<Debug|Release>. One-time setup (Debian, SSH key):
+        // a2bcpp/docs/setup_pi.md. The Pi's address and user are "a2b.piHost" /
+        // "a2b.piUser" in each PC's VS Code User settings, its board "a2b.piBoard".
+        // Every ssh/scp gives up after 5 s if the Pi can't be reached, and ends about
+        // 15 s after the Pi stops answering (e.g. power-cycled), so no task hangs.
+        // -------------------------------------------------------------------
+        {
+            "label": "Pi bench: Clean",
+            "type": "process",
+            "command": "wsl.exe",
+            "args": [
+                "-d", "Debian", "--cd", "${workspaceFolder}", "--exec",
+                "bash", "a2bcpp/tools/build_pi.sh", "clean"
+            ],
+            "presentation": {
+                "reveal": "always",
+                "panel": "dedicated"
+            },
+            "problemMatcher": []
+        },
+        {
+            "label": "Pi bench: Build (Debug)",
+            "type": "process",
+            "command": "wsl.exe",
+            "args": [
+                "-d", "Debian", "--cd", "${workspaceFolder}", "--exec",
+                "bash", "a2bcpp/tools/build_pi.sh", "Debug"
+            ],
+            "group": "build",
+            "presentation": {
+                "reveal": "always",
+                "panel": "dedicated"
+            },
+            "problemMatcher": {
+                "base": "$gcc",
+                "fileLocation": "absolute"
+            }
+        },
+        {
+            // Stops a2b_bench / gdbserver on the Pi (and anything else that would hold
+            // the same I2C bus), so a new copy can be deployed.
+            "label": "Pi bench: Stop on Pi",
+            "type": "process",
+            "command": "ssh",
+            "args": [
+                "-o", "ConnectTimeout=5", "-o", "ServerAliveInterval=5", "-o", "ServerAliveCountMax=3",
+                "${config:a2b.piUser}@${config:a2b.piHost}",
+                "pkill -x gdbserver; pkill -x a2b_bench; pkill -x a2b_pnp; exit 0"
+            ],
+            "presentation": {
+                "reveal": "always",
+                "panel": "dedicated"
+            },
+            "problemMatcher": []
+        },
+        {
+            "label": "Pi bench: Deploy to Pi",
+            "type": "process",
+            "command": "scp",
+            "args": [
+                "-o", "ConnectTimeout=5", "-o", "ServerAliveInterval=5", "-o", "ServerAliveCountMax=3",
+                "${workspaceFolder}/build/a2b-bench-pi/Debug/a2b_bench",
+                "${config:a2b.piUser}@${config:a2b.piHost}:a2b_bench"
+            ],
+            "dependsOn": ["Pi bench: Build (Debug)", "Pi bench: Stop on Pi"],
+            "dependsOrder": "sequence",
+            "presentation": {
+                "reveal": "always",
+                "panel": "dedicated"
+            },
+            "problemMatcher": []
+        },
+        {
+            // Runs the copy already on the Pi: it starts the bus on the board "a2b.piBoard" at
+            // once; type commands at the A2B> prompt, "quit" ends it. The output is also saved
+            // on the Pi as ~/a2b_bench.log.
+            "label": "Pi bench: Run on Pi",
+            "type": "process",
+            "command": "ssh",
+            "args": [
+                "-o", "ConnectTimeout=5", "-o", "ServerAliveInterval=5", "-o", "ServerAliveCountMax=3",
+                "-t",
+                "${config:a2b.piUser}@${config:a2b.piHost}",
+                "chmod +x ./a2b_bench && stdbuf -oL ./a2b_bench --board ${config:a2b.piBoard} start 2>&1 | tee a2b_bench.log"
+            ],
+            "presentation": {
+                "reveal": "always",
+                "panel": "dedicated",
+                "focus": true
+            },
+            "problemMatcher": []
+        },
+        {
+            "label": "Pi bench: Build (Release)",
+            "type": "process",
+            "command": "wsl.exe",
+            "args": [
+                "-d", "Debian", "--cd", "${workspaceFolder}", "--exec",
+                "bash", "a2bcpp/tools/build_pi.sh", "Release"
+            ],
+            "group": "build",
+            "presentation": {
+                "reveal": "always",
+                "panel": "dedicated"
+            },
+            "problemMatcher": {
+                "base": "$gcc",
+                "fileLocation": "absolute"
+            }
+        },
+        {
+            // Same place on the Pi (~/a2b_bench) as the Debug build.
+            "label": "Pi bench: Deploy Release to Pi",
+            "type": "process",
+            "command": "scp",
+            "args": [
+                "-o", "ConnectTimeout=5", "-o", "ServerAliveInterval=5", "-o", "ServerAliveCountMax=3",
+                "${workspaceFolder}/build/a2b-bench-pi/Release/a2b_bench",
+                "${config:a2b.piUser}@${config:a2b.piHost}:a2b_bench"
+            ],
+            "dependsOn": ["Pi bench: Build (Release)", "Pi bench: Stop on Pi"],
+            "dependsOrder": "sequence",
+            "presentation": {
+                "reveal": "always",
+                "panel": "dedicated"
+            },
+            "problemMatcher": []
+        },
+        {
+            "label": "Pi bench: Release (deploy and run)",
+            "type": "process",
+            "command": "ssh",
+            "args": [
+                "-o", "ConnectTimeout=5", "-o", "ServerAliveInterval=5", "-o", "ServerAliveCountMax=3",
+                "-t",
+                "${config:a2b.piUser}@${config:a2b.piHost}",
+                "chmod +x ./a2b_bench && stdbuf -oL ./a2b_bench --board ${config:a2b.piBoard} start 2>&1 | tee a2b_bench.log"
+            ],
+            "dependsOn": "Pi bench: Deploy Release to Pi",
+            "presentation": {
+                "reveal": "always",
+                "panel": "dedicated",
+                "focus": true
+            },
+            "problemMatcher": []
+        },
+        {
+            // Used by the "Pi bench: Debug (gdbserver)" launch configuration: builds, deploys,
+            // then starts gdbserver on port 2345. The program's own output appears in
+            // this task's terminal. Needs gdbserver on the Pi (sudo apt install gdbserver).
+            // No -t: a pseudo-terminal would break the "Listening on port" match below.
+            "label": "Pi bench: Start gdbserver on Pi",
+            "type": "process",
+            "command": "ssh",
+            "args": [
+                "-o", "ConnectTimeout=5", "-o", "ServerAliveInterval=5", "-o", "ServerAliveCountMax=3",
+                "${config:a2b.piUser}@${config:a2b.piHost}",
+                "command -v gdbserver >/dev/null || { echo 'gdbserver is not installed on the Pi. Install it there with: sudo apt install gdbserver'; exit 1; }; chmod +x ./a2b_bench && stdbuf -oL gdbserver :2345 ./a2b_bench --board ${config:a2b.piBoard} start 2>&1 | tee a2b_bench.log"
+            ],
+            "dependsOn": "Pi bench: Deploy to Pi",
+            "isBackground": true,
+            "presentation": {
+                "reveal": "always",
+                "panel": "dedicated"
+            },
+            "problemMatcher": {
+                // Never matches a problem; only the background begin/end patterns matter.
+                "pattern": {
+                    "regexp": "^(NOMATCH)(.*)$",
+                    "file": 1,
+                    "message": 2
+                },
+                "background": {
+                    "activeOnStart": true,
+                    "beginsPattern": "^Process .* created",
+                    "endsPattern": "^Listening on port"
+                }
+            }
+        },
+        {
+            // Copies the Pi's ~/a2b_bench.log (output of the last Run or debug session)
+            // to build/a2b-bench-pi/a2b_bench.log, to open in VS Code.
+            "label": "Pi bench: Get log from Pi",
+            "type": "process",
+            "command": "scp",
+            "args": [
+                "-o", "ConnectTimeout=5", "-o", "ServerAliveInterval=5", "-o", "ServerAliveCountMax=3",
+                "${config:a2b.piUser}@${config:a2b.piHost}:a2b_bench.log",
+                "${workspaceFolder}/build/a2b-bench-pi/a2b_bench.log"
+            ],
+            "presentation": {
+                "reveal": "silent",
+                "panel": "dedicated"
+            },
+            "problemMatcher": []
+        },
+        // I2C trace captures (a2bcpp/docs/bench_console.md, "i2cTrace"). "Run Trace on Pi"
+        // deploys the Debug build and runs it with --trace traces/boot.txt, so every I2C
+        // transfer from the start is written there ("quit" closes it); "Get traces from Pi"
+        // copies ~/traces to build/a2b-bench-pi/traces.
+        {
+            "label": "Pi bench: Run Trace on Pi",
+            "type": "process",
+            "command": "ssh",
+            "args": [
+                "-o", "ConnectTimeout=5", "-o", "ServerAliveInterval=5", "-o", "ServerAliveCountMax=3",
+                "-t",
+                "${config:a2b.piUser}@${config:a2b.piHost}",
+                "mkdir -p traces && chmod +x ./a2b_bench && stdbuf -oL ./a2b_bench --board ${config:a2b.piBoard} --trace traces/boot.txt start 2>&1 | tee a2b_bench.log"
+            ],
+            "dependsOn": "Pi bench: Deploy to Pi",
+            "presentation": {
+                "reveal": "always",
+                "panel": "dedicated",
+                "focus": true
+            },
+            "problemMatcher": []
+        },
+        {
+            "label": "Pi bench: Get traces from Pi",
+            "type": "process",
+            "command": "scp",
+            "args": [
+                "-o", "ConnectTimeout=5", "-o", "ServerAliveInterval=5", "-o", "ServerAliveCountMax=3",
+                "-r",
+                "${config:a2b.piUser}@${config:a2b.piHost}:traces",
+                "${workspaceFolder}/build/a2b-bench-pi/"
+            ],
+            "presentation": {
+                "reveal": "always",
+                "panel": "dedicated"
+            },
+            "problemMatcher": []
+        },
+        // -------------------------------------------------------------------
+        // Windows (64-bit, MSYS2 UCRT64): the bench console a2b_bench.exe over the ADI USBi,
+        // built by a2bcpp/tools/build_windows.ps1 into build/a2b-bench-windows/<Debug|Release>
+        // (the program is in examples/bench there). MSYS2's location is "a2b.msys2Root"
+        // (default C:/msys64; set it in your VS Code user settings if different), the
+        // board it starts "a2b.windowsBoard", and "a2b.windowsBenchArgs" any console commands
+        // to run before start (separated by ';', e.g. "ignoreEEPROM 1; link 2 custom"; empty
+        // by default; per PC, so in your User settings). The USBi needs the WinUSB driver
+        // (a2bcpp/docs/setup_windows.md).
+        // -------------------------------------------------------------------
+        {
+            "label": "Windows bench: Clean",
+            "type": "process",
+            "command": "powershell.exe",
+            "args": [
+                "-NoProfile", "-ExecutionPolicy", "Bypass",
+                "-File", "${workspaceFolder}/a2bcpp/tools/build_windows.ps1", "clean"
+            ],
+            "presentation": { "reveal": "always", "panel": "shared" },
+            "problemMatcher": []
+        },
+        {
+            "label": "Windows bench: Build (Debug)",
+            "type": "process",
+            "command": "powershell.exe",
+            "args": [
+                "-NoProfile", "-ExecutionPolicy", "Bypass",
+                "-File", "${workspaceFolder}/a2bcpp/tools/build_windows.ps1", "Debug",
+                "-Msys2Root", "${config:a2b.msys2Root}"
+            ],
+            "group": "build",
+            "presentation": { "reveal": "always", "panel": "shared" },
+            "problemMatcher": {
+                "base": "$gcc",
+                "fileLocation": ["autoDetect", "${workspaceFolder}"]
+            }
+        },
+        {
+            "label": "Windows bench: Build (Release)",
+            "type": "process",
+            "command": "powershell.exe",
+            "args": [
+                "-NoProfile", "-ExecutionPolicy", "Bypass",
+                "-File", "${workspaceFolder}/a2bcpp/tools/build_windows.ps1", "Release",
+                "-Msys2Root", "${config:a2b.msys2Root}"
+            ],
+            "group": "build",
+            "presentation": { "reveal": "always", "panel": "shared" },
+            "problemMatcher": {
+                "base": "$gcc",
+                "fileLocation": ["autoDetect", "${workspaceFolder}"]
+            }
+        },
+        {
+            // Builds Release, then runs it in this terminal: it starts the bus on the board
+            // "a2b.windowsBoard" at once, after the commands in "a2b.windowsBenchArgs"; type
+            // commands at the A2B> prompt ("quit" or Ctrl+C ends it). The USBi needs the
+            // WinUSB driver (a2bcpp/docs/setup_windows.md).
+            "label": "Windows bench: Release (run)",
+            "type": "process",
+            "command": "${workspaceFolder}/build/a2b-bench-windows/Release/examples/bench/a2b_bench.exe",
+            "args": [
+                "--board", "${config:a2b.windowsBoard}",
+                "--commands=${config:a2b.windowsBenchArgs}", "start"
+            ],
+            "options": { "cwd": "${workspaceFolder}" },
+            "dependsOn": "Windows bench: Build (Release)",
+            "presentation": { "reveal": "always", "panel": "dedicated", "focus": true },
+            "problemMatcher": []
+        }
+    ]
+}

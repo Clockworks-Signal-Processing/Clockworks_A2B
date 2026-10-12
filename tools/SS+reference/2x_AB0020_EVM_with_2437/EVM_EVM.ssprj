@@ -1,0 +1,4520 @@
+{
+  "Name": "EVM_EVM",
+  "ProjectVersion": "1.0.0.0",
+  "Versions": {},
+  "EnableVersionControl": false,
+  "Presets": {
+    "$type": "System.Collections.ObjectModel.Collection`1[[System.String, mscorlib]], mscorlib",
+    "$values": []
+  },
+  "Diagram": {
+    "$type": "AnalogDevices.TypeDefinitions.Dom.SsprjDom.Internals.SystemShapeModel, TypeDefinitions",
+    "Uid": "Diagram_0",
+    "WritableProperties": {},
+    "WritableCommChannels": [
+      {
+        "$type": "AnalogDevices.TypeDefinitions.Dom.SsprjDom.Internals.CommChannelModel, TypeDefinitions",
+        "WritableProperties": {},
+        "Uid": "USB_0",
+        "Name": "USB",
+        "PluginName": "AnalogDevices.Plugins.CommunicationChannels.USBChannel_v1.0.0.0",
+        "InterfaceType": "AnalogDevices.TypeDefinitions.Plugins.ICommChannel",
+        "LinkReference": {
+          "$type": "System.Collections.ObjectModel.Collection`1[[System.String, mscorlib]], mscorlib",
+          "$values": [
+            "Link_0"
+          ]
+        },
+        "ChannelReference": {
+          "$type": "System.Collections.ObjectModel.Collection`1[[System.String, mscorlib]], mscorlib",
+          "$values": [
+            "I2C_0"
+          ]
+        },
+        "ShapeReference": {
+          "$type": "System.Collections.ObjectModel.Collection`1[[System.String, mscorlib]], mscorlib",
+          "$values": []
+        }
+      },
+      {
+        "$type": "AnalogDevices.TypeDefinitions.Dom.SsprjDom.Internals.CommChannelModel, TypeDefinitions",
+        "WritableProperties": {},
+        "Uid": "I2C_0",
+        "Name": "I2C",
+        "PluginName": "AnalogDevices.Plugins.Channels.ControlChannel_v1.0.0.0",
+        "InterfaceType": "AnalogDevices.TypeDefinitions.Plugins.ICommChannel",
+        "LinkReference": {
+          "$type": "System.Collections.ObjectModel.Collection`1[[System.String, mscorlib]], mscorlib",
+          "$values": [
+            "Link_25"
+          ]
+        },
+        "ChannelReference": {
+          "$type": "System.Collections.ObjectModel.Collection`1[[System.String, mscorlib]], mscorlib",
+          "$values": [
+            "A2B_0"
+          ]
+        },
+        "ShapeReference": {
+          "$type": "System.Collections.ObjectModel.Collection`1[[System.String, mscorlib]], mscorlib",
+          "$values": []
+        }
+      }
+    ],
+    "WritableNetworks": [
+      {
+        "$type": "AnalogDevices.TypeDefinitions.Dom.SsprjDom.Internals.NetworkModel, TypeDefinitions",
+        "WritableProperties": {
+          "IsRemovable": true,
+          "RestrictShape": false,
+          "BoardKey": "",
+          "IsLocked": false,
+          "EncryptedString": "",
+          "A2BChannelUIDList": {
+            "$type": "System.Collections.Generic.List`1[[System.String, mscorlib]], mscorlib",
+            "$values": [
+              "A2B_0"
+            ]
+          },
+          "NetworkLinkStatus": {
+            "$type": "System.Collections.Generic.Dictionary`2[[System.String, mscorlib],[System.Boolean, mscorlib]], mscorlib"
+          },
+          "A2BChannelSDKCLientDictionary": {
+            "$type": "System.Collections.Generic.Dictionary`2[[System.String, mscorlib],[AnalogDevices.A2bSdk.Api.SingleMain.A2bSdkClient, a2bSdk]], mscorlib"
+          },
+          "Export": false,
+          "MultiMainBusConfigurationFileXMLFilePath": "",
+          "MultiMainBusConfigurationFileCFilePath": "",
+          "CanOptimizeExportedMultiMainFileForMemory": false,
+          "CanCompressExportedMultiMainFile": false,
+          "MultiMainExportFileVersion": "",
+          "MultiMainDumpDat": ""
+        },
+        "Uid": "A2B_Network_0",
+        "Name": "A2BNetwork",
+        "PluginName": "AnalogDevices.Plugins.Network.A2BNetwork_v1.0.0.0",
+        "Type": "A2B",
+        "Chains": {
+          "$type": "System.Collections.ObjectModel.Collection`1[[AnalogDevices.TypeDefinitions.Dom.SsprjDom.IChainModel, TypeDefinitions]], mscorlib",
+          "$values": [
+            {
+              "$type": "AnalogDevices.TypeDefinitions.Dom.SsprjDom.Internals.ChainModel, TypeDefinitions",
+              "Uid": "A2BChain_0",
+              "Name": "A2B",
+              "LinkReference": {
+                "$type": "System.Collections.ObjectModel.Collection`1[[System.String, mscorlib]], mscorlib",
+                "$values": [
+                  "Link_39"
+                ]
+              },
+              "ChannelReference": "A2B_0",
+              "Master": "AD243xMain_0"
+            }
+          ]
+        }
+      }
+    ],
+    "WritableSdks": [],
+    "CanvasSize": {
+      "Height": 1920.0,
+      "Width": 1080.0
+    },
+    "WritableChannels": [
+      {
+        "$type": "AnalogDevices.TypeDefinitions.Dom.SsprjDom.Internals.ChannelModel, TypeDefinitions",
+        "WritableProperties": {
+          "IsRemovable": true,
+          "RestrictShape": false,
+          "BoardKey": "",
+          "IsLocked": false,
+          "EncryptedString": "",
+          "LinkRef": {
+            "$type": "System.Collections.Generic.List`1[[AnalogDevices.TypeDefinitions.Dom.SsprjDom.ILinkModel, TypeDefinitions]], mscorlib",
+            "$values": [
+              {
+                "$type": "AnalogDevices.TypeDefinitions.Dom.SsprjDom.Internals.LinkModel, TypeDefinitions",
+                "Uid": "Link_39",
+                "SourceUid": "CustomPlatform_0",
+                "SourcePinName": "B Port(AD243xMain_0)",
+                "TargetUid": "CustomPlatform_2",
+                "TargetPinName": "A Port(AD243xSubNode_1)",
+                "LinkType": "A2B",
+                "Points": []
+              }
+            ]
+          },
+          "TrxList": {
+            "$type": "System.Collections.Generic.Dictionary`2[[System.Int32, mscorlib],[System.String, mscorlib]], mscorlib",
+            "-1": "AD243xMain_0",
+            "0": "AD243xSubNode_1"
+          },
+          "LinkRequest": true,
+          "LinkCompileRequest": false,
+          "StreamListDef": null,
+          "AddStream": {
+            "$type": "AnalogDevices.A2bSdk.Api.ADI_A2B_STREAM, a2bSdk",
+            "StreamSource": "AD243xSubNode_1",
+            "nNumSlots": 2,
+            "DestNode": {
+              "AD243xMain_0": -1
+            },
+            "StreamName": "up2",
+            "StreamID": 1,
+            "SamplingRate": 48,
+            "nNumCh": 2,
+            "ChannelsToSkip": 0,
+            "nWidth": 24,
+            "StreamSourceNodeID": 0,
+            "DestID": [
+              -1
+            ]
+          },
+          "RemoveStream": 0,
+          "EditStream": {
+            "$type": "AnalogDevices.A2bSdk.Api.NetworkStreamConfig, a2bSdk",
+            "DestID": [],
+            "Position": 1,
+            "Stream": {
+              "StreamSource": "Sub0",
+              "nNumSlots": 2,
+              "DestNode": {},
+              "StreamName": "Up2",
+              "StreamID": 1,
+              "SamplingRate": 48,
+              "nNumCh": 2,
+              "ChannelsToSkip": 0,
+              "nWidth": 24,
+              "StreamSourceNodeID": 0,
+              "DestID": []
+            },
+            "Tunnels": {
+              "numDwnSlots": 0,
+              "numUpSlots": 0,
+              "memberNodeID": [],
+              "memberNode": {},
+              "tunnelColor": "Transparent",
+              "upOffset": 0,
+              "dwnOffset": 0,
+              "schedule": false,
+              "tunnelName": "",
+              "tunnelID": 0
+            }
+          },
+          "RefreshStream": {
+            "$type": "AnalogDevices.A2bSdk.Api.ADI_A2B_STREAM, a2bSdk",
+            "StreamSource": "AD243xSubNode_1",
+            "nNumSlots": 2,
+            "DestNode": {
+              "AD243xMain_0": -1
+            },
+            "StreamName": "Up2",
+            "StreamID": 1,
+            "SamplingRate": 48,
+            "nNumCh": 2,
+            "ChannelsToSkip": 0,
+            "nWidth": 24,
+            "StreamSourceNodeID": 0,
+            "DestID": [
+              -1
+            ]
+          },
+          "MoveUp": 0,
+          "MoveDown": 0,
+          "ExportStream": "",
+          "ImportStream": "",
+          "ImportedStreamConfig": {
+            "$type": "System.Collections.Generic.List`1[[AnalogDevices.A2bSdk.Api.ADI_A2B_STREAM, a2bSdk]], mscorlib",
+            "$values": [
+              {
+                "StreamSource": "AD243xMain_0",
+                "nNumSlots": 2,
+                "DestNode": {
+                  "AD243xSubNode_1": 0
+                },
+                "StreamName": "Down2",
+                "StreamID": 0,
+                "SamplingRate": 48,
+                "nNumCh": 2,
+                "ChannelsToSkip": 0,
+                "nWidth": 24,
+                "StreamSourceNodeID": -1,
+                "DestID": [
+                  0
+                ]
+              },
+              {
+                "StreamSource": "AD243xSubNode_1",
+                "nNumSlots": 2,
+                "DestNode": {
+                  "AD243xMain_0": -1
+                },
+                "StreamName": "Up2",
+                "StreamID": 1,
+                "SamplingRate": 48,
+                "nNumCh": 2,
+                "ChannelsToSkip": 0,
+                "nWidth": 24,
+                "StreamSourceNodeID": 0,
+                "DestID": [
+                  -1
+                ]
+              }
+            ]
+          },
+          "GetNodeIDs": {
+            "$type": "System.Collections.Generic.Dictionary`2[[System.Int32, mscorlib],[System.String, mscorlib]], mscorlib",
+            "-1": "AD243xMain_0",
+            "0": "AD243xSubNode_1"
+          },
+          "SendStreamInfo": {
+            "$type": "System.Collections.Generic.List`1[[AnalogDevices.A2bSdk.Api.ADI_A2B_STREAM, a2bSdk]], mscorlib",
+            "$values": [
+              {
+                "StreamSource": "AD243xMain_0",
+                "nNumSlots": 2,
+                "DestNode": {
+                  "AD243xSubNode_1": 0
+                },
+                "StreamName": "Down2",
+                "StreamID": 0,
+                "SamplingRate": 48,
+                "nNumCh": 2,
+                "ChannelsToSkip": 0,
+                "nWidth": 24,
+                "StreamSourceNodeID": -1,
+                "DestID": [
+                  0
+                ]
+              },
+              {
+                "StreamSource": "AD243xSubNode_1",
+                "nNumSlots": 2,
+                "DestNode": {
+                  "AD243xMain_0": -1
+                },
+                "StreamName": "Up2",
+                "StreamID": 1,
+                "SamplingRate": 48,
+                "nNumCh": 2,
+                "ChannelsToSkip": 0,
+                "nWidth": 24,
+                "StreamSourceNodeID": 0,
+                "DestID": [
+                  -1
+                ]
+              }
+            ]
+          },
+          "StreamSourceChanged": {
+            "$type": "AnalogDevices.A2bSdk.Api.NetworkStreamConfig, a2bSdk",
+            "DestID": [],
+            "Position": 1,
+            "Stream": {
+              "StreamSource": "Sub0",
+              "nNumSlots": 2,
+              "DestNode": {},
+              "StreamName": "Up2",
+              "StreamID": 1,
+              "SamplingRate": 48,
+              "nNumCh": 2,
+              "ChannelsToSkip": 0,
+              "nWidth": 24,
+              "StreamSourceNodeID": 0,
+              "DestID": []
+            },
+            "Tunnels": {
+              "numDwnSlots": 0,
+              "numUpSlots": 0,
+              "memberNodeID": [],
+              "memberNode": {},
+              "tunnelColor": "Transparent",
+              "upOffset": 0,
+              "dwnOffset": 0,
+              "schedule": false,
+              "tunnelName": "",
+              "tunnelID": 0
+            }
+          },
+          "StreamDestChanged": {
+            "$type": "AnalogDevices.A2bSdk.Api.NetworkStreamConfig, a2bSdk",
+            "DestID": [
+              -1
+            ],
+            "Position": 1,
+            "Stream": {
+              "StreamSource": "Sub0",
+              "nNumSlots": 2,
+              "DestNode": {},
+              "StreamName": "Up2",
+              "StreamID": 1,
+              "SamplingRate": 48,
+              "nNumCh": 2,
+              "ChannelsToSkip": 0,
+              "nWidth": 24,
+              "StreamSourceNodeID": 0,
+              "DestID": []
+            },
+            "Tunnels": null
+          },
+          "AutoCalculate": 1,
+          "AutoCalculateChk": true,
+          "LinkStatus": true,
+          "DiscStatus": true,
+          "Download": false,
+          "EnableStreamCfg": false,
+          "AddTunnel": null,
+          "EditTunnel": null,
+          "DeleteTunnel": null,
+          "StrictBound": false,
+          "DataTunnelInfo": {
+            "$type": "System.Collections.Generic.List`1[[AnalogDevices.A2bSdk.Api.ADI_A2B_TUNNEL_STREAM, a2bSdk]], mscorlib",
+            "$values": []
+          },
+          "TunnelParticipantChanged": null,
+          "ValidTunnelConfig": {
+            "$type": "System.Collections.Generic.List`1[[System.Boolean[], mscorlib]], mscorlib",
+            "$values": []
+          },
+          "ButtonOptimize": 0,
+          "ButtonDefault": 0,
+          "TargetPropCntDiscoveryStartDelay": 25,
+          "TargetPropChkEnableLineFaultDiagnostics": true,
+          "TargetPropChkAutoRediscoveryuponFaults": false,
+          "TargetPropCntNoofAttempts": 2,
+          "TargetPropCntDiscoveryInterval": 100,
+          "TargetPropLevelList": {
+            "$type": "AnalogDevices.Plugins.Channels.A2BChannelInternals.LevelListSent, A2BChannels",
+            "LevelListSentChecked": false,
+            "LevelListSentNum": 0
+          },
+          "TargetPropDomainList": {
+            "$type": "AnalogDevices.Plugins.Channels.A2BChannelInternals.DomainListSent, A2BChannels",
+            "DomainListSentChecked": false,
+            "DomainListSentNum": 0
+          },
+          "NetworkPolicy": {
+            "$type": "AnalogDevices.A2bSdk.Api.A2bNwPolicy, a2bSdk",
+            "oLineFaultDbSettings": {
+              "bEnableLineFaultDiag": true,
+              "bEnablePostDiscFaultDiag": true,
+              "bAutoDiscoveryOnPDFault": false,
+              "bAutoDiscforInDiscFault": false,
+              "CanPerformPartialDiscovery": false,
+              "nNumAttemptsCritical": 0,
+              "RediscoveryInterval": 100,
+              "bAutoApplySettings": true
+            },
+            "oStackDebug": {
+              "bTrace": false,
+              "bSeqChart": false,
+              "TraceLevel": [
+                false,
+                false,
+                false,
+                false,
+                false,
+                false,
+                false,
+                false,
+                false,
+                false,
+                false,
+                false,
+                false,
+                false,
+                false,
+                false
+              ],
+              "TraceDomain": [
+                false,
+                false,
+                false,
+                false,
+                false,
+                false,
+                false,
+                false,
+                false,
+                false,
+                false,
+                false,
+                false,
+                false,
+                false,
+                false
+              ],
+              "FilePath": "D:\\Projects\\A2B_PnP_Cpp\\tools\\SS+examples\\2x_AB0020_EVM_with_2437\\Settings\\EVM_EVM"
+            },
+            "bNwContainsDemeter": true,
+            "bNwContainsCeres": true,
+            "bNwContainsPlutus": false,
+            "bNwContainsChiron": false,
+            "bNwContainsPlutusMain": false,
+            "bNwContainsDemeterMain": true,
+            "bNwContainsCeresMain": true,
+            "bNwContainsChironsMain": false,
+            "bNwLpsConnectedToMain": true,
+            "UpSlotSize": 25,
+            "DnSlotSize": 25,
+            "PwrMainVin": 6.5,
+            "DsvryMode": 0,
+            "nDiscoveryStartDelay": 25,
+            "bOverrideSelfDisc": true,
+            "bEnXtalkFix": false,
+            "StackTickInterval": 25,
+            "ExternalStackTick": false,
+            "RediscoveryWaitTimeInMilliSeconds": 25,
+            "MinimumRediscoveryWaitTimeInMilliSeconds": 25,
+            "IsHighPowerRediscoveryWaitTime": false,
+            "bFrstTimeDisc": true,
+            "DirectPrmInterface": "I2C"
+          },
+          "TargetPropChkTrace": false,
+          "TargetPropChkChart": false,
+          "ProjectPath": "D:\\Projects\\A2B_PnP_Cpp\\tools\\SS+examples\\2x_AB0020_EVM_with_2437\\EVM_EVM.ssprj",
+          "TargetPropPartialDiscoveryCheckBoxState": false,
+          "TargetPropRediscoveryWaitTimeInMilliSeconds": 0,
+          "TargetPropRefreshButton": 0,
+          "Export": true,
+          "TxtExportFileVersion": "1.0.0",
+          "ChkOptimizeexprtfileBCF": false,
+          "ChkEnableCompressionBCF": false,
+          "TxtFilePathBCxml": "",
+          "TxtFilePathBCc": "D:\\Projects\\A2B_PnP_Cpp\\tools\\SS+examples\\2x_AB0020_EVM_with_2437\\adi_a2b_busconfig.c",
+          "TxtFilePathSBCxml": "",
+          "TxtFilePathSBCc": "",
+          "ChkOptimizeexprtfileBCFMerge": false,
+          "ChkEnableCompressionBCFMerge": false,
+          "TxtFilePathCLxml": "",
+          "PrimaryBranchxml": "",
+          "SecondaryBranchxml": "",
+          "MergedBranchxml": "",
+          "TxtFilePathCLh": "",
+          "ChkIncludeModA2BRegistersCL": true,
+          "ChkIncludePeripeheralConfigCL": true,
+          "ChkOptimizeexprtfileCL": false,
+          "ChkGenerateforBusSelfCL": false,
+          "CntSubNodeId": 0,
+          "MainI2CAddress": "0x68",
+          "XMLDumpPath": "",
+          "DumpXML": "",
+          "EEPromProgram": false,
+          "DatDumpPath": "",
+          "DumpDat": "",
+          "CanIncludeStreamInformationToDatFile": false,
+          "Import": false,
+          "ImportTxtFilePathBCxml": "",
+          "BwCalcRun": {
+            "$type": "AnalogDevices.A2bSdk.BWcalc.BwCalc, a2bSdk",
+            "BwSummary": {
+              "MaxBusActivity": 0,
+              "ReqBusIdle": 0,
+              "ActualIdle": 0,
+              "TotalBwUsed": 0,
+              "EnoughBw": true,
+              "BwUtilFactor": 0.0,
+              "MaxBusActivityFactor": 0.0,
+              "ReqBusIdleFactor": 0.0,
+              "ActualIdleFactor": 0.0
+            },
+            "BwParamInfoForCalc": null,
+            "BwResDetails": {
+              "MaxBusActivityNode": 0,
+              "MaxBusActivityPort": null,
+              "MinDSMarginNode": 0,
+              "MinDSMarginPort": null,
+              "MinUSMarginNode": 0,
+              "MinUSMarginPort": null,
+              "MinDSMargin": 0,
+              "MinUSMargin": 0,
+              "MaxBusActivityVerbose": "Sub Node 0 ",
+              "MinDSMarginVerbose": "Sub Node 0 ",
+              "MinUSMarginVerbose": "Sub Node 0 "
+            },
+            "NodeInfoA": [],
+            "NodeInfoB": [],
+            "nCableDelay": [],
+            "CablePropDelay": 6.5,
+            "SamplingRate": 48000
+          },
+          "BwCalcMainRespUpdate": true,
+          "BwCalcApplyRespCycleToSub": 118,
+          "BwCalcNwParams": {
+            "$type": "AnalogDevices.A2bSdk.Api.BwParams, a2bSdk",
+            "cableDelayns": 6.5,
+            "SampleRateHz": 48000,
+            "ConservativeRespcyc": false,
+            "OptimizedRespCyc": false,
+            "bFormulaB": true,
+            "bFormulaA": false,
+            "bAutoCalcCheckbox": true,
+            "bManualRespCycleCalc": false,
+            "CableType": 0,
+            "overAllCableLen": 1.0
+          },
+          "BwCalcManualUpdateMainNodeRespCycle": 125,
+          "PwrCalcSubNodeCnt": 0,
+          "PwrCalcOpParams": {
+            "$type": "AnalogDevices.A2bSdk.Pwrcalc.PwrCalc, a2bSdk",
+            "pwrOut": null,
+            "pwrSummary": {
+              "SelfPowrdNodes": null,
+              "BusPower": null,
+              "NodePwrMax": 0.0,
+              "EnoughVin": false,
+              "VinMin": 0.0,
+              "PwrMargin": 0.0,
+              "PowStatus": false
+            },
+            "MaxThermalPwr": 632.9114
+          },
+          "PwrCalcCableLen": {
+            "$type": "System.Collections.Generic.Dictionary`2[[System.Int32, mscorlib],[System.Single, mscorlib]], mscorlib",
+            "-1": 4.0,
+            "0": 1.0
+          },
+          "PwrCalcIsLocalPowered": {
+            "$type": "System.Collections.Generic.Dictionary`2[[System.Int32, mscorlib],[System.Boolean, mscorlib]], mscorlib",
+            "-1": true,
+            "0": true
+          },
+          "ClrPwrBreakDwn": {
+            "$type": "System.Collections.Generic.Dictionary`2[[System.Int32, mscorlib],[System.Int32, mscorlib]], mscorlib",
+            "1": 1
+          },
+          "PwrCalcRun": true,
+          "PwrCalcReset": true,
+          "PwrCalcProp": {
+            "$type": "AnalogDevices.Plugins.Channels.PowerParamForCalc, A2BChannels",
+            "PowerCalcSettings": [
+              {
+                "nodeName": "Main",
+                "Selfpwr": true,
+                "nodeId": -1,
+                "InductorDcR": 0.26,
+                "PosBiasPmosSwitchOnR": 0.11,
+                "NegBiasPmosSwitchOnR": 1.2,
+                "ConnectionR": 0.01,
+                "CableR": 0.12,
+                "fCableLength": 4.0,
+                "LoclPwrdApAnR": 4700.0,
+                "Vout1": 1.8,
+                "Vout2": 3.15,
+                "Iiovdd_vout1": 0.2,
+                "Iiovdd_vout2": 0.0,
+                "Ivext1": 10.0,
+                "Ivext2": 0.0,
+                "IvRegPeri": 0.0,
+                "Ivssn": 2.0,
+                "Ipllvdd_Idvdd": 13.5,
+                "Ivnq": 0.75,
+                "ItxVdd": 13.0,
+                "IrxVdd": 3.5,
+                "ItrxIdle": 2.5,
+                "Ivbus": 0.0,
+                "nupDigitalLogic": 0.0,
+                "nupSchottKey": 0.0,
+                "fInRush": 150.0,
+                "LVIMode": false,
+                "LVIVin": 3.17,
+                "VDoide3": 0.45,
+                "VDoide1": 0.4,
+                "VReg": 8.4,
+                "ShortCircuitProtectR": 1.05
+              },
+              {
+                "nodeName": "Sub 0",
+                "Selfpwr": true,
+                "nodeId": 0,
+                "InductorDcR": 0.26,
+                "PosBiasPmosSwitchOnR": 0.11,
+                "NegBiasPmosSwitchOnR": 1.2,
+                "ConnectionR": 0.01,
+                "CableR": 0.12,
+                "fCableLength": 4.0,
+                "LoclPwrdApAnR": 4700.0,
+                "Vout1": 1.8,
+                "Vout2": 3.15,
+                "Iiovdd_vout1": 0.2,
+                "Iiovdd_vout2": 0.0,
+                "Ivext1": 10.0,
+                "Ivext2": 0.0,
+                "IvRegPeri": 0.0,
+                "Ivssn": 2.0,
+                "Ipllvdd_Idvdd": 13.5,
+                "Ivnq": 0.75,
+                "ItxVdd": 13.0,
+                "IrxVdd": 3.5,
+                "ItrxIdle": 2.5,
+                "Ivbus": 0.0,
+                "nupDigitalLogic": 0.0,
+                "nupSchottKey": 0.0,
+                "fInRush": 150.0,
+                "LVIMode": false,
+                "LVIVin": 3.17,
+                "VDoide3": 0.45,
+                "VDoide1": 0.4,
+                "VReg": 8.4,
+                "ShortCircuitProtectR": 1.05
+              }
+            ],
+            "bStandbyMode": false
+          },
+          "BertCalcLinkStatus": false,
+          "BertCalcRdoPseudoRandom": true,
+          "BertCalcRdoAudio": false,
+          "BertCalcEnablePrbsNodetoNodeChecking": true,
+          "BertCalcEnableDCRCERR": false,
+          "BertCalcEnableICRCERR": false,
+          "BertCalcEnableDDERR": false,
+          "BertCalcEnableDPERR": false,
+          "BertCalcEnableAutoReset": false,
+          "BertCalcAutoResetInterval": 0,
+          "BertCalcEnableShowErrorDiff": false,
+          "BertCalcAutoGenerateBusErrors": false,
+          "BertCalcTriggerTimeInterval": 1,
+          "BertCalcGenErrSelNode": 0,
+          "BertCalcGenDCRCERR": false,
+          "BertCalcGenICRCERR": false,
+          "BertCalcGenDDERR": false,
+          "BertCalcGenDPERR": false,
+          "BertCalcGenerateError": false,
+          "BertCalcStart": false,
+          "BertCalcRun": false,
+          "BertCalcResult": null
+        },
+        "Uid": "A2B_0",
+        "Name": "A2B",
+        "PluginName": "AnalogDevices.Plugins.Channels.A2BChannel_v2.0.0.0",
+        "InterfaceType": "AnalogDevices.TypeDefinitions.Plugins.IChannel",
+        "LinkReference": {
+          "$type": "System.Collections.ObjectModel.Collection`1[[System.String, mscorlib]], mscorlib",
+          "$values": [
+            "Link_39"
+          ]
+        }
+      }
+    ],
+    "WritableShapes": [
+      {
+        "PluginName": "AnalogDevices.Plugins.Controllers.PC_v1.0.0.0",
+        "Name": "PC",
+        "InterfaceType": "AnalogDevices.TypeDefinitions.Plugins.IController",
+        "Uid": "PC_0",
+        "WritableProperties": {
+          "IsRemovable": false,
+          "RestrictShape": false,
+          "IsLocked": false,
+          "BoardKey": "",
+          "EncryptedString": ""
+        },
+        "Angle": 0.0,
+        "Position": {
+          "X": 300.0,
+          "Y": 200.0
+        },
+        "Size": {
+          "Height": 113.0,
+          "Width": 116.0
+        },
+        "Label": "PC_0",
+        "WritableChannels": [],
+        "WritableShapes": [],
+        "WriteableLinks": [],
+        "AltShapes": [],
+        "PropertyPresets": {}
+      },
+      {
+        "PluginName": "AnalogDevices.Plugins.Communication.USBi_v1.0.0.0",
+        "Name": "USBi",
+        "InterfaceType": "AnalogDevices.TypeDefinitions.Plugins.ICommunication",
+        "Uid": "USBi_0",
+        "WritableProperties": {
+          "IsRemovable": true,
+          "RestrictShape": false,
+          "FirmwareVersion": "v1.5",
+          "IsLocked": false,
+          "BoardKey": "",
+          "EncryptedString": ""
+        },
+        "Angle": 0.0,
+        "Position": {
+          "X": 468.0,
+          "Y": 200.0
+        },
+        "Size": {
+          "Height": 113.0,
+          "Width": 116.0
+        },
+        "Label": "USBi_0",
+        "WritableChannels": [],
+        "WritableShapes": [],
+        "WriteableLinks": [],
+        "AltShapes": [],
+        "PropertyPresets": {}
+      },
+      {
+        "PluginName": "AnalogDevices.Plugins.Platforms.CustomPlatform_v1.0.0.0",
+        "Name": "Custom Platform",
+        "InterfaceType": "AnalogDevices.TypeDefinitions.Plugins.IPlatform",
+        "Uid": "CustomPlatform_0",
+        "WritableProperties": {
+          "IsRemovable": true,
+          "RestrictShape": false,
+          "BoardKey": "",
+          "IsLocked": false,
+          "EncryptedString": "",
+          "CustomPlatformPins": {
+            "$type": "System.Collections.Generic.List`1[[AnalogDevices.TypeDefinitions.Plugins.PinDefinition, TypeDefinitions]], mscorlib",
+            "$values": [
+              {
+                "Name": "B Port(AD243xMain_0)",
+                "PinType": 5,
+                "DataType": 0,
+                "IsTarget": false,
+                "IsSource": true,
+                "RelativePosition": {
+                  "X": 1.0,
+                  "Y": 0.5
+                },
+                "IsEnabled": true,
+                "ChannelName": "AnalogDevices.Plugins.Channels.A2BChannel_v2.0.0.0",
+                "type": "AnalogDevices.TypeDefinitions.Plugins.IChannel, TypeDefinitions, Version=2.3.0.0, Culture=neutral, PublicKeyToken=null",
+                "TransferFunction": null
+              },
+              {
+                "Name": "I2C Slave Port",
+                "PinType": 2,
+                "DataType": 0,
+                "IsTarget": true,
+                "IsSource": false,
+                "RelativePosition": {
+                  "X": 0.0,
+                  "Y": 0.5
+                },
+                "IsEnabled": true,
+                "ChannelName": "AnalogDevices.Plugins.Channels.ControlChannel_v1.0.0.0",
+                "type": "AnalogDevices.TypeDefinitions.Plugins.ICommChannel, TypeDefinitions, Version=2.3.0.0, Culture=neutral, PublicKeyToken=null",
+                "TransferFunction": null
+              }
+            ]
+          },
+          "MergeI2CPins": true,
+          "I2CPins": {
+            "$type": "System.Collections.Generic.List`1[[AnalogDevices.TypeDefinitions.Plugins.PinDefinition, TypeDefinitions]], mscorlib",
+            "$values": [
+              {
+                "Name": "I2C(GenericDevices_5)",
+                "PinType": 2,
+                "DataType": 0,
+                "IsTarget": true,
+                "IsSource": false,
+                "RelativePosition": {
+                  "X": 0.0,
+                  "Y": 0.5
+                },
+                "IsEnabled": true,
+                "ChannelName": "AnalogDevices.Plugins.Channels.ControlChannel_v1.0.0.0",
+                "type": "AnalogDevices.TypeDefinitions.Plugins.ICommChannel, TypeDefinitions, Version=2.3.0.0, Culture=neutral, PublicKeyToken=null",
+                "TransferFunction": null
+              },
+              {
+                "Name": "I2C(GenericDevices_6)",
+                "PinType": 2,
+                "DataType": 0,
+                "IsTarget": true,
+                "IsSource": false,
+                "RelativePosition": {
+                  "X": 0.0,
+                  "Y": 0.5
+                },
+                "IsEnabled": true,
+                "ChannelName": "AnalogDevices.Plugins.Channels.ControlChannel_v1.0.0.0",
+                "type": "AnalogDevices.TypeDefinitions.Plugins.ICommChannel, TypeDefinitions, Version=2.3.0.0, Culture=neutral, PublicKeyToken=null",
+                "TransferFunction": null
+              },
+              {
+                "Name": "I2C(AD243xMain_0)",
+                "PinType": 2,
+                "DataType": 0,
+                "IsTarget": true,
+                "IsSource": false,
+                "RelativePosition": {
+                  "X": 0.0,
+                  "Y": 0.5
+                },
+                "IsEnabled": true,
+                "ChannelName": "AnalogDevices.Plugins.Channels.ControlChannel_v1.0.0.0",
+                "type": "AnalogDevices.TypeDefinitions.Plugins.ICommChannel, TypeDefinitions, Version=2.3.0.0, Culture=neutral, PublicKeyToken=null",
+                "TransferFunction": null
+              }
+            ]
+          },
+          "CustomPlatformColor": "Green",
+          "PlatformName": "Custom Platform"
+        },
+        "Angle": 0.0,
+        "Position": {
+          "X": 700.0,
+          "Y": 253.0
+        },
+        "Size": {
+          "Height": 133.0,
+          "Width": 133.0
+        },
+        "Label": "EVM_RootNode",
+        "WritableChannels": [
+          {
+            "$type": "AnalogDevices.TypeDefinitions.Dom.SsprjDom.Internals.ChannelModel, TypeDefinitions",
+            "WritableProperties": {
+              "IsRemovable": true,
+              "RestrictShape": false,
+              "BoardKey": "",
+              "IsLocked": false,
+              "EncryptedString": ""
+            },
+            "Uid": "SPORT_13",
+            "Name": "SPORT",
+            "PluginName": "AnalogDevices.Plugins.Channels.AudioChannel_v1.0.0.0",
+            "InterfaceType": "AnalogDevices.TypeDefinitions.Plugins.IChannel",
+            "LinkReference": {
+              "$type": "System.Collections.ObjectModel.Collection`1[[System.String, mscorlib]], mscorlib",
+              "$values": [
+                "Link_26"
+              ]
+            }
+          },
+          {
+            "$type": "AnalogDevices.TypeDefinitions.Dom.SsprjDom.Internals.ChannelModel, TypeDefinitions",
+            "WritableProperties": {
+              "IsRemovable": true,
+              "RestrictShape": false,
+              "BoardKey": "",
+              "IsLocked": false,
+              "EncryptedString": ""
+            },
+            "Uid": "SPORT_14",
+            "Name": "SPORT",
+            "PluginName": "AnalogDevices.Plugins.Channels.AudioChannel_v1.0.0.0",
+            "InterfaceType": "AnalogDevices.TypeDefinitions.Plugins.IChannel",
+            "LinkReference": {
+              "$type": "System.Collections.ObjectModel.Collection`1[[System.String, mscorlib]], mscorlib",
+              "$values": [
+                "Link_27"
+              ]
+            }
+          }
+        ],
+        "WritableShapes": [
+          {
+            "PluginName": "AnalogDevices.Plugins.Peripherls.A2B.GenericDevices_v1.0.0.0",
+            "Name": "Programmable",
+            "InterfaceType": "AnalogDevices.TypeDefinitions.Plugins.IGenericDevice",
+            "Uid": "GenericDevices_5",
+            "WritableProperties": {
+              "IsRemovable": true,
+              "RestrictShape": false,
+              "BoardKey": "",
+              "IsLocked": false,
+              "EncryptedString": "",
+              "ProjectPath": "D:\\Projects\\A2B_PnP_Cpp\\tools\\SS+examples\\2x_AB0020_EVM_with_2437\\EVM_EVM.ssprj",
+              "PrmInterfaceEnable": 1,
+              "DevAddr": "0",
+              "PeriLinkStatus": {
+                "$type": "AnalogDevices.Plugins.Peripherals.A2BPeriDevice.PeriLinkStatus, BaseA2bPeriDevice",
+                "LinkDone": true,
+                "NodeID": -1,
+                "PeriPos": 0
+              },
+              "SDKCommunicator": {
+                "$type": "AnalogDevices.TypeDefinitions.Plugins.PeriSDKCommunicator, BaseA2bPeriDevice",
+                "NodeID": -1,
+                "Pos": 0,
+                "SdkCommAllowed": true,
+                "SdkClient": {
+                  "SdkEvents": {
+                    "$type": "AnalogDevices.A2bSdk.Api.A2bSdkEvents, a2bSdk"
+                  },
+                  "SdkLogger": {
+                    "Logger": {
+                      "$type": "Serilog.Core.Logger, Serilog"
+                    }
+                  }
+                }
+              },
+              "PeriDiscoveryStatus": 2,
+              "BlockProgram": {
+                "$type": "AnalogDevices.A2bSdk.Api.RegAddrValPair, a2bSdk",
+                "RegAddr": 0,
+                "RegVal": 0
+              },
+              "WriteReadReg": {
+                "$type": "AnalogDevices.A2bSdk.Api.ReadWritePacket, a2bSdk",
+                "DevAddr": 0,
+                "SPICmdWidth": 0,
+                "SPICmd": 0,
+                "AddrWidth": 0,
+                "Addr": 0,
+                "DataWidth": 1,
+                "Data": 0,
+                "PeriWrite": false
+              },
+              "WriteRegResult": {
+                "$type": "AnalogDevices.A2bSdk.Api.ReadWritePacket, a2bSdk",
+                "DevAddr": 0,
+                "SPICmdWidth": 0,
+                "SPICmd": 0,
+                "AddrWidth": 0,
+                "Addr": 0,
+                "DataWidth": 1,
+                "Data": 0,
+                "PeriWrite": false
+              },
+              "PeriName": "Peripheral",
+              "ReadRegResult": {
+                "$type": "AnalogDevices.A2bSdk.Api.ReadWritePacket, a2bSdk",
+                "DevAddr": 0,
+                "SPICmdWidth": 0,
+                "SPICmd": 0,
+                "AddrWidth": 0,
+                "Addr": 0,
+                "DataWidth": 1,
+                "Data": 0,
+                "PeriWrite": false
+              },
+              "I2CAddress": 57,
+              "PeriProperty": {
+                "$type": "AnalogDevices.A2bSdk.Api.PeriProp, a2bSdk",
+                "I2CAddress": 57,
+                "PrmInterfaceInUse": 1,
+                "ProgrammingFile": "AB0020-main-node-adau1761.xml",
+                "ProgrammingFileData": "",
+                "ProgDuringDiscovery": true,
+                "EmbedXmlContent": false,
+                "DeviceName": "",
+                "PeripheralName": "Peripheral",
+                "PeriDevInterface": 0,
+                "ProgMode": 0,
+                "CfgAfterBusSetup": false
+              },
+              "PeripheralFile": "AB0020-main-node-adau1761.xml",
+              "PeripheralFileData": "",
+              "ProgramDuringDisc": true,
+              "EmbedXml": false,
+              "GenerateXml": false,
+              "Download": "",
+              "PeriStatus": 0,
+              "SpiEn": 0,
+              "ProgMode": 0,
+              "RxPinLocation": "Left",
+              "TxPinLocation": "Left",
+              "ExcludeDownload": false
+            },
+            "Angle": 0.0,
+            "Position": {
+              "X": 416.0,
+              "Y": 106.0
+            },
+            "Size": {
+              "Height": 153.0,
+              "Width": 126.0
+            },
+            "Label": "ADAU1761",
+            "WritableChannels": [],
+            "WritableShapes": [],
+            "WriteableLinks": [],
+            "AltShapes": [],
+            "PropertyPresets": {}
+          },
+          {
+            "PluginName": "AnalogDevices.Plugins.Transceivers.AD243xMain_v2.0.0.0",
+            "Name": "AD243x-Main",
+            "InterfaceType": "AnalogDevices.TypeDefinitions.Plugins.ITransceiver",
+            "Uid": "AD243xMain_0",
+            "WritableProperties": {
+              "IsRemovable": true,
+              "RestrictShape": false,
+              "BoardKey": "",
+              "IsLocked": false,
+              "EncryptedString": "",
+              "SpiEn": false,
+              "SelectedItem": "AD2437",
+              "LinkStatus": {
+                "$type": "AnalogDevices.A2bSdk.Api.NodeLinkStatus, a2bSdk",
+                "LinkDone": true,
+                "NodeID": -1
+              },
+              "SDKCommunicator": {
+                "$type": "AnalogDevices.TypeDefinitions.Plugins.NodeSDKCommunicator, BaseA2BTransciever",
+                "NodeID": -1,
+                "SdkCommAllowed": true,
+                "SdkClient": {
+                  "SdkEvents": {
+                    "$type": "AnalogDevices.A2bSdk.Api.A2bSdkEvents, a2bSdk"
+                  },
+                  "SdkLogger": {
+                    "Logger": {
+                      "$type": "Serilog.Core.Logger, Serilog"
+                    }
+                  }
+                },
+                "HwSync": false
+              },
+              "NodeDiscoveryStatus": {
+                "$type": "AnalogDevices.A2bSdk.Api.NodeDiscoveryStatus, a2bSdk",
+                "NodeDiscovered": false,
+                "FaultIntrType": 0,
+                "DiagnosisFailureCode": 0,
+                "ErrIDInfo": [],
+                "HasAnyFailure": false,
+                "FailureType": 0,
+                "ReadWriteEn": false
+              },
+              "SetReg": {
+                "$type": "AnalogDevices.A2bSdk.Api.RegAddrValPair, a2bSdk",
+                "RegAddr": 90,
+                "RegVal": 129
+              },
+              "WriteReg": {
+                "$type": "System.Collections.Generic.List`1[[System.Int32, mscorlib]], mscorlib",
+                "$values": [
+                  90
+                ]
+              },
+              "WriteRegResult": {
+                "$type": "AnalogDevices.A2bSdk.Api.RegAddrValPair, a2bSdk",
+                "RegAddr": 0,
+                "RegVal": 0
+              },
+              "ReadReg": {
+                "$type": "AnalogDevices.A2bSdk.Api.RegAddrValPair, a2bSdk",
+                "RegAddr": 0,
+                "RegVal": 0
+              },
+              "ReadRegResult": {
+                "$type": "System.Collections.Generic.List`1[[AnalogDevices.A2bSdk.Api.RegAddrValPair, a2bSdk]], mscorlib",
+                "$values": [
+                  {
+                    "RegAddr": 0,
+                    "RegVal": 0
+                  }
+                ]
+              },
+              "NodeProperty": {
+                "$type": "AnalogDevices.A2bSdk.Api.NodeProp, a2bSdk",
+                "Policy": {
+                  "oCustomNodeID": {
+                    "bEnableNodeId": false,
+                    "bReadFromMem": true,
+                    "NodeId": "QUQyNDN4TWFpbl8w",
+                    "nMemDevAddr": 80,
+                    "nMemDevAddrWidth": 2,
+                    "nMemAddr": 256,
+                    "bStringNodeId": true,
+                    "nNodeIdLen": 12,
+                    "bReadFromGpio": false,
+                    "aGpioVal": "AgICAgICAgI=",
+                    "bReadFromMailbox": false,
+                    "nMaxTimeOut": 100,
+                    "nRetryCnt": 0
+                  },
+                  "NodeName": "AD243xMain_0",
+                  "ePartNum": 19,
+                  "sVersionNum": "2.1",
+                  "nMainNodeI2CAddr": 104,
+                  "eCableType": 1,
+                  "sCustomIdentifer": "",
+                  "bIncDat": false,
+                  "bAutoCalcMainNodeRespcycs": true,
+                  "nMainNodeFactor": 4,
+                  "bEnableAutoConfig": 0,
+                  "bUpdateRespCycs": true,
+                  "nAsideCableLen": 4.0,
+                  "bIgnoreNodeAuthentication": false,
+                  "bLocalPowered": true,
+                  "bChkRTMModule": false,
+                  "nHighPwrSwitchCfg": 4,
+                  "AutoCalculatedUpstreamReceiveOffset": 0,
+                  "bChkTwoStepDisc": false,
+                  "AutoCalculatedDownstreamReceiveOffset": 0,
+                  "UpstreamAdditionalReceiveOffset": 0,
+                  "DownstreamAdditionalReceiveOffset": 0,
+                  "UpstreamReceiveOffset": 0,
+                  "DownstreamReceiveOffset": 0,
+                  "UpstreamAdditionalReceiveOffsetMaximum": 31,
+                  "DownstreamAdditionalReceiveOffsetMaximum": 31,
+                  "bEnableManualSlotConfig": false,
+                  "MaxUpStreamSlotSize": 24,
+                  "MaxDownStreamSlotSize": 24
+                },
+                "RegValue": [
+                  {
+                    "RegAddr": 1,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 9,
+                    "RegVal": 17
+                  },
+                  {
+                    "RegAddr": 13,
+                    "RegVal": 2
+                  },
+                  {
+                    "RegAddr": 14,
+                    "RegVal": 2
+                  },
+                  {
+                    "RegAddr": 15,
+                    "RegVal": 125
+                  },
+                  {
+                    "RegAddr": 16,
+                    "RegVal": 68
+                  },
+                  {
+                    "RegAddr": 17,
+                    "RegVal": 3
+                  },
+                  {
+                    "RegAddr": 18,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 19,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 91,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 96,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 97,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 98,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 99,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 101,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 102,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 103,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 104,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 100,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 105,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 10,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 11,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 12,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 0,
+                    "RegVal": 80
+                  },
+                  {
+                    "RegAddr": 63,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 64,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 65,
+                    "RegVal": 224
+                  },
+                  {
+                    "RegAddr": 66,
+                    "RegVal": 17
+                  },
+                  {
+                    "RegAddr": 67,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 68,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 69,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 70,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 71,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 72,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 83,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 86,
+                    "RegVal": 1
+                  },
+                  {
+                    "RegAddr": 87,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 93,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 88,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 92,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 21,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 22,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 23,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 24,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 25,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 26,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 27,
+                    "RegVal": 16
+                  },
+                  {
+                    "RegAddr": 28,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 29,
+                    "RegVal": 9
+                  },
+                  {
+                    "RegAddr": 30,
+                    "RegVal": 239
+                  },
+                  {
+                    "RegAddr": 31,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 84,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 85,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 89,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 90,
+                    "RegVal": 129
+                  },
+                  {
+                    "RegAddr": 74,
+                    "RegVal": 128
+                  },
+                  {
+                    "RegAddr": 75,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 76,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 77,
+                    "RegVal": 128
+                  },
+                  {
+                    "RegAddr": 78,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 79,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 80,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 81,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 82,
+                    "RegVal": 1
+                  },
+                  {
+                    "RegAddr": 32,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 33,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 34,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 35,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 36,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 37,
+                    "RegVal": 121
+                  },
+                  {
+                    "RegAddr": 38,
+                    "RegVal": 121
+                  },
+                  {
+                    "RegAddr": 39,
+                    "RegVal": 121
+                  },
+                  {
+                    "RegAddr": 40,
+                    "RegVal": 121
+                  },
+                  {
+                    "RegAddr": 41,
+                    "RegVal": 128
+                  },
+                  {
+                    "RegAddr": 43,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 20,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 2,
+                    "RegVal": 173
+                  },
+                  {
+                    "RegAddr": 3,
+                    "RegVal": 55
+                  },
+                  {
+                    "RegAddr": 4,
+                    "RegVal": 33
+                  },
+                  {
+                    "RegAddr": 5,
+                    "RegVal": 1
+                  },
+                  {
+                    "RegAddr": 106,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 107,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 108,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 109,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 110,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 111,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 144,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 145,
+                    "RegVal": 2
+                  },
+                  {
+                    "RegAddr": 146,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 147,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 148,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 149,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 150,
+                    "RegVal": 2
+                  },
+                  {
+                    "RegAddr": 151,
+                    "RegVal": 2
+                  },
+                  {
+                    "RegAddr": 152,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 153,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 154,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 155,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 128,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 129,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 130,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 131,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 132,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 133,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 134,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 135,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 136,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 137,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 138,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 46,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 48,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 240,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 241,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 242,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 50,
+                    "RegVal": 64
+                  },
+                  {
+                    "RegAddr": 51,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 52,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 53,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 54,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 55,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 56,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 57,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 112,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 113,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 114,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 115,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 116,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 117,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 118,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 119,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 120,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 121,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 58,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 59,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 160,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 161,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 162,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 163,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 164,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 175,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 124,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 125,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 126,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 127,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 176,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 177,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 178,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 179,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 180,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 181,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 182,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 183,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 62,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 166,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 165,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 94,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 192,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 193,
+                    "RegVal": 1
+                  },
+                  {
+                    "RegAddr": 194,
+                    "RegVal": 2
+                  },
+                  {
+                    "RegAddr": 195,
+                    "RegVal": 3
+                  },
+                  {
+                    "RegAddr": 196,
+                    "RegVal": 4
+                  },
+                  {
+                    "RegAddr": 197,
+                    "RegVal": 5
+                  },
+                  {
+                    "RegAddr": 198,
+                    "RegVal": 6
+                  },
+                  {
+                    "RegAddr": 199,
+                    "RegVal": 7
+                  },
+                  {
+                    "RegAddr": 200,
+                    "RegVal": 8
+                  },
+                  {
+                    "RegAddr": 201,
+                    "RegVal": 9
+                  },
+                  {
+                    "RegAddr": 202,
+                    "RegVal": 10
+                  },
+                  {
+                    "RegAddr": 203,
+                    "RegVal": 11
+                  },
+                  {
+                    "RegAddr": 204,
+                    "RegVal": 12
+                  },
+                  {
+                    "RegAddr": 205,
+                    "RegVal": 13
+                  },
+                  {
+                    "RegAddr": 206,
+                    "RegVal": 14
+                  },
+                  {
+                    "RegAddr": 207,
+                    "RegVal": 15
+                  },
+                  {
+                    "RegAddr": 208,
+                    "RegVal": 16
+                  },
+                  {
+                    "RegAddr": 209,
+                    "RegVal": 17
+                  },
+                  {
+                    "RegAddr": 210,
+                    "RegVal": 18
+                  },
+                  {
+                    "RegAddr": 211,
+                    "RegVal": 19
+                  },
+                  {
+                    "RegAddr": 212,
+                    "RegVal": 20
+                  },
+                  {
+                    "RegAddr": 213,
+                    "RegVal": 21
+                  },
+                  {
+                    "RegAddr": 214,
+                    "RegVal": 22
+                  },
+                  {
+                    "RegAddr": 215,
+                    "RegVal": 23
+                  },
+                  {
+                    "RegAddr": 216,
+                    "RegVal": 24
+                  },
+                  {
+                    "RegAddr": 217,
+                    "RegVal": 25
+                  },
+                  {
+                    "RegAddr": 218,
+                    "RegVal": 26
+                  },
+                  {
+                    "RegAddr": 219,
+                    "RegVal": 27
+                  },
+                  {
+                    "RegAddr": 220,
+                    "RegVal": 28
+                  },
+                  {
+                    "RegAddr": 221,
+                    "RegVal": 29
+                  },
+                  {
+                    "RegAddr": 222,
+                    "RegVal": 30
+                  },
+                  {
+                    "RegAddr": 223,
+                    "RegVal": 31
+                  },
+                  {
+                    "RegAddr": 184,
+                    "RegVal": 255
+                  },
+                  {
+                    "RegAddr": 185,
+                    "RegVal": 255
+                  },
+                  {
+                    "RegAddr": 186,
+                    "RegVal": 255
+                  },
+                  {
+                    "RegAddr": 187,
+                    "RegVal": 255
+                  },
+                  {
+                    "RegAddr": 188,
+                    "RegVal": 255
+                  },
+                  {
+                    "RegAddr": 189,
+                    "RegVal": 255
+                  },
+                  {
+                    "RegAddr": 190,
+                    "RegVal": 255
+                  },
+                  {
+                    "RegAddr": 191,
+                    "RegVal": 255
+                  },
+                  {
+                    "RegAddr": 256,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 257,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 258,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 259,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 264,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 265,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 266,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 267,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 271,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 288,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 289,
+                    "RegVal": 255
+                  },
+                  {
+                    "RegAddr": 290,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 291,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 292,
+                    "RegVal": 255
+                  },
+                  {
+                    "RegAddr": 293,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 294,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 295,
+                    "RegVal": 255
+                  },
+                  {
+                    "RegAddr": 296,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 297,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 298,
+                    "RegVal": 255
+                  },
+                  {
+                    "RegAddr": 299,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 300,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 301,
+                    "RegVal": 255
+                  },
+                  {
+                    "RegAddr": 302,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 303,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 304,
+                    "RegVal": 255
+                  },
+                  {
+                    "RegAddr": 305,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 306,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 307,
+                    "RegVal": 255
+                  },
+                  {
+                    "RegAddr": 308,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 309,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 310,
+                    "RegVal": 255
+                  },
+                  {
+                    "RegAddr": 311,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 320,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 321,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 322,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 323,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 328,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 329,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 330,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 331,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 332,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 333,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 334,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 335,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 42,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 44,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 47,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 45,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 49,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 224,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 243,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 244,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 480,
+                    "RegVal": 0
+                  }
+                ]
+              },
+              "NodeStreamList": {
+                "$type": "AnalogDevices.A2bSdk.Api.StreamAggregator, a2bSdk",
+                "SrcStreamListUp": {
+                  "busSlotInfo": {},
+                  "StreamHelper": {
+                    "Status": "Added",
+                    "Direction": "Up"
+                  },
+                  "Stream": []
+                },
+                "SrcStreamListDown": {
+                  "busSlotInfo": {
+                    "Down2": 0
+                  },
+                  "StreamHelper": {
+                    "Status": "Added",
+                    "Direction": "Down"
+                  },
+                  "Stream": [
+                    {
+                      "StreamSource": "AD243xMain_0",
+                      "nNumSlots": 2,
+                      "DestNode": {
+                        "AD243xSubNode_1": 0
+                      },
+                      "StreamName": "Down2",
+                      "StreamID": 0,
+                      "SamplingRate": 48,
+                      "nNumCh": 2,
+                      "ChannelsToSkip": 0,
+                      "nWidth": 24,
+                      "StreamSourceNodeID": -1,
+                      "DestID": [
+                        0
+                      ]
+                    }
+                  ]
+                },
+                "SinkStreamListUp": {
+                  "busSlotInfo": {
+                    "Up2": 0
+                  },
+                  "StreamHelper": {
+                    "Status": "Used",
+                    "Direction": "Up"
+                  },
+                  "Stream": [
+                    {
+                      "StreamSource": "AD243xSubNode_1",
+                      "nNumSlots": 2,
+                      "DestNode": {
+                        "AD243xMain_0": -1
+                      },
+                      "StreamName": "Up2",
+                      "StreamID": 1,
+                      "SamplingRate": 48,
+                      "nNumCh": 2,
+                      "ChannelsToSkip": 0,
+                      "nWidth": 24,
+                      "StreamSourceNodeID": 0,
+                      "DestID": [
+                        -1
+                      ]
+                    }
+                  ]
+                },
+                "SinkStreamListDown": {
+                  "busSlotInfo": {},
+                  "StreamHelper": {
+                    "Status": "Used",
+                    "Direction": "Down"
+                  },
+                  "Stream": []
+                },
+                "PassStreamListUp": {
+                  "busSlotInfo": {},
+                  "StreamHelper": {
+                    "Status": "Passed",
+                    "Direction": "Up"
+                  },
+                  "Stream": []
+                },
+                "PassStreamListDown": {
+                  "busSlotInfo": {},
+                  "StreamHelper": {
+                    "Status": "Passed",
+                    "Direction": "Down"
+                  },
+                  "Stream": []
+                },
+                "NodeTunnelInfo": {
+                  "tunnelInfo": {
+                    "tunnelstream": null,
+                    "role": 2,
+                    "dwnstreamLeak": [],
+                    "UpstreamLeak": []
+                  },
+                  "DownstreamSlotsInfo": "",
+                  "UpstreamSlotsInfo": "",
+                  "TunnelPosition": ""
+                },
+                "BwInfoView": {
+                  "ConservRespOffset": 245,
+                  "AccurateRespOffset": 254,
+                  "RespOffset": 0,
+                  "CableDelayBw": 0.0,
+                  "nUpBWA": 0,
+                  "nDwnBWB": 114,
+                  "nUpBWB": 114,
+                  "nDwnBWA": 0,
+                  "nTotalDN_B": 2,
+                  "nTotalDN_A": 0,
+                  "nTotalUP_B": 2,
+                  "nTotalUP_A": 0,
+                  "nContributedUP": 0,
+                  "nContributedDwn": 2,
+                  "nConsumeUP": 2,
+                  "nConsumeDwn": 0,
+                  "nTotalDN_Audio_B": 0,
+                  "nTotalDN_Audio_A": 0,
+                  "nTotalUP_Audio_B": 0,
+                  "nTotalUP_Audio_A": 0,
+                  "nDSDelayA": 0,
+                  "nDSDelayB": 0,
+                  "nDSMarginA": 0,
+                  "nDSMarginB": 0,
+                  "nUSMarginA": 0,
+                  "nUSMarginB": 0,
+                  "nUSTDMIdleB": 0,
+                  "nTotMarginA": 0,
+                  "nTotMarginB": 0,
+                  "MinMarginPort": "B",
+                  "MinMargin": 0
+                }
+              },
+              "AssignTabInfo": {
+                "$type": "AnalogDevices.Plugins.Transceivers.A2BTransceivers.AssignTabInfo, BaseA2BTransciever",
+                "IO0assign": "GPIO0",
+                "IO0assignComment": "N/A",
+                "ADR1IO1assignComment": "N/A",
+                "ADR2IO2assignComment": "N/A",
+                "DTx0IO3assignComment": "N/A",
+                "DTx1IO4assignComment": "N/A",
+                "DRx0IO5assignComment": "N/A",
+                "DRx1IO6assignComment": "N/A",
+                "IO7assignComment": "N/A",
+                "sda_row": "I2C",
+                "scl_row": "I2C",
+                "adr1_row": "SS0",
+                "adr2_row": "CLK OUT2",
+                "miso_row": "SPI(S)",
+                "mosi_row": "SPI(S)",
+                "sck_row": "SPI(S)",
+                "SIO0assignComment": "N/A",
+                "SIO1assignComment": "N/A",
+                "SIO2assignComment": "N/A",
+                "SIO3assignComment": "N/A",
+                "SIO4assignComment": "N/A",
+                "GPIO7assignComment": "N/A",
+                "SDAassignComment": "N/A",
+                "SCLassignComment": "N/A",
+                "MISOassignComment": "N/A",
+                "MOSIassignComment": "N/A",
+                "SCKassignComment": "N/A",
+                "ADR1assignComment": "N/A",
+                "ADR2assignComment": "N/A"
+              },
+              "ExcludeNodeFromDiscovery": false,
+              "CrossbarMap": {
+                "$type": "AnalogDevices.A2bSdk.A2bCrossbar.A2BCrossBar, a2bSdk",
+                "UpdatedCrossBarMap": {
+                  "TX 0": [
+                    "U0",
+                    "U1"
+                  ],
+                  "RX 0": [
+                    "D0",
+                    "D1"
+                  ]
+                },
+                "RxMaskRegStatus": {
+                  "0": true,
+                  "1": true,
+                  "2": true,
+                  "3": true,
+                  "4": true,
+                  "5": true,
+                  "6": true,
+                  "7": true,
+                  "8": true,
+                  "9": true,
+                  "10": true,
+                  "11": true,
+                  "12": true,
+                  "13": true,
+                  "14": true,
+                  "15": true,
+                  "16": true,
+                  "17": true,
+                  "18": true,
+                  "19": true,
+                  "20": true,
+                  "21": true,
+                  "22": true,
+                  "23": true,
+                  "24": true,
+                  "25": true,
+                  "26": true,
+                  "27": true,
+                  "28": true,
+                  "29": true,
+                  "30": true,
+                  "31": true,
+                  "32": true,
+                  "33": true,
+                  "34": true,
+                  "35": true,
+                  "36": true,
+                  "37": true,
+                  "38": true,
+                  "39": true,
+                  "40": true,
+                  "41": true,
+                  "42": true,
+                  "43": true,
+                  "44": true,
+                  "45": true,
+                  "46": true,
+                  "47": true,
+                  "48": true,
+                  "49": true,
+                  "50": true,
+                  "51": true,
+                  "52": true,
+                  "53": true,
+                  "54": true,
+                  "55": true,
+                  "56": true,
+                  "57": true,
+                  "58": true,
+                  "59": true,
+                  "60": true,
+                  "61": true,
+                  "62": true,
+                  "63": true
+                }
+              },
+              "CrossbarMat": 0,
+              "ModuleInfoPolicy": 0,
+              "SwitchControl": 17,
+              "Channel Reference": "A2B_0",
+              "SlotSize": 0,
+              "UpSize": 25,
+              "DnSize": 25,
+              "AutoSlotVal": true,
+              "ExportNcfPolicy": 0,
+              "TxtNcfXmlFile": "",
+              "TxtNCFExportXmlFileVersion": "1.0.0",
+              "ImportNcfPolicy": ""
+            },
+            "Angle": 0.0,
+            "Position": {
+              "X": 19.0,
+              "Y": 295.0
+            },
+            "Size": {
+              "Height": 153.0,
+              "Width": 126.0
+            },
+            "Label": "AD243xMain_0",
+            "WritableChannels": [],
+            "WritableShapes": [],
+            "WriteableLinks": [],
+            "AltShapes": [],
+            "PropertyPresets": {}
+          },
+          {
+            "PluginName": "AnalogDevices.Plugins.Peripherls.A2B.GenericDevices_v1.0.0.0",
+            "Name": "Programmable",
+            "InterfaceType": "AnalogDevices.TypeDefinitions.Plugins.IGenericDevice",
+            "Uid": "GenericDevices_6",
+            "WritableProperties": {
+              "IsRemovable": true,
+              "RestrictShape": false,
+              "BoardKey": "",
+              "IsLocked": false,
+              "EncryptedString": "",
+              "ProjectPath": "D:\\Projects\\A2B_PnP_Cpp\\tools\\SS+examples\\2x_AB0020_EVM_with_2437\\EVM_EVM.ssprj",
+              "PrmInterfaceEnable": 1,
+              "DevAddr": "0",
+              "PeriLinkStatus": {
+                "$type": "AnalogDevices.Plugins.Peripherals.A2BPeriDevice.PeriLinkStatus, BaseA2bPeriDevice",
+                "LinkDone": true,
+                "NodeID": -1,
+                "PeriPos": 1
+              },
+              "SDKCommunicator": {
+                "$type": "AnalogDevices.TypeDefinitions.Plugins.PeriSDKCommunicator, BaseA2bPeriDevice",
+                "NodeID": -1,
+                "Pos": 1,
+                "SdkCommAllowed": true,
+                "SdkClient": {
+                  "SdkEvents": {
+                    "$type": "AnalogDevices.A2bSdk.Api.A2bSdkEvents, a2bSdk"
+                  },
+                  "SdkLogger": {
+                    "Logger": {
+                      "$type": "Serilog.Core.Logger, Serilog"
+                    }
+                  }
+                }
+              },
+              "PeriDiscoveryStatus": 2,
+              "BlockProgram": {
+                "$type": "AnalogDevices.A2bSdk.Api.RegAddrValPair, a2bSdk",
+                "RegAddr": 0,
+                "RegVal": 0
+              },
+              "WriteReadReg": {
+                "$type": "AnalogDevices.A2bSdk.Api.ReadWritePacket, a2bSdk",
+                "DevAddr": 80,
+                "SPICmdWidth": 1,
+                "SPICmd": 0,
+                "AddrWidth": 2,
+                "Addr": 0,
+                "DataWidth": 1,
+                "Data": 165,
+                "PeriWrite": false
+              },
+              "WriteRegResult": {
+                "$type": "AnalogDevices.A2bSdk.Api.ReadWritePacket, a2bSdk",
+                "DevAddr": 80,
+                "SPICmdWidth": 1,
+                "SPICmd": 0,
+                "AddrWidth": 2,
+                "Addr": 0,
+                "DataWidth": 1,
+                "Data": 165,
+                "PeriWrite": true
+              },
+              "PeriName": "Peripheral",
+              "ReadRegResult": {
+                "$type": "AnalogDevices.A2bSdk.Api.ReadWritePacket, a2bSdk",
+                "DevAddr": 80,
+                "SPICmdWidth": 1,
+                "SPICmd": 0,
+                "AddrWidth": 2,
+                "Addr": 0,
+                "DataWidth": 1,
+                "Data": 165,
+                "PeriWrite": false
+              },
+              "I2CAddress": 80,
+              "PeriProperty": {
+                "$type": "AnalogDevices.A2bSdk.Api.PeriProp, a2bSdk",
+                "I2CAddress": 80,
+                "PrmInterfaceInUse": 1,
+                "ProgrammingFile": "eeprom_exercise_high.xml",
+                "ProgrammingFileData": "",
+                "ProgDuringDiscovery": false,
+                "EmbedXmlContent": false,
+                "DeviceName": "",
+                "PeripheralName": "Peripheral",
+                "PeriDevInterface": 0,
+                "ProgMode": 0,
+                "CfgAfterBusSetup": false
+              },
+              "PeripheralFile": "eeprom_exercise_high.xml",
+              "PeripheralFileData": "",
+              "ProgramDuringDisc": false,
+              "EmbedXml": false,
+              "GenerateXml": false,
+              "Download": "eeprom_exercise_high.xml",
+              "PeriStatus": 0,
+              "SpiEn": 0,
+              "ProgMode": 0,
+              "RxPinLocation": "Left",
+              "TxPinLocation": "Left",
+              "ExcludeDownload": false
+            },
+            "Angle": 0.0,
+            "Position": {
+              "X": 416.0,
+              "Y": 392.0
+            },
+            "Size": {
+              "Height": 153.0,
+              "Width": 126.0
+            },
+            "Label": "EEPROM",
+            "WritableChannels": [],
+            "WritableShapes": [],
+            "WriteableLinks": [],
+            "AltShapes": [],
+            "PropertyPresets": {}
+          }
+        ],
+        "WriteableLinks": [
+          {
+            "Uid": "Link_26",
+            "SourceUid": "AD243xMain_0",
+            "SourcePinName": "Tx",
+            "TargetUid": "GenericDevices_5",
+            "TargetPinName": "Rx",
+            "LinkType": "SPORT",
+            "Points": [
+              {
+                "X": 5.0,
+                "Y": 363.85
+              },
+              {
+                "X": 5.0,
+                "Y": 182.5
+              }
+            ]
+          },
+          {
+            "Uid": "Link_27",
+            "SourceUid": "GenericDevices_5",
+            "SourcePinName": "Tx",
+            "TargetUid": "AD243xMain_0",
+            "TargetPinName": "Rx",
+            "LinkType": "SPORT",
+            "Points": [
+              {
+                "X": 5.0,
+                "Y": 220.75
+              },
+              {
+                "X": 5.0,
+                "Y": 386.8
+              }
+            ]
+          }
+        ],
+        "AltShapes": [],
+        "PropertyPresets": {}
+      },
+      {
+        "PluginName": "AnalogDevices.Plugins.Platforms.CustomPlatform_v1.0.0.0",
+        "Name": "Custom Platform",
+        "InterfaceType": "AnalogDevices.TypeDefinitions.Plugins.IPlatform",
+        "Uid": "CustomPlatform_2",
+        "WritableProperties": {
+          "IsRemovable": true,
+          "RestrictShape": false,
+          "BoardKey": "",
+          "IsLocked": false,
+          "EncryptedString": "",
+          "CustomPlatformPins": {
+            "$type": "System.Collections.Generic.List`1[[AnalogDevices.TypeDefinitions.Plugins.PinDefinition, TypeDefinitions]], mscorlib",
+            "$values": [
+              {
+                "Name": "A Port(AD243xSubNode_1)",
+                "PinType": 5,
+                "DataType": 0,
+                "IsTarget": true,
+                "IsSource": false,
+                "RelativePosition": {
+                  "X": 0.0,
+                  "Y": 0.5
+                },
+                "IsEnabled": true,
+                "ChannelName": "AnalogDevices.Plugins.Channels.A2BChannel_v2.0.0.0",
+                "type": "AnalogDevices.TypeDefinitions.Plugins.IChannel, TypeDefinitions, Version=2.3.0.0, Culture=neutral, PublicKeyToken=null",
+                "TransferFunction": null
+              },
+              {
+                "Name": "B Port(AD243xSubNode_1)",
+                "PinType": 5,
+                "DataType": 0,
+                "IsTarget": false,
+                "IsSource": true,
+                "RelativePosition": {
+                  "X": 1.0,
+                  "Y": 0.5
+                },
+                "IsEnabled": true,
+                "ChannelName": "AnalogDevices.Plugins.Channels.A2BChannel_v2.0.0.0",
+                "type": "AnalogDevices.TypeDefinitions.Plugins.IChannel, TypeDefinitions, Version=2.3.0.0, Culture=neutral, PublicKeyToken=null",
+                "TransferFunction": null
+              }
+            ]
+          },
+          "MergeI2CPins": true,
+          "I2CPins": {
+            "$type": "System.Collections.Generic.List`1[[AnalogDevices.TypeDefinitions.Plugins.PinDefinition, TypeDefinitions]], mscorlib",
+            "$values": []
+          },
+          "CustomPlatformColor": "Green",
+          "PlatformName": "AD2437_AB0020_EVM"
+        },
+        "Angle": 0.0,
+        "Position": {
+          "X": 912.0,
+          "Y": 253.0
+        },
+        "Size": {
+          "Height": 133.0,
+          "Width": 164.64333333333335
+        },
+        "Label": "AD2437_AB0020_EVM",
+        "WritableChannels": [
+          {
+            "$type": "AnalogDevices.TypeDefinitions.Dom.SsprjDom.Internals.ChannelModel, TypeDefinitions",
+            "WritableProperties": {
+              "IsRemovable": true,
+              "RestrictShape": false,
+              "BoardKey": "",
+              "IsLocked": false,
+              "EncryptedString": ""
+            },
+            "Uid": "AudioChannel_0",
+            "Name": "SPORT",
+            "PluginName": "AnalogDevices.Plugins.Channels.AudioChannel_v1.0.0.0",
+            "InterfaceType": "AnalogDevices.TypeDefinitions.Plugins.IChannel",
+            "LinkReference": {
+              "$type": "System.Collections.ObjectModel.Collection`1[[System.String, mscorlib]], mscorlib",
+              "$values": [
+                "Link_35"
+              ]
+            }
+          },
+          {
+            "$type": "AnalogDevices.TypeDefinitions.Dom.SsprjDom.Internals.ChannelModel, TypeDefinitions",
+            "WritableProperties": {
+              "IsRemovable": true,
+              "RestrictShape": false,
+              "BoardKey": "",
+              "IsLocked": false,
+              "EncryptedString": ""
+            },
+            "Uid": "AudioChannel_1",
+            "Name": "SPORT",
+            "PluginName": "AnalogDevices.Plugins.Channels.AudioChannel_v1.0.0.0",
+            "InterfaceType": "AnalogDevices.TypeDefinitions.Plugins.IChannel",
+            "LinkReference": {
+              "$type": "System.Collections.ObjectModel.Collection`1[[System.String, mscorlib]], mscorlib",
+              "$values": [
+                "Link_36"
+              ]
+            }
+          },
+          {
+            "$type": "AnalogDevices.TypeDefinitions.Dom.SsprjDom.Internals.ChannelModel, TypeDefinitions",
+            "WritableProperties": {
+              "IsRemovable": true,
+              "RestrictShape": false,
+              "BoardKey": "",
+              "IsLocked": false,
+              "EncryptedString": ""
+            },
+            "Uid": "PlatformControlChannel_0",
+            "Name": "I2C",
+            "PluginName": "AnalogDevices.Plugins.Channels.PlatformControlChannel_v1.0.0.0",
+            "InterfaceType": "AnalogDevices.TypeDefinitions.Plugins.IChannel",
+            "LinkReference": {
+              "$type": "System.Collections.ObjectModel.Collection`1[[System.String, mscorlib]], mscorlib",
+              "$values": [
+                "Link_37",
+                "Link_38"
+              ]
+            }
+          }
+        ],
+        "WritableShapes": [
+          {
+            "PluginName": "AnalogDevices.Plugins.Peripherls.A2B.GenericDevices_v1.0.0.0",
+            "Name": "Programmable",
+            "InterfaceType": "AnalogDevices.TypeDefinitions.Plugins.IGenericDevice",
+            "Uid": "GenericDevices_9",
+            "WritableProperties": {
+              "IsRemovable": true,
+              "RestrictShape": false,
+              "BoardKey": "",
+              "IsLocked": false,
+              "EncryptedString": "",
+              "ProjectPath": "D:\\Projects\\A2B_PnP_Cpp\\tools\\SS+examples\\2x_AB0020_EVM_with_2437\\EVM_EVM.ssprj",
+              "PrmInterfaceEnable": 1,
+              "DevAddr": "0",
+              "PeriLinkStatus": {
+                "$type": "AnalogDevices.Plugins.Peripherals.A2BPeriDevice.PeriLinkStatus, BaseA2bPeriDevice",
+                "LinkDone": true,
+                "NodeID": 0,
+                "PeriPos": 0
+              },
+              "SDKCommunicator": {
+                "$type": "AnalogDevices.TypeDefinitions.Plugins.PeriSDKCommunicator, BaseA2bPeriDevice",
+                "NodeID": 0,
+                "Pos": 0,
+                "SdkCommAllowed": true,
+                "SdkClient": {
+                  "SdkEvents": {
+                    "$type": "AnalogDevices.A2bSdk.Api.A2bSdkEvents, a2bSdk"
+                  },
+                  "SdkLogger": {
+                    "Logger": {
+                      "$type": "Serilog.Core.Logger, Serilog"
+                    }
+                  }
+                }
+              },
+              "PeriDiscoveryStatus": 2,
+              "BlockProgram": {
+                "$type": "AnalogDevices.A2bSdk.Api.RegAddrValPair, a2bSdk",
+                "RegAddr": 0,
+                "RegVal": 0
+              },
+              "WriteReadReg": {
+                "$type": "AnalogDevices.A2bSdk.Api.ReadWritePacket, a2bSdk",
+                "DevAddr": 0,
+                "SPICmdWidth": 0,
+                "SPICmd": 0,
+                "AddrWidth": 0,
+                "Addr": 0,
+                "DataWidth": 1,
+                "Data": 0,
+                "PeriWrite": false
+              },
+              "WriteRegResult": {
+                "$type": "AnalogDevices.A2bSdk.Api.ReadWritePacket, a2bSdk",
+                "DevAddr": 0,
+                "SPICmdWidth": 0,
+                "SPICmd": 0,
+                "AddrWidth": 0,
+                "Addr": 0,
+                "DataWidth": 1,
+                "Data": 0,
+                "PeriWrite": false
+              },
+              "PeriName": "Peripheral",
+              "ReadRegResult": {
+                "$type": "AnalogDevices.A2bSdk.Api.ReadWritePacket, a2bSdk",
+                "DevAddr": 0,
+                "SPICmdWidth": 0,
+                "SPICmd": 0,
+                "AddrWidth": 0,
+                "Addr": 0,
+                "DataWidth": 1,
+                "Data": 0,
+                "PeriWrite": false
+              },
+              "I2CAddress": 57,
+              "PeriProperty": {
+                "$type": "AnalogDevices.A2bSdk.Api.PeriProp, a2bSdk",
+                "I2CAddress": 57,
+                "PrmInterfaceInUse": 1,
+                "ProgrammingFile": "AB0020-sub-node-ADAU1761.xml",
+                "ProgrammingFileData": "",
+                "ProgDuringDiscovery": true,
+                "EmbedXmlContent": false,
+                "DeviceName": "AD243xSubNode_1",
+                "PeripheralName": "Peripheral",
+                "PeriDevInterface": 0,
+                "ProgMode": 0,
+                "CfgAfterBusSetup": false
+              },
+              "PeripheralFile": "AB0020-sub-node-ADAU1761.xml",
+              "PeripheralFileData": "",
+              "ProgramDuringDisc": true,
+              "EmbedXml": false,
+              "GenerateXml": false,
+              "Download": "CSP_EVM_a2b_slave_ADAU1761.xml",
+              "PeriStatus": 0,
+              "SpiEn": 0,
+              "ProgMode": 0,
+              "RxPinLocation": "Left",
+              "TxPinLocation": "Left",
+              "ExcludeDownload": false
+            },
+            "Angle": 0.0,
+            "Position": {
+              "X": 416.0,
+              "Y": 106.0
+            },
+            "Size": {
+              "Height": 153.0,
+              "Width": 126.0
+            },
+            "Label": "ADAU1761_0",
+            "WritableChannels": [],
+            "WritableShapes": [],
+            "WriteableLinks": [],
+            "AltShapes": [],
+            "PropertyPresets": {}
+          },
+          {
+            "PluginName": "AnalogDevices.Plugins.Peripherls.A2B.GenericDevices_v1.0.0.0",
+            "Name": "Programmable",
+            "InterfaceType": "AnalogDevices.TypeDefinitions.Plugins.IGenericDevice",
+            "Uid": "GenericDevices_10",
+            "WritableProperties": {
+              "IsRemovable": true,
+              "RestrictShape": false,
+              "BoardKey": "",
+              "IsLocked": false,
+              "EncryptedString": "",
+              "ProjectPath": "D:\\Projects\\A2B_PnP_Cpp\\tools\\SS+examples\\2x_AB0020_EVM_with_2437\\EVM_EVM.ssprj",
+              "PrmInterfaceEnable": 1,
+              "DevAddr": "0",
+              "PeriLinkStatus": {
+                "$type": "AnalogDevices.Plugins.Peripherals.A2BPeriDevice.PeriLinkStatus, BaseA2bPeriDevice",
+                "LinkDone": true,
+                "NodeID": 0,
+                "PeriPos": 1
+              },
+              "SDKCommunicator": {
+                "$type": "AnalogDevices.TypeDefinitions.Plugins.PeriSDKCommunicator, BaseA2bPeriDevice",
+                "NodeID": 0,
+                "Pos": 1,
+                "SdkCommAllowed": true,
+                "SdkClient": {
+                  "SdkEvents": {
+                    "$type": "AnalogDevices.A2bSdk.Api.A2bSdkEvents, a2bSdk"
+                  },
+                  "SdkLogger": {
+                    "Logger": {
+                      "$type": "Serilog.Core.Logger, Serilog"
+                    }
+                  }
+                }
+              },
+              "PeriDiscoveryStatus": 2,
+              "BlockProgram": {
+                "$type": "AnalogDevices.A2bSdk.Api.RegAddrValPair, a2bSdk",
+                "RegAddr": 0,
+                "RegVal": 0
+              },
+              "WriteReadReg": {
+                "$type": "AnalogDevices.A2bSdk.Api.ReadWritePacket, a2bSdk",
+                "DevAddr": 80,
+                "SPICmdWidth": 1,
+                "SPICmd": 0,
+                "AddrWidth": 2,
+                "Addr": 0,
+                "DataWidth": 1,
+                "Data": 0,
+                "PeriWrite": false
+              },
+              "WriteRegResult": {
+                "$type": "AnalogDevices.A2bSdk.Api.ReadWritePacket, a2bSdk",
+                "DevAddr": 80,
+                "SPICmdWidth": 1,
+                "SPICmd": 0,
+                "AddrWidth": 2,
+                "Addr": 0,
+                "DataWidth": 1,
+                "Data": 213,
+                "PeriWrite": true
+              },
+              "PeriName": "Peripheral",
+              "ReadRegResult": {
+                "$type": "AnalogDevices.A2bSdk.Api.ReadWritePacket, a2bSdk",
+                "DevAddr": 80,
+                "SPICmdWidth": 1,
+                "SPICmd": 0,
+                "AddrWidth": 2,
+                "Addr": 0,
+                "DataWidth": 1,
+                "Data": 0,
+                "PeriWrite": false
+              },
+              "I2CAddress": 80,
+              "PeriProperty": {
+                "$type": "AnalogDevices.A2bSdk.Api.PeriProp, a2bSdk",
+                "I2CAddress": 80,
+                "PrmInterfaceInUse": 1,
+                "ProgrammingFile": "eeprom_exercise.xml",
+                "ProgrammingFileData": "",
+                "ProgDuringDiscovery": false,
+                "EmbedXmlContent": false,
+                "DeviceName": "",
+                "PeripheralName": "Peripheral",
+                "PeriDevInterface": 0,
+                "ProgMode": 0,
+                "CfgAfterBusSetup": false
+              },
+              "PeripheralFile": "eeprom_exercise.xml",
+              "PeripheralFileData": "",
+              "ProgramDuringDisc": false,
+              "EmbedXml": false,
+              "GenerateXml": false,
+              "Download": "eeprom_exercise.xml",
+              "PeriStatus": 0,
+              "SpiEn": 0,
+              "ProgMode": 0,
+              "RxPinLocation": "Left",
+              "TxPinLocation": "Left",
+              "ExcludeDownload": false
+            },
+            "Angle": 0.0,
+            "Position": {
+              "X": 416.0,
+              "Y": 392.0
+            },
+            "Size": {
+              "Height": 153.0,
+              "Width": 126.0
+            },
+            "Label": "EERPOM_8",
+            "WritableChannels": [],
+            "WritableShapes": [],
+            "WriteableLinks": [],
+            "AltShapes": [],
+            "PropertyPresets": {}
+          },
+          {
+            "PluginName": "AnalogDevices.Plugins.Transceivers.AD243xSubNode_v2.0.0.0",
+            "Name": "AD243x-SubNode",
+            "InterfaceType": "AnalogDevices.TypeDefinitions.Plugins.ITransceiver",
+            "Uid": "AD243xSubNode_1",
+            "WritableProperties": {
+              "IsRemovable": true,
+              "RestrictShape": false,
+              "BoardKey": "",
+              "IsLocked": false,
+              "EncryptedString": "",
+              "SelectedItem": "AD2437",
+              "EnableManualSlotUpdate": false,
+              "CableType": "UTP",
+              "ModuleInfoViewModelData": {},
+              "LinkStatus": {
+                "$type": "AnalogDevices.A2bSdk.Api.NodeLinkStatus, a2bSdk",
+                "LinkDone": true,
+                "NodeID": 0
+              },
+              "SDKCommunicator": {
+                "$type": "AnalogDevices.TypeDefinitions.Plugins.NodeSDKCommunicator, BaseA2BTransciever",
+                "NodeID": 0,
+                "SdkCommAllowed": true,
+                "SdkClient": {
+                  "SdkEvents": {
+                    "$type": "AnalogDevices.A2bSdk.Api.A2bSdkEvents, a2bSdk"
+                  },
+                  "SdkLogger": {
+                    "Logger": {
+                      "$type": "Serilog.Core.Logger, Serilog"
+                    }
+                  }
+                },
+                "HwSync": false
+              },
+              "NodeDiscoveryStatus": {
+                "$type": "AnalogDevices.A2bSdk.Api.NodeDiscoveryStatus, a2bSdk",
+                "NodeDiscovered": false,
+                "FaultIntrType": 0,
+                "DiagnosisFailureCode": 0,
+                "ErrIDInfo": [],
+                "HasAnyFailure": false,
+                "FailureType": 0,
+                "ReadWriteEn": false
+              },
+              "SetReg": {
+                "$type": "AnalogDevices.A2bSdk.Api.RegAddrValPair, a2bSdk",
+                "RegAddr": 66,
+                "RegVal": 17
+              },
+              "WriteReg": {
+                "$type": "System.Collections.Generic.List`1[[System.Int32, mscorlib]], mscorlib",
+                "$values": [
+                  105
+                ]
+              },
+              "WriteRegResult": {
+                "$type": "AnalogDevices.A2bSdk.Api.RegAddrValPair, a2bSdk",
+                "RegAddr": 0,
+                "RegVal": 0
+              },
+              "ReadReg": {
+                "$type": "System.Collections.Generic.List`1[[System.Int32, mscorlib]], mscorlib",
+                "$values": [
+                  176
+                ]
+              },
+              "ReadRegResult": {
+                "$type": "System.Collections.Generic.List`1[[AnalogDevices.A2bSdk.Api.RegAddrValPair, a2bSdk]], mscorlib",
+                "$values": [
+                  {
+                    "RegAddr": 176,
+                    "RegVal": 2
+                  }
+                ]
+              },
+              "NodeProperty": {
+                "$type": "AnalogDevices.A2bSdk.Api.NodeProp, a2bSdk",
+                "Policy": {
+                  "oCustomNodeID": {
+                    "bEnableNodeId": false,
+                    "bReadFromMem": true,
+                    "NodeId": "QUQyNDN4U3ViTm9kZV8w",
+                    "nMemDevAddr": 80,
+                    "nMemDevAddrWidth": 2,
+                    "nMemAddr": 256,
+                    "bStringNodeId": true,
+                    "nNodeIdLen": 15,
+                    "bReadFromGpio": false,
+                    "aGpioVal": "AgICAgICAgI=",
+                    "bReadFromMailbox": false,
+                    "nMaxTimeOut": 100,
+                    "nRetryCnt": 0
+                  },
+                  "NodeName": "AD243xSubNode_1",
+                  "ePartNum": 19,
+                  "sVersionNum": "2.1",
+                  "nMainNodeI2CAddr": 104,
+                  "eCableType": 0,
+                  "sCustomIdentifer": "",
+                  "bIncDat": false,
+                  "bAutoCalcMainNodeRespcycs": true,
+                  "nMainNodeFactor": 4,
+                  "bEnableAutoConfig": 0,
+                  "bUpdateRespCycs": true,
+                  "nAsideCableLen": 1.0,
+                  "bIgnoreNodeAuthentication": false,
+                  "bLocalPowered": true,
+                  "bChkRTMModule": false,
+                  "nHighPwrSwitchCfg": 4,
+                  "AutoCalculatedUpstreamReceiveOffset": 0,
+                  "bChkTwoStepDisc": false,
+                  "AutoCalculatedDownstreamReceiveOffset": 0,
+                  "UpstreamAdditionalReceiveOffset": 0,
+                  "DownstreamAdditionalReceiveOffset": 0,
+                  "UpstreamReceiveOffset": 0,
+                  "DownstreamReceiveOffset": 0,
+                  "UpstreamAdditionalReceiveOffsetMaximum": 31,
+                  "DownstreamAdditionalReceiveOffsetMaximum": 31,
+                  "bEnableManualSlotConfig": false,
+                  "MaxUpStreamSlotSize": 0,
+                  "MaxDownStreamSlotSize": 0
+                },
+                "RegValue": [
+                  {
+                    "RegAddr": 1,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 9,
+                    "RegVal": 17
+                  },
+                  {
+                    "RegAddr": 13,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 14,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 15,
+                    "RegVal": 125
+                  },
+                  {
+                    "RegAddr": 16,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 17,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 18,
+                    "RegVal": 32
+                  },
+                  {
+                    "RegAddr": 19,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 91,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 96,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 97,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 98,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 99,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 101,
+                    "RegVal": 3
+                  },
+                  {
+                    "RegAddr": 102,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 103,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 104,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 100,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 105,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 10,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 11,
+                    "RegVal": 128
+                  },
+                  {
+                    "RegAddr": 12,
+                    "RegVal": 2
+                  },
+                  {
+                    "RegAddr": 0,
+                    "RegVal": 80
+                  },
+                  {
+                    "RegAddr": 63,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 64,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 65,
+                    "RegVal": 224
+                  },
+                  {
+                    "RegAddr": 66,
+                    "RegVal": 17
+                  },
+                  {
+                    "RegAddr": 67,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 68,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 69,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 70,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 71,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 72,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 83,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 86,
+                    "RegVal": 1
+                  },
+                  {
+                    "RegAddr": 87,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 93,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 88,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 92,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 21,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 22,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 23,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 24,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 25,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 26,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 27,
+                    "RegVal": 16
+                  },
+                  {
+                    "RegAddr": 28,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 29,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 30,
+                    "RegVal": 239
+                  },
+                  {
+                    "RegAddr": 31,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 84,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 85,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 89,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 90,
+                    "RegVal": 129
+                  },
+                  {
+                    "RegAddr": 74,
+                    "RegVal": 128
+                  },
+                  {
+                    "RegAddr": 75,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 76,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 77,
+                    "RegVal": 128
+                  },
+                  {
+                    "RegAddr": 78,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 79,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 80,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 81,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 82,
+                    "RegVal": 1
+                  },
+                  {
+                    "RegAddr": 32,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 33,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 34,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 35,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 36,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 37,
+                    "RegVal": 121
+                  },
+                  {
+                    "RegAddr": 38,
+                    "RegVal": 121
+                  },
+                  {
+                    "RegAddr": 39,
+                    "RegVal": 121
+                  },
+                  {
+                    "RegAddr": 40,
+                    "RegVal": 121
+                  },
+                  {
+                    "RegAddr": 41,
+                    "RegVal": 128
+                  },
+                  {
+                    "RegAddr": 43,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 20,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 2,
+                    "RegVal": 173
+                  },
+                  {
+                    "RegAddr": 3,
+                    "RegVal": 55
+                  },
+                  {
+                    "RegAddr": 4,
+                    "RegVal": 33
+                  },
+                  {
+                    "RegAddr": 5,
+                    "RegVal": 1
+                  },
+                  {
+                    "RegAddr": 106,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 107,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 108,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 109,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 110,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 111,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 144,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 145,
+                    "RegVal": 2
+                  },
+                  {
+                    "RegAddr": 146,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 147,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 148,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 149,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 150,
+                    "RegVal": 2
+                  },
+                  {
+                    "RegAddr": 151,
+                    "RegVal": 2
+                  },
+                  {
+                    "RegAddr": 152,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 153,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 154,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 155,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 128,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 129,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 130,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 131,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 132,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 133,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 134,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 135,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 136,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 137,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 138,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 46,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 48,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 240,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 241,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 242,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 50,
+                    "RegVal": 64
+                  },
+                  {
+                    "RegAddr": 51,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 52,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 53,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 54,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 55,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 56,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 57,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 112,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 113,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 114,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 115,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 116,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 117,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 118,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 119,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 120,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 121,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 58,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 59,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 160,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 161,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 162,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 163,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 164,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 175,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 124,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 125,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 126,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 127,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 176,
+                    "RegVal": 2
+                  },
+                  {
+                    "RegAddr": 177,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 178,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 179,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 180,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 181,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 182,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 183,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 62,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 166,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 165,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 94,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 192,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 193,
+                    "RegVal": 1
+                  },
+                  {
+                    "RegAddr": 194,
+                    "RegVal": 2
+                  },
+                  {
+                    "RegAddr": 195,
+                    "RegVal": 3
+                  },
+                  {
+                    "RegAddr": 196,
+                    "RegVal": 4
+                  },
+                  {
+                    "RegAddr": 197,
+                    "RegVal": 5
+                  },
+                  {
+                    "RegAddr": 198,
+                    "RegVal": 6
+                  },
+                  {
+                    "RegAddr": 199,
+                    "RegVal": 7
+                  },
+                  {
+                    "RegAddr": 200,
+                    "RegVal": 8
+                  },
+                  {
+                    "RegAddr": 201,
+                    "RegVal": 9
+                  },
+                  {
+                    "RegAddr": 202,
+                    "RegVal": 10
+                  },
+                  {
+                    "RegAddr": 203,
+                    "RegVal": 11
+                  },
+                  {
+                    "RegAddr": 204,
+                    "RegVal": 12
+                  },
+                  {
+                    "RegAddr": 205,
+                    "RegVal": 13
+                  },
+                  {
+                    "RegAddr": 206,
+                    "RegVal": 14
+                  },
+                  {
+                    "RegAddr": 207,
+                    "RegVal": 15
+                  },
+                  {
+                    "RegAddr": 208,
+                    "RegVal": 16
+                  },
+                  {
+                    "RegAddr": 209,
+                    "RegVal": 17
+                  },
+                  {
+                    "RegAddr": 210,
+                    "RegVal": 18
+                  },
+                  {
+                    "RegAddr": 211,
+                    "RegVal": 19
+                  },
+                  {
+                    "RegAddr": 212,
+                    "RegVal": 20
+                  },
+                  {
+                    "RegAddr": 213,
+                    "RegVal": 21
+                  },
+                  {
+                    "RegAddr": 214,
+                    "RegVal": 22
+                  },
+                  {
+                    "RegAddr": 215,
+                    "RegVal": 23
+                  },
+                  {
+                    "RegAddr": 216,
+                    "RegVal": 24
+                  },
+                  {
+                    "RegAddr": 217,
+                    "RegVal": 25
+                  },
+                  {
+                    "RegAddr": 218,
+                    "RegVal": 26
+                  },
+                  {
+                    "RegAddr": 219,
+                    "RegVal": 27
+                  },
+                  {
+                    "RegAddr": 220,
+                    "RegVal": 28
+                  },
+                  {
+                    "RegAddr": 221,
+                    "RegVal": 29
+                  },
+                  {
+                    "RegAddr": 222,
+                    "RegVal": 30
+                  },
+                  {
+                    "RegAddr": 223,
+                    "RegVal": 31
+                  },
+                  {
+                    "RegAddr": 184,
+                    "RegVal": 255
+                  },
+                  {
+                    "RegAddr": 185,
+                    "RegVal": 255
+                  },
+                  {
+                    "RegAddr": 186,
+                    "RegVal": 255
+                  },
+                  {
+                    "RegAddr": 187,
+                    "RegVal": 255
+                  },
+                  {
+                    "RegAddr": 188,
+                    "RegVal": 255
+                  },
+                  {
+                    "RegAddr": 189,
+                    "RegVal": 255
+                  },
+                  {
+                    "RegAddr": 190,
+                    "RegVal": 255
+                  },
+                  {
+                    "RegAddr": 191,
+                    "RegVal": 255
+                  },
+                  {
+                    "RegAddr": 256,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 257,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 258,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 259,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 264,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 265,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 266,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 267,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 271,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 288,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 289,
+                    "RegVal": 255
+                  },
+                  {
+                    "RegAddr": 290,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 291,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 292,
+                    "RegVal": 255
+                  },
+                  {
+                    "RegAddr": 293,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 294,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 295,
+                    "RegVal": 255
+                  },
+                  {
+                    "RegAddr": 296,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 297,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 298,
+                    "RegVal": 255
+                  },
+                  {
+                    "RegAddr": 299,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 300,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 301,
+                    "RegVal": 255
+                  },
+                  {
+                    "RegAddr": 302,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 303,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 304,
+                    "RegVal": 255
+                  },
+                  {
+                    "RegAddr": 305,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 306,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 307,
+                    "RegVal": 255
+                  },
+                  {
+                    "RegAddr": 308,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 309,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 310,
+                    "RegVal": 255
+                  },
+                  {
+                    "RegAddr": 311,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 320,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 321,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 322,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 323,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 328,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 329,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 330,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 331,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 332,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 333,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 334,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 335,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 42,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 44,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 47,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 45,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 49,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 224,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 243,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 244,
+                    "RegVal": 0
+                  },
+                  {
+                    "RegAddr": 480,
+                    "RegVal": 0
+                  }
+                ]
+              },
+              "NodeStreamList": {
+                "$type": "AnalogDevices.A2bSdk.Api.StreamAggregator, a2bSdk",
+                "SrcStreamListUp": {
+                  "busSlotInfo": {
+                    "Up2": 0
+                  },
+                  "StreamHelper": {
+                    "Status": "Added",
+                    "Direction": "Up"
+                  },
+                  "Stream": [
+                    {
+                      "StreamSource": "AD243xSubNode_1",
+                      "nNumSlots": 2,
+                      "DestNode": {
+                        "AD243xMain_0": -1
+                      },
+                      "StreamName": "Up2",
+                      "StreamID": 1,
+                      "SamplingRate": 48,
+                      "nNumCh": 2,
+                      "ChannelsToSkip": 0,
+                      "nWidth": 24,
+                      "StreamSourceNodeID": 0,
+                      "DestID": [
+                        -1
+                      ]
+                    }
+                  ]
+                },
+                "SrcStreamListDown": {
+                  "busSlotInfo": {},
+                  "StreamHelper": {
+                    "Status": "Added",
+                    "Direction": "Down"
+                  },
+                  "Stream": []
+                },
+                "SinkStreamListUp": {
+                  "busSlotInfo": {},
+                  "StreamHelper": {
+                    "Status": "Used",
+                    "Direction": "Up"
+                  },
+                  "Stream": []
+                },
+                "SinkStreamListDown": {
+                  "busSlotInfo": {
+                    "Down2": 0
+                  },
+                  "StreamHelper": {
+                    "Status": "Used",
+                    "Direction": "Down"
+                  },
+                  "Stream": [
+                    {
+                      "StreamSource": "AD243xMain_0",
+                      "nNumSlots": 2,
+                      "DestNode": {
+                        "AD243xSubNode_1": 0
+                      },
+                      "StreamName": "Down2",
+                      "StreamID": 0,
+                      "SamplingRate": 48,
+                      "nNumCh": 2,
+                      "ChannelsToSkip": 0,
+                      "nWidth": 24,
+                      "StreamSourceNodeID": -1,
+                      "DestID": [
+                        0
+                      ]
+                    }
+                  ]
+                },
+                "PassStreamListUp": {
+                  "busSlotInfo": {},
+                  "StreamHelper": {
+                    "Status": "Passed",
+                    "Direction": "Up"
+                  },
+                  "Stream": []
+                },
+                "PassStreamListDown": {
+                  "busSlotInfo": {},
+                  "StreamHelper": {
+                    "Status": "Passed",
+                    "Direction": "Down"
+                  },
+                  "Stream": []
+                },
+                "NodeTunnelInfo": {
+                  "tunnelInfo": {
+                    "tunnelstream": null,
+                    "role": 2,
+                    "dwnstreamLeak": [],
+                    "UpstreamLeak": []
+                  },
+                  "DownstreamSlotsInfo": "",
+                  "UpstreamSlotsInfo": "",
+                  "TunnelPosition": ""
+                },
+                "BwInfoView": {
+                  "ConservRespOffset": 245,
+                  "AccurateRespOffset": 254,
+                  "RespOffset": 0,
+                  "CableDelayBw": 0.0,
+                  "nUpBWA": 114,
+                  "nDwnBWB": 0,
+                  "nUpBWB": 0,
+                  "nDwnBWA": 114,
+                  "nTotalDN_B": 0,
+                  "nTotalDN_A": 2,
+                  "nTotalUP_B": 0,
+                  "nTotalUP_A": 2,
+                  "nContributedUP": 2,
+                  "nContributedDwn": 0,
+                  "nConsumeUP": 0,
+                  "nConsumeDwn": 2,
+                  "nTotalDN_Audio_B": 0,
+                  "nTotalDN_Audio_A": 2,
+                  "nTotalUP_Audio_B": 0,
+                  "nTotalUP_Audio_A": 2,
+                  "nDSDelayA": 0,
+                  "nDSDelayB": 0,
+                  "nDSMarginA": 0,
+                  "nDSMarginB": 0,
+                  "nUSMarginA": 0,
+                  "nUSMarginB": 0,
+                  "nUSTDMIdleB": 0,
+                  "nTotMarginA": 0,
+                  "nTotMarginB": 0,
+                  "MinMarginPort": "B",
+                  "MinMargin": 0
+                }
+              },
+              "AssignTabInfo": {
+                "$type": "AnalogDevices.Plugins.Transceivers.A2BTransceivers.AssignTabInfo, BaseA2BTransciever",
+                "IO0assign": "GPIO0",
+                "IO0assignComment": "N/A",
+                "ADR1IO1assignComment": "N/A",
+                "ADR2IO2assignComment": "N/A",
+                "DTx0IO3assignComment": "N/A",
+                "DTx1IO4assignComment": "N/A",
+                "DRx0IO5assignComment": "N/A",
+                "DRx1IO6assignComment": "N/A",
+                "IO7assignComment": "N/A",
+                "sda_row": "I2C",
+                "scl_row": "I2C",
+                "adr1_row": "GPIO",
+                "adr2_row": "CLK OUT2",
+                "miso_row": "GPIO",
+                "mosi_row": "GPIO",
+                "sck_row": "GPIO",
+                "SIO0assignComment": "N/A",
+                "SIO1assignComment": "N/A",
+                "SIO2assignComment": "N/A",
+                "SIO3assignComment": "N/A",
+                "SIO4assignComment": "N/A",
+                "GPIO7assignComment": "N/A",
+                "SDAassignComment": "N/A",
+                "SCLassignComment": "N/A",
+                "MISOassignComment": "N/A",
+                "MOSIassignComment": "N/A",
+                "SCKassignComment": "N/A",
+                "ADR1assignComment": "N/A",
+                "ADR2assignComment": "N/A"
+              },
+              "ExcludeNodeFromDiscovery": false,
+              "CrossbarMap": {
+                "$type": "AnalogDevices.A2bSdk.A2bCrossbar.A2BCrossBar, a2bSdk",
+                "UpdatedCrossBarMap": {
+                  "TX 0": [
+                    "D0",
+                    "D1"
+                  ],
+                  "RX 0": [
+                    "U0",
+                    "U1"
+                  ]
+                },
+                "RxMaskRegStatus": {
+                  "0": true,
+                  "1": true,
+                  "2": true,
+                  "3": true,
+                  "4": true,
+                  "5": true,
+                  "6": true,
+                  "7": true,
+                  "8": true,
+                  "9": true,
+                  "10": true,
+                  "11": true,
+                  "12": true,
+                  "13": true,
+                  "14": true,
+                  "15": true,
+                  "16": true,
+                  "17": true,
+                  "18": true,
+                  "19": true,
+                  "20": true,
+                  "21": true,
+                  "22": true,
+                  "23": true,
+                  "24": true,
+                  "25": true,
+                  "26": true,
+                  "27": true,
+                  "28": true,
+                  "29": true,
+                  "30": true,
+                  "31": true,
+                  "32": true,
+                  "33": true,
+                  "34": true,
+                  "35": true,
+                  "36": true,
+                  "37": true,
+                  "38": true,
+                  "39": true,
+                  "40": true,
+                  "41": true,
+                  "42": true,
+                  "43": true,
+                  "44": true,
+                  "45": true,
+                  "46": true,
+                  "47": true,
+                  "48": true,
+                  "49": true,
+                  "50": true,
+                  "51": true,
+                  "52": true,
+                  "53": true,
+                  "54": true,
+                  "55": true,
+                  "56": true,
+                  "57": true,
+                  "58": true,
+                  "59": true,
+                  "60": true,
+                  "61": true,
+                  "62": true,
+                  "63": true
+                }
+              },
+              "CrossbarMat": 1,
+              "ModuleInfoPolicy": 0,
+              "SwitchControl": 17,
+              "Channel Reference": "A2B_0",
+              "SlotSize": 1,
+              "UpSize": 25,
+              "DnSize": 25,
+              "AutoSlotVal": true,
+              "ExportNcfPolicy": 0,
+              "TxtNcfXmlFile": "",
+              "TxtNCFExportXmlFileVersion": "1.0.0",
+              "ImportNcfPolicy": ""
+            },
+            "Angle": 0.0,
+            "Position": {
+              "X": -130.0,
+              "Y": 287.0
+            },
+            "Size": {
+              "Height": 153.0,
+              "Width": 126.0
+            },
+            "Label": "AD243xSubNode_1",
+            "WritableChannels": [],
+            "WritableShapes": [],
+            "WriteableLinks": [],
+            "AltShapes": [],
+            "PropertyPresets": {}
+          }
+        ],
+        "WriteableLinks": [
+          {
+            "Uid": "Link_35",
+            "SourceUid": "GenericDevices_9",
+            "SourcePinName": "Tx",
+            "TargetUid": "AD243xSubNode_1",
+            "TargetPinName": "Rx",
+            "LinkType": "SPORT",
+            "Points": [
+              {
+                "X": 10.0,
+                "Y": 220.75
+              },
+              {
+                "X": 10.0,
+                "Y": 386.45
+              }
+            ]
+          },
+          {
+            "Uid": "Link_36",
+            "SourceUid": "AD243xSubNode_1",
+            "SourcePinName": "Tx",
+            "TargetUid": "GenericDevices_9",
+            "TargetPinName": "Rx",
+            "LinkType": "SPORT",
+            "Points": [
+              {
+                "X": 402.0,
+                "Y": 363.5
+              },
+              {
+                "X": 402.0,
+                "Y": 182.5
+              }
+            ]
+          },
+          {
+            "Uid": "Link_37",
+            "SourceUid": "AD243xSubNode_1",
+            "SourcePinName": "I2C_Master",
+            "TargetUid": "GenericDevices_9",
+            "TargetPinName": "I2C",
+            "LinkType": "I2C",
+            "Points": [
+              {
+                "X": 402.0,
+                "Y": 317.6
+              },
+              {
+                "X": 402.0,
+                "Y": 144.25
+              }
+            ]
+          },
+          {
+            "Uid": "Link_38",
+            "SourceUid": "AD243xSubNode_1",
+            "SourcePinName": "I2C_Master",
+            "TargetUid": "GenericDevices_10",
+            "TargetPinName": "I2C",
+            "LinkType": "I2C",
+            "Points": [
+              {
+                "X": 402.0,
+                "Y": 317.6
+              },
+              {
+                "X": 402.0,
+                "Y": 430.25
+              }
+            ]
+          }
+        ],
+        "AltShapes": [],
+        "PropertyPresets": {}
+      },
+      {
+        "PluginName": "AnalogDevices.Plugins.Visuals.UserComment_v1.0.0.0",
+        "Name": "Comment",
+        "InterfaceType": "AnalogDevices.TypeDefinitions.Plugins.IVisual",
+        "Uid": "UserComment_0",
+        "WritableProperties": {
+          "IsRemovable": true,
+          "RestrictShape": false,
+          "BoardKey": "",
+          "IsLocked": false,
+          "EncryptedString": "",
+          "CanvasSize": {
+            "$type": "AnalogDevices.TypeDefinitions.Size, TypeDefinitions",
+            "Height": 1080.0,
+            "Width": 1920.0
+          },
+          "FS": 48000,
+          "Link": false,
+          "UserText": "ADAU1761 set to I2S mode (1 clock delay on sync), falling edge for Sync and for BCLK",
+          "ResetSize": false,
+          "RestrictResize": true
+        },
+        "Angle": 0.0,
+        "Position": {
+          "X": 442.0,
+          "Y": -154.0
+        },
+        "Size": {
+          "Height": 30.0,
+          "Width": 581.3033333333334
+        },
+        "Label": "UserComment_0",
+        "WritableChannels": [],
+        "WritableShapes": [],
+        "WriteableLinks": [],
+        "AltShapes": [],
+        "PropertyPresets": {}
+      }
+    ],
+    "WriteableLinks": [
+      {
+        "Uid": "Link_0",
+        "SourceUid": "PC_0",
+        "SourcePinName": "USB",
+        "TargetUid": "USBi_0",
+        "TargetPinName": "USB",
+        "LinkType": "USB",
+        "Points": []
+      },
+      {
+        "Uid": "Link_25",
+        "SourceUid": "USBi_0",
+        "SourcePinName": "I2C",
+        "TargetUid": "CustomPlatform_0",
+        "TargetPinName": "I2C Slave Port",
+        "LinkType": "I2C",
+        "Points": [
+          {
+            "X": 686.0,
+            "Y": 296.85714285714283
+          },
+          {
+            "X": 686.0,
+            "Y": 319.73529411764713
+          }
+        ]
+      },
+      {
+        "Uid": "Link_39",
+        "SourceUid": "CustomPlatform_0",
+        "SourcePinName": "B Port(AD243xMain_0)",
+        "TargetUid": "CustomPlatform_2",
+        "TargetPinName": "A Port(AD243xSubNode_1)",
+        "LinkType": "A2B",
+        "Points": []
+      }
+    ],
+    "AltShapes": [],
+    "PropertyPresets": {}
+  }
+}

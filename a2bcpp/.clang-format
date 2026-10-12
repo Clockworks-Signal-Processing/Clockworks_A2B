@@ -1,0 +1,24 @@
+# a2bcpp code style: Google C++ Style (a2bcpp/docs/decisions.md, "Coding standard").
+# Applies to a2bcpp/ only; the ADI C files in adi/ keep their own layout.
+BasedOnStyle: Google
+Language: Cpp
+Standard: c++17
+# 100 rather than Google's 80: register and bit names are long.
+ColumnLimit: 100
+DerivePointerAlignment: false
+PointerAlignment: Left
+IncludeBlocks: Regroup
+# Google's ControlStatements, spelled out: by default LLVM 18 writes placement new
+# as "new(p) T" and LLVM 22 as "new (p) T"; set here so both write "new (p) T".
+SpaceBeforeParens: Custom
+SpaceBeforeParensOptions:
+  AfterControlStatements: true
+  AfterForeachMacros: true
+  AfterFunctionDefinitionName: false
+  AfterFunctionDeclarationName: false
+  AfterIfMacros: true
+  AfterOverloadedOperator: false
+  AfterPlacementOperator: true
+  AfterRequiresInClause: false
+  AfterRequiresInExpression: false
+  BeforeNonEmptyParentheses: false

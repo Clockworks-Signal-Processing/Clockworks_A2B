@@ -1,0 +1,69 @@
+{
+    "configurations": [
+        {
+            // The a2bcpp fixed app on the RP2040 (a2bcpp/examples/fixed/rp2040). Uses the
+            // compile commands written by its Debug build, so build it once ("RP2040 fixed:
+            // Build (Debug)") first.
+            "name": "RP2040 fixed",
+            "compilerPath": "${userHome}/.pico-sdk/toolchain/13_2_Rel1/bin/arm-none-eabi-gcc.exe",
+            "compileCommands": "${workspaceFolder}/build/a2b-fixed-rp2040/compile_commands.json",
+            "cStandard": "c17",
+            "cppStandard": "c++17",
+            "intelliSenseMode": "linux-gcc-arm"
+        },
+        {
+            // The a2bcpp minimal app on the RP2040 (a2bcpp/examples/minimal/rp2040). Uses the
+            // compile commands written by its Debug build, so build it once ("RP2040 minimal:
+            // Build (Debug)") first.
+            "name": "RP2040 minimal",
+            "compilerPath": "${userHome}/.pico-sdk/toolchain/13_2_Rel1/bin/arm-none-eabi-gcc.exe",
+            "compileCommands": "${workspaceFolder}/build/a2b-minimal-rp2040/compile_commands.json",
+            "cStandard": "c17",
+            "cppStandard": "c++17",
+            "intelliSenseMode": "linux-gcc-arm"
+        },
+        {
+            // The bench console on 64-bit Linux / the Raspberry Pi (a2bcpp/examples/bench).
+            // Select it from the status bar (configuration name, bottom right, with a C++ file
+            // open). Headers come from the Debian WSL distro; the gcc-cross path includes the
+            // gcc version (14). The CMake tree is in WSL, so no compile commands: the
+            // folders below are the ones the build uses (the SigmaStudio+ import's ADI headers,
+            // as A2B_SS_PLUS_HEADERS in a2bcpp/CMakeLists.txt).
+            "name": "Linux arm64",
+            "includePath": [
+                "${workspaceFolder}/a2bcpp/include",
+                "${workspaceFolder}/a2bcpp/src",
+                "${workspaceFolder}/a2bcpp/platforms/linux",
+                "${workspaceFolder}/a2bcpp/import/ss_plus",
+                "${workspaceFolder}/a2bcpp/examples/bench",
+                "${workspaceFolder}/tools/SS+reference/adi",
+                "${workspaceFolder}/adi/headers/linux",
+                "${workspaceFolder}/adi/headers/stack",
+                "\\\\wsl.localhost\\Debian\\usr\\lib\\gcc-cross\\aarch64-linux-gnu\\14\\include",
+                "\\\\wsl.localhost\\Debian\\usr\\aarch64-linux-gnu\\include",
+                "\\\\wsl.localhost\\Debian\\usr\\include"
+            ],
+            "defines": [
+                "__linux__",
+                "__gnu_linux__",
+                "__aarch64__",
+                "__LP64__"
+            ],
+            "compilerPath": "",
+            "cStandard": "gnu11",
+            "cppStandard": "gnu++17",
+            "intelliSenseMode": "linux-gcc-arm64"
+        },
+        {
+            // The bench console on 64-bit Windows (a2bcpp/examples/bench). Uses the compile
+            // commands written by the Debug build, so build it once ("Windows bench: Build
+            // (Debug)") first.
+            "name": "Windows",
+            "compileCommands": "${workspaceFolder}/build/a2b-bench-windows/Debug/compile_commands.json",
+            "cStandard": "gnu11",
+            "cppStandard": "gnu++17",
+            "intelliSenseMode": "windows-gcc-x64"
+        }
+    ],
+    "version": 4
+}

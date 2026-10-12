@@ -1,0 +1,144 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            // The a2bcpp fixed app on the RP2040 (a2bcpp/examples/fixed/rp2040), through a
+            // CMSIS-DAP debug probe and the Pico extension's OpenOCD. Builds the Debug version
+            // first (the A2B menu's "RP2040 fixed" Debug uses this).
+            "name": "RP2040 fixed: Debug",
+            "cwd": "${env:USERPROFILE}/.pico-sdk/openocd/0.12.0+dev/scripts",
+            "executable": "${workspaceFolder}/build/a2b-fixed-rp2040/a2b_fixed.elf",
+            "request": "launch",
+            "type": "cortex-debug",
+            "servertype": "openocd",
+            "serverpath": "${env:USERPROFILE}/.pico-sdk/openocd/0.12.0+dev/openocd.exe",
+            "gdbPath": "${env:USERPROFILE}/.pico-sdk/toolchain/13_2_Rel1/bin/arm-none-eabi-gdb.exe",
+            "device": "RP2040",
+            "configFiles": [
+                "interface/cmsis-dap.cfg",
+                "target/rp2040.cfg"
+            ],
+            "svdFile": "${env:USERPROFILE}/.pico-sdk/sdk/2.0.0/src/rp2040/hardware_regs/RP2040.svd",
+            "runToEntryPoint": "main",
+            // Fix for no_flash binaries, where monitor reset halt doesn't do what is expected
+            // Also works fine for flash binaries
+            // "load" with no file loads the executable above; a quoted ${workspaceFolder}
+            // path would lose its backslashes to gdb's string escapes.
+            "overrideLaunchCommands": [
+                "monitor reset init",
+                "load"
+            ],
+            "openOCDLaunchCommands": [
+                "adapter speed 5000"
+            ],
+            "preLaunchTask": "RP2040 fixed: Build (Debug)"
+        },
+        {
+            // The a2bcpp minimal example on the RP2040 (a2bcpp/examples/minimal/rp2040); as above.
+            "name": "RP2040 minimal: Debug",
+            "cwd": "${env:USERPROFILE}/.pico-sdk/openocd/0.12.0+dev/scripts",
+            "executable": "${workspaceFolder}/build/a2b-minimal-rp2040/a2b_minimal.elf",
+            "request": "launch",
+            "type": "cortex-debug",
+            "servertype": "openocd",
+            "serverpath": "${env:USERPROFILE}/.pico-sdk/openocd/0.12.0+dev/openocd.exe",
+            "gdbPath": "${env:USERPROFILE}/.pico-sdk/toolchain/13_2_Rel1/bin/arm-none-eabi-gdb.exe",
+            "device": "RP2040",
+            "configFiles": [
+                "interface/cmsis-dap.cfg",
+                "target/rp2040.cfg"
+            ],
+            "svdFile": "${env:USERPROFILE}/.pico-sdk/sdk/2.0.0/src/rp2040/hardware_regs/RP2040.svd",
+            "runToEntryPoint": "main",
+            "overrideLaunchCommands": [
+                "monitor reset init",
+                "load"
+            ],
+            "openOCDLaunchCommands": [
+                "adapter speed 5000"
+            ],
+            "preLaunchTask": "RP2040 minimal: Build (Debug)"
+        },
+        {
+            // The bench console on the Raspberry Pi (a2bcpp/examples/bench, 64-bit Linux). The
+            // pre-launch task builds, deploys and starts gdbserver on the Pi, which starts the bus
+            // on the board "a2b.piBoard" ("a2b.piHost"/"a2b.piUser": VS Code User settings);
+            // gdb-multiarch runs in the Debian WSL distro and connects to it.
+            // Setup: Debian: sudo apt install gdb-multiarch   Pi: sudo apt install gdbserver
+            // Works from any folder: wsl.exe starts in the repository (pipeCwd), which
+            // Debian sees as /mnt/<drive>/..., so gdb finds the build output by its
+            // relative path.
+            "name": "Pi bench: Debug (gdbserver)",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "build/a2b-bench-pi/Debug/a2b_bench",
+            "cwd": "${workspaceFolder}",
+            "MIMode": "gdb",
+            "targetArchitecture": "arm64",
+            "pipeTransport": {
+                "pipeCwd": "${workspaceFolder}",
+                // Full path, via Sysnative: the C/C++ extension's debug adapter is a
+                // 32-bit program, which Windows redirects from System32 to SysWOW64
+                // (no wsl.exe there). If a future 64-bit adapter can't find this
+                // path, use "${env:windir}\\System32\\wsl.exe" instead.
+                "pipeProgram": "${env:windir}\\Sysnative\\wsl.exe",
+                // The debugger passes "<debuggerPath> --interpreter=mi" as ONE quoted
+                // argument, so it must go through bash -c to be split into words.
+                "pipeArgs": ["-d", "Debian", "--exec", "bash", "-c"],
+                "debuggerPath": "/usr/bin/gdb-multiarch"
+            },
+            // Source paths in the program are Debian's view of the Windows drive.
+            "sourceFileMap": {
+                "/mnt/c": "C:\\",
+                "/mnt/d": "D:\\",
+                "/mnt/e": "E:\\",
+                "/mnt/f": "F:\\"
+            },
+            "setupCommands": [
+                { "text": "-enable-pretty-printing", "ignoreFailures": true },
+                { "text": "set sysroot /usr/aarch64-linux-gnu", "ignoreFailures": true },
+                { "text": "set solib-search-path /usr/lib/aarch64-linux-gnu", "ignoreFailures": true }
+            ],
+            // With pipeTransport the debugger ignores miDebuggerServerAddress and runs the
+            // program locally, so the launch steps are spelled out: load symbols, connect
+            // to gdbserver on the Pi, and set a one-time breakpoint at main.
+            // stopAtEntry doesn't work here: the debug engine takes the stop on connecting
+            // to gdbserver as the entry point and continues. The engine doesn't know the
+            // main breakpoint, so "unknownBreakpointHandling": "stop" makes it an ordinary
+            // stop instead of "Exception has occurred".
+            "customLaunchSetupCommands": [
+                { "text": "-file-exec-and-symbols build/a2b-bench-pi/Debug/a2b_bench", "description": "load symbols" },
+                { "text": "-target-select remote ${config:a2b.piHost}:2345", "description": "connect to gdbserver on the Pi" },
+                { "text": "-break-insert -t main", "description": "stop at main" }
+            ],
+            "launchCompleteCommand": "exec-continue",
+            "unknownBreakpointHandling": "stop",
+            "preLaunchTask": "Pi bench: Start gdbserver on Pi"
+        },
+        {
+            // The bench console on Windows (a2bcpp/examples/bench), over the ADI USBi, debugged
+            // locally with MSYS2 UCRT64's gdb ("a2b.msys2Root", default C:/msys64). It starts the
+            // bus on the board "a2b.windowsBoard", after the console commands in
+            // "a2b.windowsBenchArgs" (per PC, in your User settings: e.g. "ignoreEEPROM 1;
+            // link 2 custom"), and gets its own console window, where it prints and reads
+            // commands. The USBi needs the WinUSB driver (a2bcpp/docs/setup_windows.md).
+            "name": "Windows bench: Debug",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/a2b-bench-windows/Debug/examples/bench/a2b_bench.exe",
+            "args": [
+                "--board", "${config:a2b.windowsBoard}",
+                "--commands=${config:a2b.windowsBenchArgs}", "start"
+            ],
+            "cwd": "${workspaceFolder}",
+            "MIMode": "gdb",
+            "miDebuggerPath": "${config:a2b.msys2Root}/ucrt64/bin/gdb.exe",
+            "externalConsole": true,
+            "stopAtEntry": true,
+            "setupCommands": [
+                { "text": "-enable-pretty-printing", "ignoreFailures": true }
+            ],
+            "preLaunchTask": "Windows bench: Build (Debug)"
+        },
+    ]
+}

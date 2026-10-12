@@ -1,0 +1,10 @@
+# Doxygen settings for the published docs: the development settings (Doxyfile) plus
+# graphs (class, collaboration, include and directory graphs). Needs Graphviz's dot on
+# PATH. Run with a2bcpp/tools/docs.ps1 release.
+# ClockWorks Signal Processing LLC
+
+@INCLUDE               = Doxyfile
+HAVE_DOT               = YES
+DOT_IMAGE_FORMAT       = svg
+INTERACTIVE_SVG        = YES
+OUTPUT_DIRECTORY       = ../build/a2bcpp-doxygen-release

@@ -1,0 +1,24 @@
+# Doxygen settings for the a2bcpp API reference. From a2bcpp/:  doxygen
+# Output: build/a2bcpp-doxygen/html/index.html (at the repository root).
+PROJECT_NAME           = "a2bcpp"
+PROJECT_BRIEF          = "C++ A2B plug-and-play stack"
+OUTPUT_DIRECTORY       = ../build/a2bcpp-doxygen
+INPUT                  = include src import platforms examples docs
+FILE_PATTERNS          = *.h *.cpp *.md
+RECURSIVE              = YES
+EXTRACT_ALL            = NO
+EXTRACT_PRIVATE        = NO
+EXTRACT_STATIC         = NO
+HIDE_UNDOC_MEMBERS     = NO
+WARN_IF_UNDOCUMENTED   = YES
+WARN_NO_PARAMDOC       = NO
+# The first sentence of a comment is its brief: the one-line ///< summaries in the headers
+# become the briefs, and the blocks on the definitions in the .cpp files the details.
+JAVADOC_AUTOBRIEF      = YES
+QT_AUTOBRIEF           = YES
+MARKDOWN_SUPPORT       = YES
+GENERATE_HTML          = YES
+GENERATE_LATEX         = NO
+# No graphs while developing (quicker, no Graphviz needed); Doxyfile.release turns them on.
+HAVE_DOT               = NO
+QUIET                  = YES

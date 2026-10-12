@@ -1,0 +1,102 @@
+{
+    "cmake.options.statusBarVisibility": "hidden",
+    "cmake.options.advanced": {
+        "build": {
+            "statusBarVisibility": "hidden"
+        },
+        "launch": {
+            "statusBarVisibility": "hidden"
+        },
+        "debug": {
+            "statusBarVisibility": "hidden"
+        }
+    },
+    "cmake.configureOnEdit": false,
+    "cmake.automaticReconfigure": false,
+    "cmake.configureOnOpen": false,
+    "cmake.generator": "Ninja",
+    "cmake.cmakePath": "${userHome}/.pico-sdk/cmake/v3.28.6/bin/cmake",
+    "C_Cpp.debugShortcut": false,
+    "terminal.integrated.env.windows": {
+        "PICO_SDK_PATH": "${env:USERPROFILE}/.pico-sdk/sdk/2.0.0",
+        "PICO_TOOLCHAIN_PATH": "${env:USERPROFILE}/.pico-sdk/toolchain/13_2_Rel1",
+        "Path": "${env:USERPROFILE}/.pico-sdk/toolchain/13_2_Rel1/bin;${env:USERPROFILE}/.pico-sdk/picotool/2.0.0/picotool;${env:USERPROFILE}/.pico-sdk/cmake/v3.28.6/bin;${env:USERPROFILE}/.pico-sdk/ninja/v1.12.1;${env:PATH}"
+    },
+    "terminal.integrated.env.osx": {
+        "PICO_SDK_PATH": "${env:HOME}/.pico-sdk/sdk/2.0.0",
+        "PICO_TOOLCHAIN_PATH": "${env:HOME}/.pico-sdk/toolchain/13_2_Rel1",
+        "PATH": "${env:HOME}/.pico-sdk/toolchain/13_2_Rel1/bin:${env:HOME}/.pico-sdk/picotool/2.0.0/picotool:${env:HOME}/.pico-sdk/cmake/v3.28.6/bin:${env:HOME}/.pico-sdk/ninja/v1.12.1:${env:PATH}"
+    },
+    "terminal.integrated.env.linux": {
+        "PICO_SDK_PATH": "${env:HOME}/.pico-sdk/sdk/2.0.0",
+        "PICO_TOOLCHAIN_PATH": "${env:HOME}/.pico-sdk/toolchain/13_2_Rel1",
+        "PATH": "${env:HOME}/.pico-sdk/toolchain/13_2_Rel1/bin:${env:HOME}/.pico-sdk/picotool/2.0.0/picotool:${env:HOME}/.pico-sdk/cmake/v3.28.6/bin:${env:HOME}/.pico-sdk/ninja/v1.12.1:${env:PATH}"
+    },
+    // false: the Pico extension would configure the old top-level project into build/. The
+    // RP2040 tasks configure the a2bcpp examples themselves.
+    "raspberry-pi-pico.cmakeAutoConfigure": false,
+    "raspberry-pi-pico.useCmakeTools": false,
+    "raspberry-pi-pico.cmakePath": "${HOME}/.pico-sdk/cmake/v3.28.6/bin/cmake",
+    "raspberry-pi-pico.ninjaPath": "${HOME}/.pico-sdk/ninja/v1.12.1/ninja",
+    "raspberry-pi-pico.python3Path": "${HOME}/.pico-sdk/python/3.12.1/python.exe",
+    // The Raspberry Pi's address and user ("a2b.piHost", "a2b.piUser") differ from PC to
+    // PC, so they go in each PC's VS Code User settings, not here: a value here would
+    // override them.
+    // The bench console a2b_bench (a2bcpp/examples/bench) starts the board it is given:
+    // a built-in one (ref, ab0020, ab0310) or a SigmaStudio+ export's C file. "a2b.piBoard":
+    // the Pi tasks and "Pi bench: Debug"; ref is the Pi's export. "a2b.windowsBoard": the
+    // Windows task and "Windows bench: Debug"; ab0020 is the Clockworks AB0020.
+    // "a2b.windowsBenchArgs" (console commands run before start on Windows, separated by
+    // ';', e.g. "ignoreEEPROM 1; link 2 custom") is one bench's set-up, so it goes in that
+    // PC's User settings, not here; the A2B menu extension gives it an empty default.
+    "a2b.piBoard": "ref",
+    "a2b.windowsBoard": "ab0020",
+    // The A2B sidebar menu (tools/vscode-a2b-menu): per target, what Clean / Build /
+    // Debug / Release run. "task:<label>" runs a task from tasks.json; "launch:<name>"
+    // starts a launch.json configuration. Items whose task or configuration doesn't
+    // exist yet show as "not set up yet".
+    "a2b.menu": [
+        {
+            "target": "RP2040 fixed",
+            "items": {
+                "Clean": "task:RP2040 fixed: Clean",
+                "Build": "task:RP2040 fixed: Build (Debug)",
+                "Debug": "launch:RP2040 fixed: Debug",
+                "Release": "task:RP2040 fixed: Release (load and run)"
+            }
+        },
+        {
+            "target": "RP2040 minimal",
+            "items": {
+                "Clean": "task:RP2040 minimal: Clean",
+                "Build": "task:RP2040 minimal: Build (Debug)",
+                "Debug": "launch:RP2040 minimal: Debug",
+                "Release": "task:RP2040 minimal: Release (load and run)"
+            }
+        },
+        {
+            "target": "Raspberry Pi bench",
+            "items": {
+                "Clean": "task:Pi bench: Clean",
+                "Build": "task:Pi bench: Build (Debug)",
+                "Debug": "launch:Pi bench: Debug (gdbserver)",
+                "Release": "task:Pi bench: Release (deploy and run)",
+                "Trace": "task:Pi bench: Run Trace on Pi",
+                "Get traces": "task:Pi bench: Get traces from Pi"
+            }
+        },
+        {
+            "target": "Windows bench (USBi)",
+            "items": {
+                "Clean": "task:Windows bench: Clean",
+                "Build": "task:Windows bench: Build (Debug)",
+                "Debug": "launch:Windows bench: Debug",
+                "Release": "task:Windows bench: Release (run)"
+            }
+        }
+    ],
+    // Lines of history kept per terminal (VS Code's default is 1000). Pi runs are also
+    // logged to ~/a2b_bench.log on the Pi; "Pi bench: Get log from Pi" copies it here.
+    "terminal.integrated.scrollback": 100000,
+    "cmake.sourceDirectory": "D:/Projects/A2B_PnP_Cpp/a2bcpp"
+}

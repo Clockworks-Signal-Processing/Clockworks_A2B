@@ -1,0 +1,32 @@
+# Default rules for trace_diff.py (format: see trace_diff.py --help).
+# Read before any --rules file. Keep a reason on every rule.
+
+# The PnP task clears BECNT on every node once a second (a2b_app_handle_becovf in
+# a2bpnp_local.c), so how many of these writes a trace has depends on how long
+# the run took.
+ignore * BECNT W
+
+# Addressing, not configuration: trace_decode.py folds these into the target and
+# register of every access. ADI's stack caches NODEADR/CHIP (i2c.c), so
+# which of these writes appear depends on what was accessed before, e.g. whether
+# a BECNT broadcast came in between; the C++ stack's Transport caches them its
+# own way.
+ignore M NODEADR W
+ignore S* CHIP W
+ignore * MMRPAGE W
+
+# SUSTAIN (decisions.md, "AD243x main-node start-up"; TRMs, "Soft Reset"): a soft reset with
+# CONTROL.MSTR = 0 unlocks a running AD243x main node's PLL, and it then spends 1024
+# SYNC periods (~21.3 ms at 48 kHz) in SUSTAIN. CONTROL.MSTR or I2SGCFG.INV written
+# then leaves it unusable until it is power-cycled. The stack waits at least 25 ms
+# from the last soft reset (a2bcpp/docs/timing.md). A boot trace from before ADI's stack waited out SUSTAIN breaks it.
+mingap M CONTROL&0x04 M CONTROL&0x80 25
+mingap M CONTROL&0x04 M I2SGCFG&0x80 25
+
+# Power configuration (TRMs, "Discovery Flow"; ADI's A2B_HIGH_PWR_SWITCH_DELAY): when an
+# AD243x node detects another power configuration than the expected one, SWCTL2.HPSW_CFG
+# and SWCTL.CFG_DET_OV override it (SWCTL 0x12: mode 1, switch still open), and the TRMs
+# wait 100 ms before the node's switch closes (ENSW). Timed per node. The goldens have
+# no override (their nodes detect CFG-4, as expected), so only a new trace can break it.
+mingap M SWCTL=0x12 M SWCTL&0x01 100
+mingap S* SWCTL=0x12 S* SWCTL&0x01 100

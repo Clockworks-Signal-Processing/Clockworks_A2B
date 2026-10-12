@@ -1,0 +1,8 @@
+# Normalize text files to LF in the repository
+* text=auto
+
+# Shell scripts run in Linux/WSL and must keep LF line endings on checkout
+*.sh text eol=lf
+
+# Binary network/config blobs - never convert
+*.dat binary
