@@ -111,12 +111,12 @@
                 "a2b.piBoard": {
                     "type": "string",
                     "default": "ref",
-                    "description": "Board the bench console starts on the Raspberry Pi: a built-in one (ref, ab0020, ab0310) or a SigmaStudio+ export's C file. Passed by the Pi bench tasks and the Pi bench: Debug launch configuration."
+                    "description": "Board the bench console starts on the Raspberry Pi: a built-in one (ref, AB0020, AB0310) or a SigmaStudio+ export's C file. Passed by the Pi bench tasks and the Pi bench: Debug launch configuration."
                 },
                 "a2b.windowsBoard": {
                     "type": "string",
-                    "default": "ab0020",
-                    "description": "Board the bench console starts on Windows: a built-in one (ref, ab0020, ab0310) or a SigmaStudio+ export's C file. Passed by the Windows bench: Release (run) task and the Windows bench: Debug launch configuration."
+                    "default": "AB0020",
+                    "description": "Board the bench console starts on Windows: a built-in one (ref, AB0020, AB0310) or a SigmaStudio+ export's C file. Passed by the Windows bench: Release (run) task and the Windows bench: Debug launch configuration."
                 },
                 "a2b.windowsBenchArgs": {
                     "type": "string",

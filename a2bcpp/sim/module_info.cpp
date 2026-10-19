@@ -14,7 +14,7 @@
 
 #include "sim/module_info.h"
 
-#include "crc8.h"
+#include "a2b/crc8.h"
 
 namespace a2b {
 namespace sim {
@@ -38,14 +38,19 @@ std::vector<uint8_t> MakeModuleInfoImage(const ModuleInfoHeader& header, const M
   image[0x03] = static_cast<uint8_t>(header.productId & 0xFF);
   image[0x04] = static_cast<uint8_t>(header.productId >> 8);
   image[0x05] = header.siliconVersion;
+  image[0x07] = static_cast<uint8_t>(header.targetChip & 0xFF);
+  image[0x08] = static_cast<uint8_t>(header.targetChip >> 8);
   image[0x0D] = 0x20;  // Primary function block address, low byte first.
   const size_t blockSize = (image.size() - 0x22) & 0x0FFF;
   image[0x20] = static_cast<uint8_t>(0x30 | (blockSize >> 8));
   image[0x21] = static_cast<uint8_t>(blockSize & 0xFF);
   image[kModuleInfoPowerConfig] =
       static_cast<uint8_t>((header.powerConfig << 4) | (header.localPower ? 1 : 0));
-  const uint16_t figures[][2] = {
-      {0x24, header.maxPowerMw}, {0x26, header.minPowerMw}, {0x29, header.maxCurrentMa}};
+  image[0x28] = header.bPortType;
+  const uint16_t figures[][2] = {{0x24, header.maxPowerMw},
+                                 {0x26, header.minPowerMw},
+                                 {0x29, header.maxCurrentMa},
+                                 {0x6C, header.bCableM}};
   for (const auto& figure : figures) {
     image[figure[0]] = static_cast<uint8_t>(figure[1] & 0xFF);
     image[figure[0] + 1] = static_cast<uint8_t>(figure[1] >> 8);

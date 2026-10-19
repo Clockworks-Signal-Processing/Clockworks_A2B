@@ -27,6 +27,21 @@ using test::MakeImage;
 using test::MakeImageFor;
 using test::SubOf;
 
+A2B_TEST(FeaturesNotSupportedYetSayTheyAreNot) {
+  // Spread spectrum and GPIO over distance have their calls, which send nothing.
+  Bench bench;
+  bench.PlugChain(1);
+  A2B_CHECK(bench.StartWith(1));
+  bench.sim.ClearTrace();
+  uint8_t ports = 0xFF;
+  A2B_CHECK(bench.network.SetSpreadSpectrum(true) == Result::kNotSupported);
+  A2B_CHECK(bench.network.SetupGpioOverDistance(0, 1, 0x01, true, false) == Result::kNotSupported);
+  A2B_CHECK(bench.network.ClearGpioOverDistance(0, 1) == Result::kNotSupported);
+  A2B_CHECK(bench.network.ReadVirtualIoPort(ports) == Result::kNotSupported);
+  A2B_CHECK_EQ(ports, 0);
+  A2B_CHECK(bench.sim.Trace().find("I2CT,") == std::string::npos);  // Nothing sent.
+}
+
 A2B_TEST(ReadsTheMainNodeAndEachSubNode) {
   Bench bench;
   bench.PlugChain(2);

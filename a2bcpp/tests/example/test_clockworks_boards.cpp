@@ -1,6 +1,6 @@
 /**
  * @file test_clockworks_boards.cpp
- * @brief The bench console's Clockworks board profiles (examples/bench/clockworks_boards.cpp):
+ * @brief The bench console's Clockworks board profiles (examples/clockworks/clockworks_boards.cpp):
  *        each profile's settings against its SigmaStudio+ export's sub-node, so the code
  *        can't drift from SS+, and the image built from a profile, read back by the
  *        stack's own parsers.
@@ -74,7 +74,7 @@ void CheckSettings(const ADI_A2B_SLAVE_NCD& sub, const clockworks::ModuleSetting
 A2B_TEST(Ab0020MatchesItsExport) {
   // The bench project's sub-node 0 (an AB0020 with an AD2437).
   const ADI_A2B_SLAVE_NCD& sub = *a2b_bench_board_ab0020.apNetworkconfig[0]->apSlaveConfig[0];
-  const clockworks::ModuleProfile* board = clockworks::FindBoard("ab0020");
+  const clockworks::ModuleProfile* board = clockworks::FindBoard("AB0020");
   A2B_CHECK(board != nullptr);
   if (board == nullptr) {
     return;
@@ -113,7 +113,7 @@ A2B_TEST(Ab0312MatchesItsExport) {
   // The AB0310 and AB0312 project's sub-node 0 (an AB0312 with an AD2437): the settings, no
   // codec, and the export's sub-node peripherals (its dummies) with nothing to program.
   const ADI_A2B_SLAVE_NCD& sub = *a2b_bench_board_ab0310.apNetworkconfig[0]->apSlaveConfig[0];
-  const clockworks::ModuleProfile* board = clockworks::FindBoard("ab0312");
+  const clockworks::ModuleProfile* board = clockworks::FindBoard("AB0312");
   A2B_CHECK(board != nullptr);
   if (board == nullptr) {
     return;
@@ -132,6 +132,7 @@ A2B_TEST(Ab0312MatchesItsExport) {
   a2b::ModuleInfo info;
   A2B_CHECK(a2b::ParseModuleInfo(image.data(), image.size(), info) == a2b::Result::kOk);
   A2B_CHECK_EQ(info.powerConfig, 4);
+  A2B_CHECK(info.localPower);  // By default; the board can be set for bus power.
   A2B_CHECK_EQ(info.peripheralBlocks, 0);
 }
 
@@ -176,7 +177,18 @@ A2B_TEST(ImageReadsBack) {
   a2b::ModuleInfo info;
   A2B_CHECK(a2b::ParseModuleInfo(image.data(), image.size(), info) == a2b::Result::kOk);
   A2B_CHECK_EQ(info.powerConfig, 4);
+  A2B_CHECK(info.localPower);  // By default; the board can be set for bus power.
   A2B_CHECK_EQ(info.peripheralBlocks, 1);
+  // The ADAU1761's peripheral block (after the info block's 8 bytes at 0x800): its address,
+  // fed by TX group 0, feeding RX group 0, on DRX0 (0x21: one pin, SIO0) and DTX0 (0x30:
+  // SIO4), as in ADI's images and the image tool's AB0020.json.
+  A2B_CHECK(image.size() > 0x808 + 3 + 74);
+  if (image.size() > 0x808 + 3 + 74) {
+    const uint8_t* payload = &image[0x808 + 3];
+    A2B_CHECK_EQ(payload[65], 0x39);
+    const uint8_t pins[] = {0x01, 0x00, 0x01, 0x00, 0x21, 0x00, 0x30, 0x00};
+    A2B_CHECK(std::memcmp(&payload[66], pins, sizeof(pins)) == 0);
+  }
   // PINCFG 0x01 is its power-on value, so it isn't in the list the stack writes.
   const uint16_t expected[][2] = {{0x41, 0xE0}, {0x42, 0x11}, {0x4A, 0x80},
                                   {0x4D, 0x80}, {0x5A, 0x81}, {0xB0, 0x02}};
@@ -209,7 +221,7 @@ A2B_TEST(Ab0204ReadsBack) {
   // microphones each, the high-pass filter) and nothing else written, so I2SGCFG stays at
   // TDM2 32-bit and BCLK clocks the microphones at 64 x SYNC; RX 0 all four, RX 1 and RX 2
   // the pairs; no TX group, no codec, CFG-0. It is the AD2427's no-EEPROM default.
-  const clockworks::ModuleProfile* board = clockworks::FindBoard("ab0204");
+  const clockworks::ModuleProfile* board = clockworks::FindBoard("AB0204");
   A2B_CHECK(board != nullptr);
   if (board == nullptr) {
     return;
@@ -224,6 +236,7 @@ A2B_TEST(Ab0204ReadsBack) {
   a2b::ModuleInfo info;
   A2B_CHECK(a2b::ParseModuleInfo(image.data(), image.size(), info) == a2b::Result::kOk);
   A2B_CHECK_EQ(info.powerConfig, 0);
+  A2B_CHECK(!info.localPower);  // Bus powered only, as every AD2427 microphone board.
   A2B_CHECK_EQ(info.peripheralBlocks, 0);
   A2B_CHECK_EQ(info.regCount, 1u);
   A2B_CHECK(info.regCount == 1 && info.reg[0] == 0x47 && info.value[0] == 0x1F);

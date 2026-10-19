@@ -294,6 +294,11 @@ struct G13Bench {
   /** Starts the bus with the connection ADI's Pi app routed, until the plan is written. */
   void Run(Network& network) {
     network.SetModuleInfoSource(&source);
+    // Every link the export's (XCVRBINV), as ADI's stack set them, not the image's B port.
+    for (int position = 0; position < kMaxSubNodes; ++position) {
+      A2B_CHECK(network.SetLinkProfile(static_cast<NodeAddr>(position), board.defaultLink) ==
+                Result::kOk);
+    }
     A2B_CHECK(network.Start() == Result::kOk);
     A2B_CHECK(network.ApplyRouting() == RoutingError::kNone);  // Routed once the chain is up.
     for (int i = 0; i < 2000 && !network.Routing().valid; ++i) {
@@ -317,7 +322,7 @@ A2B_TEST(RegisterImageMatchesG13) {
   A2B_CHECK(!bench.bus->Wedged());
   A2B_CHECK_EQ(Compare("main node", false, bench.bus->Main(), bench.mainChip, kG13Main), 0);
   A2B_CHECK_EQ(Compare("sub-node 0", true, bench.bus->Sub(0), bench.subChip, kG13Sub0), 0);
-  const SubNodeInfo* node = network.SubNode(0);
+  const SubNodeInfo* node = network.SubNodeInfoAt(0);
   A2B_CHECK(node != nullptr && node->identity.chipId[0] == 0x18);
 }
 

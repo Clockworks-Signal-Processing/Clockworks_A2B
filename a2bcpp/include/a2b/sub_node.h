@@ -73,6 +73,9 @@ class SubNode {
   virtual void OnRemoved();                           ///< It left the bus.
   virtual uint32_t TypeTag() const;                   ///< The app's tag for its class.
 
+ protected:
+  const LinkProfile& BoardLink() const;  ///< BoardConfig::defaultLink.
+
  private:
   const SubNodeInfo* m_Info;
   const LinkProfile* m_BoardLink;

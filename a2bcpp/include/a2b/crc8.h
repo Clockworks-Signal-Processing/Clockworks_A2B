@@ -1,14 +1,15 @@
 /**
  * @file crc8.h
- * @brief ADI's CRC-8, for module-info images and peripheral packages. Internal.
+ * @brief ADI's CRC-8, for module-info images and peripheral packages: what an app needs to
+ *        build or check an image (the examples' image builders use it).
  *
  * Copyright 2026 by ClockWorks Signal Processing LLC
  * Licensed under the terms found in CLOCKWORKS_SOFTWARE_LICENSE.txt and included here by reference.
  * SPDX-License-Identifier: BSD-3-Clause
  */
 
-#ifndef A2BCPP_CRC8_H_
-#define A2BCPP_CRC8_H_
+#ifndef A2BCPP_A2B_CRC8_H_
+#define A2BCPP_A2B_CRC8_H_
 
 #include <cstddef>
 #include <cstdint>
@@ -23,4 +24,4 @@ uint8_t Crc8(const uint8_t* data, size_t len,
 
 }  // namespace a2b
 
-#endif  // A2BCPP_CRC8_H_
+#endif  // A2BCPP_A2B_CRC8_H_

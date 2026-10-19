@@ -115,6 +115,25 @@ A2B_TEST(MuteNetworkSilencesTheBusAndUnmutesIt) {
   A2B_CHECK_EQ(bench.bus.AccessesInNewStructSettle(), 0u);
 }
 
+A2B_TEST(MuteWithTheMainNodeGoneRestartsTheBus) {
+  // The main node stops answering just as the app mutes: the write is tried again later, and
+  // the chain check in between restarts the bus rather than the write repeating every poll.
+  RoutingBench bench;
+  bench.PlugChain(1);
+  A2B_CHECK(bench.StartWith(1));
+  bench.sim.FailAddress(test::kMainAddr, 1000000);
+  bench.network.MuteNetwork(true);
+  bench.Run(2000);
+  A2B_CHECK(bench.network.State() != NetworkState::kRunning);
+  // DATCTL (0x11) write attempts to the main node, failed ones included.
+  const std::string trace = bench.sim.Trace();
+  size_t datctlWrites = 0;
+  for (size_t at = 0; (at = trace.find(",68,W,", at)) != std::string::npos; ++at) {
+    datctlWrites += (trace.compare(trace.find(',', at + 6) + 1, 4, "2,11") == 0) ? 1 : 0;
+  }
+  A2B_CHECK(datctlWrites < 10);
+}
+
 A2B_TEST(AMutedBusStaysMutedThroughPlansAndRestarts) {
   RoutingBench bench;
   bench.PlugChain(1);

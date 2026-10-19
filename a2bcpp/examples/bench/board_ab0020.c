@@ -1,5 +1,5 @@
 /*
- * The bench console's built-in board "ab0020": the AB0020 bench project's SigmaStudio+
+ * The bench console's built-in board "AB0020": the AB0020 bench project's SigmaStudio+
  * 2.3.0 export (tools/SS+reference/2x_AB0020_EVM_with_2437), compiled with the reference
  * ADI headers (tools/SS+reference/adi), as the C++ import is, with its sBusDescription
  * renamed so that several exports fit in one program.

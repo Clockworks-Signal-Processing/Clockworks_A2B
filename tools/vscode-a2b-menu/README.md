@@ -1,8 +1,9 @@
 # A2B Menu (VS Code extension)
 
 Adds an **A2B** icon to the VS Code activity bar. It opens a panel with one section per
-target (in this repository: two RP2040 examples, the Raspberry Pi bench and the Windows
-bench), each with **Clean**, **Build**, **Debug** and **Release**:
+target (in this repository: the RP2040 fixed app, bench console and minimal example, the
+Raspberry Pi bench and the Windows bench), each with **Clean**, **Build**, **Debug** and
+**Release**:
 
 | Item | Does |
 |---|---|
@@ -25,7 +26,7 @@ such as `${config:a2b.windowsBoard}` filled in, are written to the **Debug Conso
 the **A2B** output channel (**View: Output**, then **A2B**), for example:
 
 ```
-A2B menu: Windows bench: Debug: <repo>/build/a2b-bench-windows/Debug/examples/bench/a2b_bench.exe --board ab0020 --ignore-eeprom start
+A2B menu: Windows bench: Debug: <repo>/build/a2b-bench-windows/Debug/examples/bench/a2b_bench.exe --board AB0020 --ignore-eeprom start
   (in <repo>)
 ```
 

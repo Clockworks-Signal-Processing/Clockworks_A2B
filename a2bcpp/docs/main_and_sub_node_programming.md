@@ -10,10 +10,10 @@ used SigmaStudio+ (SS+) and now wants to know what the stack does with its outpu
 |---|---|---|
 | What is described | the **board** | the **module** |
 | Known when | the board is designed | only when the node is found on the bus |
-| Authored in | an SS+ project | a board profile in code (`clockworks::MakeModuleImage()`: the bench console and the fixed app). An image builder that makes it from an SS+ project is not built yet |
+| Authored in | an SS+ project | the image tool (`tools/a2b_eeprom`, a GUI and a command line): the module's settings, and its peripherals' programs as SigmaStudio XML. Or a board profile in code (`clockworks::MakeModuleImage()`: the bench console and the fixed app) |
 | File the stack reads | the SS+ **export** (`adi_a2b_busconfig.c`) | a **module-info image** (a `.dat`, the layout of ADI's images in `adi/module_info/`) |
 | Handed to the stack as | a `BoardConfig`, filled by `ImportSsPlus()` | a `ModuleInfoSource` |
-| Where the bytes can come from | compiled in, or loaded from a file at run time | the module's EEPROM, or an image built at run time from a compiled-in board profile (`clockworks::BoardModuleSource`). Reading an image from a file, or from a compiled-in array, is not built yet |
+| Where the bytes can come from | compiled in, or loaded from a file at run time | the module's EEPROM; an image in memory, read from a file or compiled in (`ImageModuleInfoSource`; the bench console's `module N file`); or an image built at run time from a compiled-in board profile (`clockworks::BoardModuleSource`) |
 | If it is wrong | `Start()` is refused | that one node is rejected; the bus keeps running |
 
 The rest of this page walks through each row.
@@ -75,26 +75,19 @@ The loader is trusted because a test (`tests/import/test_ss_plus_file.cpp`) chec
 fills the structures byte for byte as the compiler would, for the repository's exports:
 the Pi's and the AB0020's (`adi/exports`), and the AB0020 and AB0310/AB0312 projects' (`tools/SS+reference`).
 
-Both ways use one ADI header, `tools/SS+reference/adi/adi_a2b_busconfig.h`. ADI has no
-single header that compiles an SS+ 2.3.0 export, so it is ADI's 2023 header with the
-missing fields added. A compiled export and the import must see the same structures, so
-every export in `tools/SS+reference` and the import are compiled with it (the bench
-console's guide, "The reference folder").
-
-> **TODO:** run that test on every export that is added to the repository, so a board that
-> works from a file is known to work compiled in. The AD2428-main AB0020 export
-> (`tools/SS+reference/2x_AB0020_EVM_with_2428`) is compiled into the bench console but is not
-> in that test yet.
+Both ways use one ADI header, ADI's merged for SigmaStudio+ 2.3.0
+([main-node configuration](main_node_config.md), "Building"). Add each new export to that test,
+so a board that works from a file is known to work compiled in (the AD2428-main AB0020 export
+isn't in it yet: [roadmap](../../ROADMAP.md#what-needs-testing-on-hardware)).
 
 ### 3.3 What the loader skips
 
 A field that the reference header doesn't have (an export from an SS+ newer than 2.3.0)
 is skipped with a warning. An unknown constant is a warning, read as 0, in the parts the import doesn't read
 (sub-node descriptions, streams), and an error where it does read (the bus, the chain, the
-main node, the host peripherals). Read the warnings after loading a new export.
-
-> **TODO:** make the bench console say clearly when a skipped field lies in a part the
-> import reads. It prints only the first ten warnings today.
+main node, the host peripherals). Read the warnings after loading a new export: the bench
+console prints the first ten and the count, and doesn't say which part a skipped field lies
+in.
 
 ## 4. The sub-nodes
 
@@ -119,8 +112,13 @@ supply others:
 
 1. **The module's EEPROM** (`EepromModuleInfoSource`). This is the default and the shipping
    case: nothing for the app to do.
-2. **An app source.** The app derives from `ModuleInfoSource` and installs it with
-   `Network::SetModuleInfoSource()`. This is how "ignore EEPROM" works today: for a blank
+2. **Images in memory** (`ImageModuleInfoSource`). The app hands it an image per
+   position, or one for every node, and another source (the EEPROMs) for the nodes without
+   one. The image may be an array compiled into the program, for a system with no EEPROM,
+   or a `.dat` file the app has read, to try an image before it is written. The source
+   doesn't copy the images: the app keeps them.
+3. **An app source.** The app derives from `ModuleInfoSource` and installs it with
+   `Network::SetModuleInfoSource()`. This is how "ignore EEPROM" works: for a blank
    module the app supplies the image itself. The source sees the node's `SubNodeIdentity`
    (position, bus and the transceiver's chip ID).
 
@@ -130,31 +128,33 @@ The precedence is simple: if the app installed a source, it is used; otherwise t
 Neither is a second path inside the stack. After the source returns an image, everything
 else (parsing, `ModuleScript`, `NodeSetup`) is the same code.
 
-### 4.3 Not built yet: making the image from the SS+ project
+### 4.3 Making the image: the image tool
 
-The peripheral program for a module, for example the AB0020's ADAU1761, is authored in SS+
-like any other, but there is no tool yet that puts it into a module-info image. The bench
-console's `module N BOARD [FILE]` builds an image at run time from a compiled-in board profile,
-with the codec program read from SigmaStudio's XML if FILE is given; that is the only route today
-besides an EEPROM that already holds an image.
-
-The plan (see "Sub-node peripherals and EEPROM provisioning" in the
-[roadmap](../../docs/cpp-stack/ROADMAP.md)) is a host tool, the **image builder**:
+The peripheral program for a module, for example the AB0020's ADAU1761, is authored in
+SigmaStudio like any other and exported as XML (the codec's `<ROM>` file). The image tool,
+`tools/a2b_eeprom` ([its README](../../tools/a2b_eeprom/README.md)), puts it into a
+module-info image with the module's settings, its channel groups and its vendor data. It is
+a GUI, with every field of the format, and a command line:
 
 ```
-SS+ export (.c)  --image builder-->  module-info image (.dat)
+module settings + SigmaStudio XML programs  --image tool-->  module-info image (.dat)
 ```
 
-The same image would then be used three ways, with no change to the stack:
+The format, and how the stack reads it, are in [provisioning.md](provisioning.md).
+
+The same image is used three ways, with no change to the stack:
 
 | Case | How the image reaches the stack |
 |---|---|
-| **Shipping** | written to the module's EEPROM (the stack reads it as in 4.2, case 1) |
-| **Development**, blank or no EEPROM | an app source that reads the `.dat` from a file |
-| **A system with no EEPROM at all** | an app source that returns an array compiled into the program |
+| **Shipping** | written to the module's EEPROM (the bench console's `eeprom write`), then read as in 4.2, case 1 |
+| **Development**, blank or no EEPROM | `ImageModuleInfoSource` with the `.dat` read from a file (the bench console's `module N file`) |
+| **A system with no EEPROM at all** | `ImageModuleInfoSource` with the image as an array compiled into the program |
 
 Because all three go through `ModuleScript`, what you test in development is, byte for byte,
 what is burned into the module.
+
+The bench console's `module N BOARD [FILE]` still builds an image at run time from a
+compiled-in board profile, for the Clockworks boards while their EEPROMs are blank.
 
 ### 4.4 Why not read sub-node peripherals straight from the export?
 
@@ -181,11 +181,15 @@ During development, or with blank modules:
 2. `ignoreEEPROM 1` (or an app source) gives the sub-nodes their images, and
    `module N BOARD [FILE]` a Clockworks board's image at sub-node N, codec program
    included.
+3. Build each module's image with the image tool. Try it with `module N file IMAGE`, then
+   write it with `eeprom write N IMAGE`.
+4. `ignoreEEPROM 0` and `start`: each sub-node is now configured from its own EEPROM.
 
 ## 6. Where people get confused
 
-1. **One SS+ project, two file formats.** The `.c` export feeds the main node and the
-   `.dat` image feeds sub-nodes. The image builder hides the second step.
+1. **Two file formats.** The SS+ `.c` export feeds the main node and the `.dat` image
+   feeds sub-nodes. The image tool makes the image from the module's settings and its
+   peripherals' SigmaStudio XML programs.
 2. **Two entry points.** `ImportSsPlus()` for the board, `ModuleInfoSource` for the modules.
    Think "board export" and "module image", not just "config".
 3. **Different failures.** A bad export refuses `Start()`. A bad or blank module rejects

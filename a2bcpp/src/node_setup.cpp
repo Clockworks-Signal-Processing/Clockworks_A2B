@@ -12,11 +12,15 @@
  *    takes no part in the routing; so does a table that fails its checks (a log line;
  *    ADI's stack read whatever was there). A failed read is a bus failure.
  * 1. **Registers.** The module info's register settings go into a RegisterImage, in
- *    ADI's write order; the SPI settings only on chips with SPI. The node object's
+ *    ADI's write order; the SPI settings only on chips with SPI, and on an AD242x without
+ *    the bits only the AD243x has (PDMCTL2.HPFCORNER, PINCFG.GPIOSEL), so one image serves a
+ *    board whose plug-in module may be of either family. The node object's
  *    SubNode::TweakRegisters() may edit them. They are then written one register per
- *    transfer, as ADI's stack wrote them, skipping registers the stack owns. On a
- *    44.1 kHz bus I2CCFG.FRAMERATE is added (the image's I2CCFG is unused, as before), so
- *    the sub-node's I2C clock keeps its standard speeds; a node object may still replace it.
+ *    transfer, as ADI's stack wrote them, skipping registers the stack owns. I2CCFG is
+ *    the stack's own: FRAMERATE on a 44.1 kHz bus, so the sub-node's I2C clock keeps its
+ *    standard speeds, and DATARATE if the image sets it (ModuleInfo::fastI2c), so the
+ *    peripheral scripts run at 400 kHz; the image was read at 100 kHz, the reset rate. Its
+ *    other bits in the image are unused, as in ADI's stack. A node object may still replace it.
  *    The image's I2SRATE (ParseModuleInfo()) is written like the other settings.
  * 2. **Peripheral scripts** from the module info, if it lists peripheral blocks
  *    (ModuleScript, which reads them from the ModuleInfoSource as they run).
@@ -46,6 +50,34 @@ constexpr uint32_t kFrameRate441 = 44100;  ///< A 44.1 kHz SYNC rate (else FRAME
 /** Sub-node registers that exist only on chips with SPI. */
 bool IsSpiReg(uint16_t reg) {
   return reg == reg::kSpicfg || reg == reg::kSpickdiv || reg == reg::kSpipincfg;
+}
+
+/** @brief Bits of a register that only the AD243x has; the AD242x TRM marks them unused. */
+struct Ad243xOnlyBits {
+  uint16_t reg;  ///< Register address.
+  uint8_t mask;  ///< Its AD243x-only bits.
+};
+
+/** The AD243x-only bits among the module info's register settings (SPI aside). */
+constexpr Ad243xOnlyBits kAd243xOnlyBits[] = {
+    {reg::kPdmctl2, reg::kPdmctl2Hpfcorner},
+    {reg::kPincfg, reg::kPincfgGpiosel},
+};
+
+/**
+ * The value written for a module info's register setting on a chip of @p family: on an
+ * AD242x, without the bits only the AD243x has, so an image for either family (a board with
+ * a plug-in module) is safe on both.
+ */
+uint8_t ForFamily(ChipFamily family, uint16_t reg, uint8_t value) {
+  if (family == ChipFamily::kAd242x) {
+    for (const Ad243xOnlyBits& bits : kAd243xOnlyBits) {
+      if (bits.reg == reg) {
+        return static_cast<uint8_t>(value & ~bits.mask);
+      }
+    }
+  }
+  return value;
 }
 
 }  // namespace
@@ -190,12 +222,21 @@ NodeSetup::Outcome NodeSetup::WriteRegisters() {
   const ModuleInfo& moduleInfo = info.moduleInfo;
   m_Image.Clear();
   for (size_t i = 0; i < moduleInfo.regCount; ++i) {
-    if (!IsSpiReg(moduleInfo.reg[i]) || m_Caps->hasSpi) {
-      m_Image.Set(moduleInfo.reg[i], moduleInfo.value[i]);  // Fits: kMaxRegs < kCapacity.
+    const uint16_t reg = moduleInfo.reg[i];
+    if (!IsSpiReg(reg) || m_Caps->hasSpi) {
+      // Fits: kMaxRegs < kCapacity.
+      m_Image.Set(reg, ForFamily(m_Caps->family, reg, moduleInfo.value[i]));
     }
   }
+  uint8_t i2ccfg = 0;
   if (m_FrameRateHz == kFrameRate441) {
-    m_Image.Set(reg::kI2ccfg, reg::kI2ccfgFramerate);  // The sub-node's I2C clock follows it.
+    i2ccfg |= reg::kI2ccfgFramerate;  // The sub-node's I2C clock follows it.
+  }
+  if (moduleInfo.fastI2c) {
+    i2ccfg |= reg::kI2ccfgDatarate;  // Before the peripheral scripts.
+  }
+  if (i2ccfg != 0) {
+    m_Image.Set(reg::kI2ccfg, i2ccfg);
   }
   m_Node->TweakRegisters(m_Image);
   const NodeAddr position = info.identity.position;

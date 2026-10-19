@@ -15,7 +15,8 @@ The repository has these platforms, which are also examples to start from:
 Only `Rp2040Platform` drives a reset line (`SetResetPin()`); no platform reads an IRQ line or a
 power-good input yet. The
 [quick start](quick_start.md) builds the minimal example app with the Linux and RP2040
-platforms; the [bench console](bench_console.md) runs on the USBi and on Linux.
+platforms; the [bench console](bench_console.md) runs on the USBi, on Linux and on the
+RP2040.
 
 ## What to implement
 
@@ -128,15 +129,19 @@ to the board, is the board powered).
 Limits:
 - The USBi has no RESETn or IRQ line for the main node: the stack resets it through
   CONTROL (with the SUSTAIN wait) and reads the interrupt registers every 20 ms.
-- The status is checked for about 0.3 s after a transfer. A write that a slow peripheral
-  clock-stretches for longer (a 4 KB EEPROM script unit behind a 100 kHz sub-node port
-  takes about 0.4 s, above) is reported as failed, as in ADI's PAL. Not seen yet; EEPROM writes
-  will be paged.
+- The status is checked 2 ms after a transfer, then every 10 ms up to 30 more times: about
+  0.3 s of waits, plus the USB requests. A write that a slow peripheral clock-stretches for
+  longer is reported as failed, as in ADI's PAL. Behind the USBi a remote write takes about
+  217 µs per byte at a sub-node's 100 kHz and 162 µs at 400 kHz ([timing](timing.md)): the
+  AB0020's 1732-byte codec write took 375 ms at 100 kHz and still passed, with little to
+  spare, and a 4 KB unit would fail. The bench console's EEPROM writes go a 64-byte page at a
+  time and its reads 256 bytes at a time; the image tool warns about a unit that would take
+  over 0.25 s, and its AB0020 example splits that write and runs at 400 kHz.
 - One bus per USBi. A second USBi is `Open(1)`; two buses on one USBi are two main nodes
   at different addresses, as on any host.
 - On Windows the USBi needs the WinUSB driver (Zadig), not SigmaStudio's Cypress driver;
   [setup_windows.md](setup_windows.md) has the steps. SigmaStudio can't use the USBi while it has WinUSB.
-- A USBi on a Linux host is future work: the platform builds there (the build checks),
+- A USBi on a Linux host is untried: the platform builds there (the build checks),
   but the USBi may need its firmware loaded (fxload) and a udev rule.
 
 ## Bring-up

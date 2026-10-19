@@ -13,7 +13,7 @@
 #include <string>
 #include <vector>
 
-#include "crc8.h"
+#include "a2b/crc8.h"
 #include "sim/module_info.h"
 #include "sim_steps.h"
 #include "test_harness.h"

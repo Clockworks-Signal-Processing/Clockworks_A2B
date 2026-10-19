@@ -44,10 +44,7 @@ struct Connection {
 
 /** @brief Why a routing plan could not be built or written. */
 enum class RoutingError : uint8_t {
-  kNone,  ///< The plan was built (and written, for EventType::kRoutingApplied).
-  /** Not returned any more (an AD242x node, which has no crossbar, is routed in TDM order);
-      kept so that the other values don't change. */
-  kNotSupported,
+  kNone,         ///< The plan was built (and written, for EventType::kRoutingApplied).
   kNoSuchGroup,  ///< A connection names a group its node doesn't have.
   kSameNode,     ///< A connection's source and sink are the same node.
   /** A link would carry more than 32 data slots in one direction (TRMs: DNSLOTS and
@@ -153,8 +150,8 @@ struct RespCycleInput {
 
 /** @brief Response cycles for a chain. */
 struct ResponseCycles {
-  /** A main-node value fits the slots (the window isn't empty), or the main node's value
-      was given. */
+  /** A main-node value fits the slots (the window isn't empty) and every value can be
+      written (1-255); with the main node's value given, every sub-node's can be written. */
   bool fits = false;
   uint8_t main = 0;                ///< The main node's RESPCYCS.
   uint8_t sub[kMaxSubNodes] = {};  ///< Each sub-node's RESPCYCS (its DISCVRY value).

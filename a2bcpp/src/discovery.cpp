@@ -53,14 +53,15 @@
  *    CAPABILITY are read; then every node up to it goes back to its mode with ENSW
  *    (0x21/0x11, a2b_pnp_RestoreSwctlAftrBD); then CHIPID. A chip without a
  *    ChipCaps row is rejected. The module-info source gives the image (the default source
- *    reads it from the node's EEPROM), which must pass ParseModuleInfo(). The probe ends
- *    with Outcome::kIdentified; Network makes the node's SubNode object and sets it up
- *    (NodeSetup), and fills in its Link.
+ *    reads it from the node's EEPROM), which must pass ParseModuleInfo() and, if it names
+ *    a transceiver, name the node's (ImageFitsChip(); else RejectReason::kWrongChip). The
+ *    probe ends with Outcome::kIdentified; Network makes the node's SubNode object and sets
+ *    it up (NodeSetup), and fills in its Link.
  *
  * A rejected node, here, in its set-up or by the app (Reject()), has its power switched
  * off (the upstream node's ENSW cleared). A node on its own supply stays discovered but
- * unconfigured: Network doesn't probe its position again until Start() (two-step links
- * will revisit this). Network probes a bus-powered rejected node's position
+ * unconfigured: Network doesn't probe its position again until Start() (a known limit,
+ * ROADMAP.md). Network probes a bus-powered rejected node's position
  * again, and gives Begin() the rejected chip ID: if the same node answers, it is switched
  * off again straight after its CHIPID is read (Outcome::kRejectedAgain), without its
  * module info.
@@ -399,12 +400,16 @@ Discovery::Outcome Discovery::Identify() {
   if (m_Caps == nullptr) {
     return Reject(RejectReason::kUnsupportedChip);
   }
-  const size_t len = m_Source->GetModuleInfo(identity, m_Image, sizeof(m_Image));
+  size_t len = m_Source->GetModuleInfo(identity, m_Image, sizeof(m_Image));
+  len = (len > sizeof(m_Image)) ? sizeof(m_Image) : len;  // An app's source may claim more.
   if (len == 0) {
     return Reject(RejectReason::kNoModuleInfo);
   }
   if (ParseModuleInfo(m_Image, len, m_Node->moduleInfo) != Result::kOk) {
     return Reject(RejectReason::kBadModuleInfo);
+  }
+  if (!ImageFitsChip(m_Node->moduleInfo, identity.productId)) {
+    return Reject(RejectReason::kWrongChip);
   }
   return Outcome::kIdentified;
 }

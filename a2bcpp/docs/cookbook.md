@@ -40,8 +40,8 @@ class AmpModule : public a2b::SubNode {
   static constexpr uint32_t kTag = 0xA3;
 
   a2b::LinkProfile DownstreamLink() const override {
-    a2b::LinkProfile link = SubNode::DownstreamLink();  // the board's
-    link.bSideInverted = true;                          // CONTROL.XCVRBINV on this node
+    a2b::LinkProfile link = BoardLink();  // the board's, not the image's B port
+    link.bSideInverted = true;            // CONTROL.XCVRBINV on this node
     return link;
   }
   void OnConfigured(a2b::OpList& ops) override {
@@ -54,7 +54,7 @@ class AmpModule : public a2b::SubNode {
 };
 
 a2b::NodeFactory factory;                                  // must outlive the Network
-factory.ByModule(0x00AD, 0x0101, a2b::Make<AmpModule>);    // module vendor/product IDs
+factory.ByModule(0x0C54, 0x0101, a2b::Make<AmpModule>);    // module vendor/product IDs
 network.SetNodeFactory(&factory);
 ```
 
@@ -81,7 +81,7 @@ across polls. All are called from `Network::Poll()` (or `Start()`/`Stop()` for
 | `TweakRegisters(RegisterImage&)` | Before the node's module-info settings are written | none | change, add or drop register values (registers the stack owns are skipped) |
 | `OnConfigured(OpList&)` | After those settings and the module's peripheral scripts; the node counts as found only once the operations are done | none | add up to 8 register writes, peripheral transfers or waits (their data must live as long as the node); a failure rejects the node (`kConfigFailed`) |
 | `InterruptMask()` | When the node is found, for its INTMSK0/1, written before it first powers the next link | INTMSK0 = PWRERR, INTMSK1 = 0 | watch other interrupts: they come as `kInterrupt` events; enabling SRF missed (`INTMSK0` bit 6) has a drop after this node found at once instead of by the next chain check |
-| `DownstreamLink()` | When the node is found, and before each probe of the next position | `BoardConfig::defaultLink` | give the link to the next node its own profile (below) |
+| `DownstreamLink()` | When the node is found, and before each probe of the next position | the link its image's B port type gives (`LinkProfile::ForBPort()`); `BoardLink()` is the board's | give the link to the next node its own profile (below) |
 | `OnRemoved()` | The node left the bus: it or a node before it dropped, `RejectNode()` for it or a node before it, `Start()`, `Stop()`, a restart (PLL relock, main node reset) | none | forget app state about the node (it must not reach the bus: the node may be gone); its object is destroyed next |
 | `TypeTag()` | By the app | 0 | tell classes apart without RTTI |
 
@@ -147,10 +147,21 @@ The link to sub-node n takes its profile from the first of:
 
 1. **The app, per position:** `network.SetLinkProfile(n, profile)` (n = 0 is the main
    node's link). It outlasts `Start()`; `ClearLinkProfile(n)` removes it.
-2. **The upstream node:** sub-node n - 1's `DownstreamLink()`, for a module whose own
-   connector decides the link.
-3. **The board:** `BoardConfig::defaultLink` (`ImportSsPlus()` inverts its B side only if
-   the export's main-node CONTROL sets XCVRBINV, as an export for RJ45 links does).
+2. **The upstream node:** sub-node n - 1's `DownstreamLink()`. By default it is the link the
+   node's image gives: its B-side cable type (0x28), the module's B port, on its chip
+   (`LinkProfile::ForBPort()`; [provisioning](provisioning.md)):
+   - UTP: single-step, straight;
+   - ADI's XLR or RJ45 on an AD2437: two-step (not run yet: the chain ends there); on any
+     other chip, UTP;
+   - RJ45-CUSTOM, RJ45-CUSTOM-INV, CUSTOM: no handler yet (`CustomBPortLink()` in
+     `src/link_profile.cpp`, "Unsupported B port type"): the chain ends there.
+
+   A node class overrides it for a module whose link its image doesn't describe.
+3. **The board:** `BoardConfig::defaultLink`, the main node's link into sub-node 0
+   (`ImportSsPlus()` inverts its B side only if the export's main-node CONTROL sets
+   XCVRBINV, as an export for RJ45 links does). For a bus whose links are all alike, give
+   every position the board's link: `SetLinkProfile(n, board.defaultLink)` for each n, as
+   the minimal and fixed examples do.
 
 ```cpp
 a2b::LinkProfile rj45 = a2b::LinkProfile::Rj45();     // B side inverted (XCVRBINV)
@@ -162,9 +173,9 @@ network.SetLinkProfile(3, a2b::LinkProfile::Custom());  // sub-node 3 has its ow
 The profile is looked up before every probe of that position, so a change applies to
 the next probe: the upstream node's link is set up again (masks, polarity, the
 power-configuration check). A link whose node is in the bus keeps its settings until the
-node is found again. Two-step profiles are refused by `SetLinkProfile()`
+node is found again. Two-step and unsupported profiles are refused by `SetLinkProfile()`
 (`Result::kNotSupported`) until two-step links are built; a link a `DownstreamLink()` makes
-two-step is not probed, and the log says so.
+two-step or unsupported is not probed, and the log says so.
 
 ## Module-info sources
 
@@ -176,6 +187,11 @@ a `ModuleInfoSource`:
   image from it: the start when the node is identified, the peripheral blocks while it is
   set up. An absent or blank EEPROM gives no module info (`kNoModuleInfo`); a corrupt one
   bad module info (`kBadModuleInfo`).
+- **Images in memory** (`a2b::ImageModuleInfoSource`, `a2b/image_source.h`): an image per
+  position (`SetImage()`) or one for every node (`SetDefault()`), the image tool's `.dat`
+  read from a file or an array compiled in, and a fallback source for the nodes without one
+  (an `EepromModuleInfoSource`, for instance). It doesn't copy the images; the app keeps
+  them while nodes are found and set up.
 - **The app's ("ignore EEPROM")**, e.g. for blank modules before provisioning: derive
   from `ModuleInfoSource`, implement `GetModuleInfo()` (the first `a2b::kModuleInfoLen`
   bytes), and optionally `ReadModuleInfo()` (any part of the image, for its peripheral
@@ -213,10 +229,22 @@ To give a default only where no EEPROM holds an image, and still reject a node w
 answers but can't be read, check `m_Eeprom.EepromAddr(node.position)` after a failed
 `GetModuleInfo()`: 0 means no EEPROM answered with the marker (none there, or a blank
 one). The Clockworks example does this per chip: `clockworks::BoardModuleSource`
-(`examples/bench/clockworks_boards.cpp`) takes an AD2427 with no EEPROM image to be an
+(`examples/clockworks/clockworks_boards.cpp`) takes an AD2427 with no EEPROM image to be an
 AB0204, four PDM microphones (`clockworks::NoEepromDefault()`), and other chips with no
 image are rejected. Which board a chip without an EEPROM is, is the app's to know, so the
 stack's own source has no such default.
+
+## Writing EEPROMs (provisioning)
+
+Writing a module's EEPROM is application code on `Network`'s peripheral calls
+([decisions](decisions.md)), not the stack's. The bench console's is the worked example
+([provisioning.md](provisioning.md)): `EepromJob` (`examples/bench/eeprom_job.h`) reads,
+writes, verifies and erases an EEPROM a transfer per poll, the marker written last, and
+`CheckImage()` (`examples/bench/eeprom_image.h`) checks an image before it is written.
+
+An app that provisions in the field can copy them. Give the node an image first, so it joins
+the bus (`ignoreEEPROM` or `ImageModuleInfoSource`), and start the bus again after the write:
+the stack reads a node's module info only when it finds the node.
 
 ## Events
 
@@ -247,7 +275,7 @@ call any `Network` function except `Poll()` (which returns at once from a handle
 ```cpp
 void OnEvent(a2b::Network& network, const a2b::Event& event) override {
   if (event.type == a2b::EventType::kNodeAdded) {
-    const a2b::SubNodeInfo* info = network.SubNode(event.node);   // valid now
+    const a2b::SubNodeInfo* info = network.SubNodeInfoAt(event.node);   // valid now
     network.PeripheralWrite(event.node, a2b::PeripheralAddress::I2c(0x2C), unmute, 2);
     if (!Wanted(*info)) {
       network.RejectNode(event.node);   // carried out at the next Poll()
@@ -276,8 +304,8 @@ it:
 ```cpp
 a2b::RejectReason OnNodeIdentified(const a2b::NodeReview& review) override {
   const a2b::ModuleInfo& module = review.node->moduleInfo;
-  if (module.vendorId != 0x00AD) {
-    return a2b::RejectReason::kByApp;   // not ours
+  if (module.vendorId != 0x0C54) {
+    return a2b::RejectReason::kByApp;   // not ours (Clockworks' boards: 0x0C54)
   }
   return review.policy;                 // kNone, or kPowerBudget
 }
@@ -544,12 +572,16 @@ formula (AD2431-35 TRM, "Example Main Node A2B_RESPCYCS Calculation", formula B)
 window between the downstream and upstream limits, the main node in its middle, each
 sub-node's from the main node's and its position. The inputs are the main node's slot
 widths and TDM mode (I2SGCFG, which picks RESPOFFS), `routing.frameRateHz` (the bit time)
-and each link's cable length: `routing.cableDm` (4 m by default, which the AD2431-35 TRM
-calls adequate when the lengths are unknown, since each node adjusts its response time
-during discovery), or the link's own from `network.SetCableLength(n, decimetres)` (the
-link into sub-node n, 0.1 to 30 m; `ClearCableLength(n)` goes back to the board's;
-`CableLength(n)` gives the one in use). A cable set on a routed bus has a new plan written
-at once. Every probe after a plan starts from the plan's
+and each link's cable length, the first of: the link's own from
+`network.SetCableLength(n, decimetres)` (the link into sub-node n, from 0.1 m; a measured
+length, for instance; `ClearCableLength(n)` removes it); the upstream node's image, its
+B-side cable length ([provisioning](provisioning.md)); `routing.cableDm` (4 m by default,
+which the AD2431-35 TRM calls adequate when the lengths are unknown, since each node adjusts
+its response time during discovery). `CableLength(n)` gives the one in use. There is no upper
+limit: a length whose response cycles can't be written fails the plan
+(`kNoResponseCycles`), and one longer than the real cable can stop discovery
+([hardware notes](hardware_notes.md#routing-and-audio)). A length that changes a link in the
+chain of a routed bus has a new plan written at once. Every probe after a plan starts from the plan's
 main-node RESPCYCS: a new node's DISCVRY is the formula's value for its position (before a
 plan, from the image's RESPCYCS). To give your own (measured cables, a fixed value),
 derive from `a2b::RoutingPolicy`:
@@ -732,18 +764,9 @@ With one thread polling all buses, nothing needs a lock. With a thread per bus, 
 ([porting guide](porting.md)), and a shared listener, source or factory is called from
 both threads.
 
-## Not yet implemented
+## Not included
 
-See the [roadmap](../../docs/cpp-stack/ROADMAP.md) for each.
-
-- Two-step links and their hooks (`SwitchBypass()`, `HighPowerSwitch()`).
-- A differential test of the routing planner against ADI's calculation.
-- Spread spectrum on the sub-nodes. The main node's PLLCTL comes from its export.
-- Writing EEPROMs (provisioning), as app code on `Network`'s peripheral calls. Until then the
-  bench console's `module N BOARD [FILE]` shows the pattern: a `ModuleInfoSource`
-  (`clockworks::BoardModuleSource`, `examples/bench/clockworks_boards.h`) that gives chosen
-  positions their board's image, peripheral script included, and passes the others to an
-  `EepromModuleInfoSource`.
-- AD2437 dual parallel buses (`BusPair`, `Partner()`).
-- SPI peripherals and SPI host control: until then a `PeripheralAddress` of kind `kSpi` gives
-  `Result::kNotSupported` on every node.
+The [roadmap](../../ROADMAP.md#features-not-included) lists what the stack
+doesn't do, with the calls that are there for it and return `Result::kNotSupported`: two-step
+links, power diagnostics, dual buses, the C facade, SPI, spread spectrum, GPIO over distance
+and the others.

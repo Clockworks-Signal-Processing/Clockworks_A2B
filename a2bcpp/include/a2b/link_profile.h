@@ -13,7 +13,23 @@
 
 #include <cstdint>
 
+#include "a2b/types.h"
+
 namespace a2b {
+
+/**
+ * @brief What a module's B port is: its image's B-side cable type (ModuleInfo::bPortType,
+ *        image byte 0x28). 0-2 are ADI's specification's; 3-5 are Clockworks' additions,
+ *        which the stack can't run yet (CustomBPortLink()); 6 and up are reserved.
+ */
+enum class BPortType : uint8_t {
+  kXlr = 0,                 ///< ADI's XLR: two-step on an AD2437, else UTP.
+  kRj45 = 1,                ///< ADI's RJ45: two-step, B side inverted, on an AD2437; else UTP.
+  kUtp = 2,                 ///< UTP: single-step, power on the pair, B side not inverted.
+  kRj45Custom = 3,          ///< An RJ45 that isn't ADI's, B side not inverted.
+  kRj45CustomInverted = 4,  ///< An RJ45 that isn't ADI's, B side inverted.
+  kCustom = 5,              ///< Something else.
+};
 
 /// The settings for one link. Start from a preset: Utp(), Rj45(), Xlr() or Custom().
 struct LinkProfile {
@@ -21,6 +37,9 @@ struct LinkProfile {
   enum class Discovery : uint8_t {
     kSingleStep,  ///< One discovery with the power already on.
     kTwoStep,  ///< Discover at 5 V, read the module info, then switch on 24 V (not supported yet).
+    /** The stack can't run the link (a B port type with no handler yet, CustomBPortLink()):
+        the next node is not probed. */
+    kUnsupported,
   };
 
   /** @brief Where the next node's power comes from. */
@@ -36,17 +55,22 @@ struct LinkProfile {
   Power power = Power::kOnA2bPair;               ///< Power source of the next node.
   /** The upstream node inverts its B side (CONTROL.XCVRBINV), as an RJ45 link needs. */
   bool bSideInverted = false;
-  bool checkPowerGood =
-      false;  ///< Two-step: check power-good before the first step (not supported yet).
+  /** Two-step: check power-good before the first step (two-step is not supported yet). */
+  bool checkPowerGood = false;
   uint8_t powerGoodGpio = 7;  ///< Two-step: the sub-node GPIO that carries power-good.
-  bool checkHighVoltage =
-      false;  ///< Two-step: check 24 V with the voltage monitor (not supported yet).
+  /** Two-step: check 24 V with the voltage monitor (two-step is not supported yet). */
+  bool checkHighVoltage = false;
 
   static LinkProfile Utp();     ///< UTP: single-step, power on the pair.
   static LinkProfile Rj45();    ///< RJ45: two-step, B side inverted.
   static LinkProfile Xlr();     ///< XLR: two-step.
   static LinkProfile Custom();  ///< Custom: single-step, power on separate wires (SWBYP).
+  /// The link from a module's B port, by its image's B port type and the node's chip.
+  static LinkProfile ForBPort(uint8_t bPortType, uint8_t productId);
 };
+
+/// The link for a B port type with no preset (BPortType 3-5, reserved values): none yet.
+Result CustomBPortLink(uint8_t bPortType, uint8_t productId, LinkProfile& profile);
 
 }  // namespace a2b
 

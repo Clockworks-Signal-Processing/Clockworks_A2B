@@ -47,12 +47,63 @@ module info expect (SWSTAT2 0xA0).
 | A peripheral script's type C unit | its payload size, in ms (ADI's ADAU1701: 16 ms before its first write) | Hard minimum | The module's image (ADI's `a2b_pnp_periphCfgProcessing`) | the reference's waits, `--delay-ratio` |
 | A node's `OnConfigured()` waits (`Op::Wait`) | as the app says | Hard minimum | The app | none |
 
-Two things take time inside one `Poll()`: the EEPROM reads (a sub-node's I2C port runs at 100 kHz
-unless its I2CCFG says otherwise, so the 144-byte start of an image takes about 15 ms), and each
-write unit of a peripheral script, which is read from the source and written in one transfer.
-`Poll()` runs at most one unit; ADI's 4090-byte ADAU1701 program keeps one `Poll()` busy for about
-0.8 s (0.4 s to read it, 0.4 s to write it), as ADI's blocking calls did. The node counts as found
-only after its scripts and its `OnConfigured()` operations, so the next probe waits for them.
+Two things take time inside one `Poll()`: the EEPROM reads, and each write unit of a peripheral
+script, which is read from the source and written in one transfer.
+- **The EEPROM reads:** a sub-node's I2C port runs at 100 kHz from reset, so the 144-byte start of
+  an image takes about 15 ms.
+- **The peripheral scripts:** they run at 100 kHz, or at 400 kHz when the image sets
+  I2CCFG.DATARATE (the stack writes it before them).
+- `Poll()` runs at most one unit. By the TRMs' figures (113 µs per byte at 100 kHz, 45 µs at
+  400 kHz), ADI's 4090-byte ADAU1701 unit keeps one `Poll()` busy for about 0.8 s at 100 kHz
+  (0.4 s to read it, 0.4 s to write it), as ADI's blocking calls did, and about 0.4 s at 400 kHz,
+  which ADI's RJ45 image sets. A host adds its own time per byte (below). The node counts as
+  found only after its scripts and its `OnConfigured()` operations, so the next probe waits for
+  them.
+
+**Measured behind an ADI USBi** (Windows; AD2428 main node, AD2428 and AD2437 sub-nodes, the
+AB0020's ADAU1761 program, 6076 bytes of data, from its EEPROM):
+
+| | 100 kHz | 400 kHz |
+|---|---|---|
+| A remote read, per byte | 215 µs | 147 µs |
+| A remote write, per byte | 217 µs | 162 µs |
+| A remote transfer of a few bytes | about 8 ms | about 8 ms |
+| The 1732-byte program write | 375 ms | 281 ms |
+| The whole program, read and written unit by unit | 4.8 s | 3.95 s |
+
+The 400 kHz port saves 68 µs per byte, as the TRMs' figures say; the rest of each byte's time
+is the USBi's (its own I2C to the main node, and USB). The USBi checks a transfer's status for
+about 0.3 s ([porting](porting.md)), so the image tool warns about a unit that would take over
+0.25 s at these rates.
+
+**Measured on the Pi** (i2c-dev at 400 kHz to an AD2437 main node, AB0020 sub-nodes with AD2428
+and AD2437 modules, the same program as the 8376-byte image holds it: 6078 bytes, the split write
+adding a 2-byte sub-address; times from the I2C trace, a transfer's start to the next
+transfer's start):
+
+| | 100 kHz | 400 kHz |
+|---|---|---|
+| A remote read, per byte (256-byte transfers, 39.4 ms each) | 157 µs | not measured |
+| A remote write, per byte (1022-byte units) | 148.5 µs | 85.9 µs |
+| The whole program (39 writes, one 100 ms wait) | 2.057 s | 1.262 s |
+| The 144-byte start of the image and its groups (9 transfers, 319 bytes) | 47 ms | n/a |
+
+- A 32 KB EEPROM read takes 5.13 s (128 transfers); the first 8.4 KB takes 1.33 s.
+- Against the USBi, the Pi's per-byte times are about 27% lower at 100 kHz (reads 157 against
+  215 µs) and about 47% lower at 400 kHz (writes 86 against 162 µs), and the whole program
+  takes about a third of the time at 400 kHz and under half at 100 kHz. The Pi has no 8 ms
+  per transfer and no status window.
+- **EEPROM page writes.** At the default 6 ms write-cycle wait a 64-byte page write (a
+  66-byte transfer) is followed by the next one 11.0 ms later. That try is NAKed, and the
+  retry 2 ms after it succeeds, so successful page writes land about 13 ms apart. A 3-byte
+  marker write needs no retry. The EEPROM is therefore busy for about 13 ms after a page write
+  starts: the 64 bytes take about 6 ms on the node's 100 kHz port, then the 24FC256's write
+  cycle of up to 5 ms. This is a reading of the traces, not a measurement of the part.
+  Writing 18 pages cost 17 retries on each of two nodes and 14 on the third, with no interrupt
+  reported by the main node. A longer wait than 6 ms would remove them; they cost about 2 ms
+  a page.
+- The three nodes' programs ran in the same 1.26 s, and a trace of a start from the EEPROMs
+  holds no failed transfer except the AB0204's five searches at 0x50-0x54.
 
 ## A running chain: checks, drops, rejections and BECNT
 

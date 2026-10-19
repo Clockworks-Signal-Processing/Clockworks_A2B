@@ -91,7 +91,7 @@ A2B_TEST(Scenario11EachMainNodeWithAMixedChain) {
     for (size_t i = 0; i < products.size(); ++i) {
       const NodeAddr n = static_cast<NodeAddr>(i);
       const uint8_t product = products[i];
-      const SubNodeInfo* info = bench.network.SubNode(n);
+      const SubNodeInfo* info = bench.network.SubNodeInfoAt(n);
       A2B_CHECK(info != nullptr && info->identity.productId == product);
       // Each switch in its chip's mode: closed up to the last node, which is open.
       const bool last = (i + 1 == products.size());
@@ -134,7 +134,7 @@ A2B_TEST(MixedChainDropAndReplugUnderEachMainNode) {
     }
     A2B_CHECK(bench.RunUntilCount(4, 3000));
     for (size_t i = 0; i < products.size(); ++i) {
-      const SubNodeInfo* info = bench.network.SubNode(static_cast<NodeAddr>(i));
+      const SubNodeInfo* info = bench.network.SubNodeInfoAt(static_cast<NodeAddr>(i));
       A2B_CHECK(info != nullptr && info->identity.productId == products[i]);
     }
   }

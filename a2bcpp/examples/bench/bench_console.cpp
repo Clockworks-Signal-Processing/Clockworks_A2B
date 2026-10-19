@@ -13,7 +13,11 @@
  * (a write to a register the stack owns is the user's risk, as for any app). The
  * connection commands keep connections in the Network (by chip ID, so they outlast a
  * `start`), and `applyRouting` routes them; the main node's channel groups are the
- * console's (`group main`), as an export has none.
+ * console's (`group main`), as an export has none. The `eeprom` commands read, write,
+ * verify and erase a sub-node's module-info EEPROM with an EepromJob, a transfer per poll
+ * (Busy() while it runs), and `module N file` gives a node an image from a file instead.
+ * The commands that need files are in bench_console_files.cpp. With A2B_BENCH_FILES 0 (the
+ * RP2040 console) they are left out: typed, each says it is not available.
  *
  * Copyright 2026 by ClockWorks Signal Processing LLC
  * Licensed under the terms found in CLOCKWORKS_SOFTWARE_LICENSE.txt and included here by reference.
@@ -28,7 +32,15 @@
 #include <cstdlib>
 #include <cstring>
 
+#include "a2b/strings.h"
+#include "console_text.h"
+#include "eeprom_image.h"
 #include "ss_plus_import.h"
+
+using bench::Hex;
+using bench::Same;
+using bench::Split;
+using bench::ToNumber;
 
 extern "C" {
 extern ADI_A2B_BCD a2b_bench_board_ref;  ///< adi/exports/rp2040/12_a2b_busconfig.c (board_ref.c).
@@ -42,7 +54,12 @@ extern ADI_A2B_BCD a2b_bench_board_ab0310;
 
 namespace {
 
+#if !A2B_BENCH_FILES
+/// What a file command prints, after its name.
+constexpr const char* kNoFiles = "not available on the RP2040 (no file system)";
+#else
 constexpr size_t kMaxWarningsShown = 10;  ///< A loaded export's warnings printed in full.
+#endif
 
 /** INTTYPE PWRERR, cable disconnected, open circuit or wrong port (AD242x TRM, Table 5-1). */
 constexpr uint8_t kIntOpenLine = 12;
@@ -53,172 +70,32 @@ constexpr long kLastRegister = 0x1FF;  ///< The last register of page 1 (AD243x)
 constexpr long kMaxCount = 256;        ///< Registers or peripheral bytes one command reads.
 constexpr size_t kBytesPerLine = 16;   ///< Values printed on one line.
 
-/** A name for a state. */
-const char* Name(a2b::NetworkState state) {
-  switch (state) {
-    case a2b::NetworkState::kStopped:
-      return "stopped";
-    case a2b::NetworkState::kStarting:
-      return "starting the main node";
-    case a2b::NetworkState::kConfiguring:
-      return "configuring the main node";
-    case a2b::NetworkState::kDiscovering:
-      return "bringing up the chain";
-    case a2b::NetworkState::kRunning:
-      return "running";
-    case a2b::NetworkState::kFailed:
-      return "failed";
-  }
-  return "?";
-}
-
-/** A name for an error. */
-const char* Name(a2b::NetworkError error) {
-  switch (error) {
-    case a2b::NetworkError::kNone:
-      return "none";
-    case a2b::NetworkError::kI2cError:
-      return "the main node does not answer";
-    case a2b::NetworkError::kWrongMainNode:
-      return "the main node is not the board's chip";
-    case a2b::NetworkError::kMainNodeNotRunning:
-      return "no MSTR_RUNNING (is SYNC there?)";
-    case a2b::NetworkError::kHostScriptFailed:
-      return "the board's host script failed";
-  }
-  return "?";
-}
-
-/** A name for a rejection reason. */
-const char* Name(a2b::RejectReason reason) {
-  switch (reason) {
-    case a2b::RejectReason::kNone:
-      return "none";
-    case a2b::RejectReason::kUnsupportedChip:
-      return "unsupported chip";
-    case a2b::RejectReason::kNoModuleInfo:
-      return "no module info (no EEPROM at 0x50-0x54, or a blank one)";
-    case a2b::RejectReason::kBadModuleInfo:
-      return "bad module info (marker, header CRC or block)";
-    case a2b::RejectReason::kConfigFailed:
-      return "configuration failed";
-    case a2b::RejectReason::kPeripheralFailed:
-      return "peripheral script failed";
-    case a2b::RejectReason::kPowerBudget:
-      return "over the power budget";
-    case a2b::RejectReason::kByApp:
-      return "by the app";
-  }
-  return "?";
-}
-
-/** A name for a removal reason. */
-const char* Name(a2b::RemovalReason reason) {
-  switch (reason) {
-    case a2b::RemovalReason::kDropped:
-      return "dropped (unplugged, or a node before it was)";
-    case a2b::RemovalReason::kRejected:
-      return "rejected by the app";
-    case a2b::RemovalReason::kRestart:
-      return "the bus starts again";
-    case a2b::RemovalReason::kStopped:
-      return "the bus stopped";
-  }
-  return "?";
-}
-
-/** A name for a result. */
-const char* Name(a2b::Result result) {
-  switch (result) {
-    case a2b::Result::kOk:
-      return "ok";
-    case a2b::Result::kI2cError:
-      return "I2C error";
-    case a2b::Result::kInvalidArgument:
-      return "invalid argument";
-    case a2b::Result::kNotSupported:
-      return "not supported";
-    case a2b::Result::kNoSpace:
-      return "no space";
-    case a2b::Result::kInvalidData:
-      return "invalid data";
-  }
-  return "?";
-}
-
 /**
  * The link profile's name, as `link` takes it: utp (B side straight) or rj45 (B side
  * inverted: XCVRBINV, which only RJ45 links have by default), both powered over the A2B
- * pair; custom (own power), inverted if its cable is RJ45. The rj45 links are single-step
- * until two-step discovery is built.
+ * pair; custom (own power), inverted if its cable is RJ45. The rj45 links `link` sets are
+ * single-step until two-step discovery is built; a two-step or unsupported link (an image's
+ * B port) says so, as the stack doesn't probe past it.
  */
 std::string ProfileName(const a2b::LinkProfile& link) {
+  if (link.discovery == a2b::LinkProfile::Discovery::kUnsupported) {
+    return "unsupported B port type (not probed)";
+  }
+  std::string name;
   if (link.power == a2b::LinkProfile::Power::kOnA2bPair) {
-    return link.bSideInverted ? "rj45" : "utp";
+    name = link.bSideInverted ? "rj45" : "utp";
+  } else {
+    name = link.bSideInverted ? "custom inverted" : "custom";
   }
-  return link.bSideInverted ? "custom inverted" : "custom";
-}
-
-/** True if @p a and @p b are the same word, ignoring case. */
-bool Same(const std::string& a, const char* b) {
-  if (a.size() != std::strlen(b)) {
-    return false;
+  if (link.discovery == a2b::LinkProfile::Discovery::kTwoStep) {
+    name += " two-step (not supported: not probed)";
   }
-  for (size_t i = 0; i < a.size(); ++i) {
-    const char x = (a[i] >= 'A' && a[i] <= 'Z') ? static_cast<char>(a[i] - 'A' + 'a') : a[i];
-    const char y = (b[i] >= 'A' && b[i] <= 'Z') ? static_cast<char>(b[i] - 'A' + 'a') : b[i];
-    if (x != y) {
-      return false;
-    }
-  }
-  return true;
-}
-
-/**
- * Splits a command line into words at white space; "double quotes" keep spaces in a word
- * (a Windows path, for instance).
- */
-std::vector<std::string> Split(const char* line) {
-  std::vector<std::string> words;
-  const char* p = line;
-  for (;;) {
-    while (*p == ' ' || *p == '\t' || *p == '\r' || *p == '\n') {
-      ++p;
-    }
-    if (*p == '\0') {
-      return words;
-    }
-    std::string word;
-    if (*p == '"') {
-      ++p;
-      while (*p != '\0' && *p != '"') {
-        word += *p++;
-      }
-      if (*p == '"') {
-        ++p;
-      }
-    } else {
-      while (*p != '\0' && *p != ' ' && *p != '\t' && *p != '\r' && *p != '\n') {
-        word += *p++;
-      }
-    }
-    words.push_back(word);
-  }
-}
-
-/** Reads a whole number from 0 to @p max; false if @p text isn't one. */
-bool ToNumber(const std::string& text, long max, long& value) {
-  if (text.empty()) {
-    return false;
-  }
-  char* end = nullptr;
-  value = std::strtol(text.c_str(), &end, 0);
-  return *end == '\0' && value >= 0 && value <= max;
+  return name;
 }
 
 /**
  * Reads a cable length in metres with at most one decimal ("4", "2.5", "0.3") into
- * decimetres, 1 to a2b::kMaxCableDm; false if @p text isn't one.
+ * decimetres, 0.1 to 6553.5 m; false if @p text isn't one.
  */
 bool ToDecimetres(const std::string& text, uint16_t& decimetres) {
   const size_t dot = text.find('.');
@@ -226,11 +103,11 @@ bool ToDecimetres(const std::string& text, uint16_t& decimetres) {
   const std::string tenths = (dot == std::string::npos) ? "0" : text.substr(dot + 1);
   if (whole.empty() || tenths.size() != 1 ||
       whole.find_first_not_of("0123456789") != std::string::npos ||
-      tenths.find_first_not_of("0123456789") != std::string::npos || whole.size() > 3) {
+      tenths.find_first_not_of("0123456789") != std::string::npos || whole.size() > 4) {
     return false;
   }
   const long value = std::strtol(whole.c_str(), nullptr, 10) * 10 + (tenths[0] - '0');
-  if (value < 1 || value > a2b::kMaxCableDm) {
+  if (value < 1 || value > 0xFFFF) {
     return false;
   }
   decimetres = static_cast<uint16_t>(value);
@@ -240,6 +117,26 @@ bool ToDecimetres(const std::string& text, uint16_t& decimetres) {
 /** A cable length in decimetres as metres, "4.0 m". */
 std::string Metres(uint16_t decimetres) {
   return std::to_string(decimetres / 10) + "." + std::to_string(decimetres % 10) + " m";
+}
+
+/**
+ * The codec program of `module N BOARD [FILE]`: FILE's (SigmaStudio's XML), or the board's.
+ * @param board The board.
+ * @param args The command line's words; a fourth is FILE.
+ * @param program The program read.
+ * @param error Why it can't be read.
+ * @return True with @p program read.
+ */
+bool CodecProgram(const clockworks::ModuleProfile& board, const std::vector<std::string>& args,
+                  SigmaProgram& program, std::string& error) {
+#if A2B_BENCH_FILES
+  if (args.size() == 4) {
+    return ReadSigmaXml(args[3], board.codecAddr, program, error);
+  }
+#else
+  (void)args;
+#endif
+  return clockworks::DefaultProgram(board, program, error);
 }
 
 /**
@@ -278,17 +175,6 @@ std::string NodeName(a2b::NodeAddr node, bool article = true) {
     return article ? "the main node" : "main node";
   }
   return "sub-node " + std::to_string(static_cast<int>(node));
-}
-
-/** Formats @p len bytes as hex, separated by spaces. */
-std::string Hex(const uint8_t* data, size_t len) {
-  std::string text;
-  char byte[4];
-  for (size_t i = 0; i < len; ++i) {
-    std::snprintf(byte, sizeof(byte), i == 0 ? "%02X" : " %02X", data[i]);
-    text += byte;
-  }
-  return text;
 }
 
 /**
@@ -414,46 +300,6 @@ bool ToChipEnd(const std::string& text, a2b::ConnectionEnd& end) {
   return true;
 }
 
-/** A name for a routing mute mode. */
-const char* Name(a2b::RoutingMute mode) {
-  switch (mode) {
-    case a2b::RoutingMute::kLocal:
-      return "local (the nodes that would play a wrong channel)";
-    case a2b::RoutingMute::kGlobal:
-      return "global (the whole bus)";
-    case a2b::RoutingMute::kNone:
-      return "none";
-  }
-  return "?";
-}
-
-/** A name for a routing error. */
-const char* Name(a2b::RoutingError error) {
-  switch (error) {
-    case a2b::RoutingError::kNone:
-      return "none";
-    case a2b::RoutingError::kNotSupported:
-      return "not supported";
-    case a2b::RoutingError::kNoSuchGroup:
-      return "a connection names a group its node hasn't got";
-    case a2b::RoutingError::kSameNode:
-      return "a connection's source and sink are the same node";
-    case a2b::RoutingError::kTooManySlots:
-      return "more than 32 slots on a link";
-    case a2b::RoutingError::kTooManyChannels:
-      return "a node would play more than 32 channels";
-    case a2b::RoutingError::kNoResponseCycles:
-      return "the slots don't fit the superframe (no response-cycle window)";
-    case a2b::RoutingError::kI2cError:
-      return "I2C error while writing it";
-    case a2b::RoutingError::kNoSuchChannel:
-      return "a connection uses a channel its node's I2S/TDM port doesn't give";
-    case a2b::RoutingError::kChannelOrder:
-      return "a node without a crossbar (AD242x) can't play its channels in that order";
-  }
-  return "?";
-}
-
 }  // namespace
 
 /**
@@ -488,7 +334,7 @@ const std::vector<BenchConsole::BuiltInBoard>& BenchConsole::BuiltInBoards() {
        false},
       // The AB0020 is UTP on both ports, so every link is straight. Its AD2437 and AD2428
       // modules have an export each; `start` takes the one for the chip it finds.
-      {"ab0020",
+      {"AB0020",
        "AB0020: AD2437 or AD2428 main node (the export for the chip found at start), I2S "
        "TDM2, UTP links, ADAU1761 codec programmed at start "
        "(tools/SS+reference/2x_AB0020_EVM_with_2437, _with_2428)",
@@ -496,13 +342,27 @@ const std::vector<BenchConsole::BuiltInBoard>& BenchConsole::BuiltInBoards() {
        true},
       // The AB0310 makes SYNC and BCLK itself and has no peripheral to program; its links
       // are RJ45, as its export's XCVRBINV says.
-      {"ab0310",
+      {"AB0310",
        "AB0310: AD2437 main node, I2S TDM2, RJ45 links, SYNC and BCLK from the board, no "
        "peripherals (tools/SS+reference/AB0310_AB0312_EVM_with_2437)",
        {{0x37, &a2b_bench_board_ab0310}},
        false},
   };
   return kBoards;
+}
+
+/**
+ * Tells whether a host should run @p line at once while an `eeprom` job runs, ahead of the
+ * lines queued before it: `eeprom abort`, `quit` and `exit`. Other lines wait for the job.
+ * @param line A command line.
+ * @return True for those commands.
+ */
+bool BenchConsole::RunsWhileBusy(const char* line) {
+  const std::vector<std::string> args = Split(line);
+  if (args.size() == 1) {
+    return Same(args[0], "quit") || Same(args[0], "exit");
+  }
+  return args.size() == 2 && Same(args[0], "eeprom") && Same(args[1], "abort");
 }
 
 /**
@@ -517,6 +377,15 @@ bool BenchConsole::Execute(const char* line) {
     return true;
   }
   const std::string& command = args[0];
+#if A2B_BENCH_FILES
+  if (Busy() && (Same(command, "start") || Same(command, "stop") || Same(command, "board") ||
+                 Same(command, "reject") ||
+                 (Same(command, "eeprom") && args.size() > 1 && !Same(args[1], "abort")))) {
+    Print("An EEPROM job is running on sub-node %u (eeprom abort stops it)\n",
+          static_cast<unsigned>(m_EepromJob.Node()));
+    return true;
+  }
+#endif
   if (Same(command, "help") || command == "?") {
     Help();
   } else if (Same(command, "board")) {
@@ -535,8 +404,15 @@ bool BenchConsole::Execute(const char* line) {
     Module(args);
   } else if (Same(command, "ignoreEEPROM")) {
     IgnoreEeprom(args);
+#if !A2B_BENCH_FILES
+  } else if (Same(command, "eeprom") || Same(command, "i2cTrace")) {
+    Print("%s: %s\n", command.c_str(), kNoFiles);
+#else
+  } else if (Same(command, "eeprom")) {
+    Eeprom(args);
   } else if (Same(command, "i2cTrace")) {
     Trace(args);
+#endif
   } else if (Same(command, "interrupts")) {
     Interrupts(args);
   } else if (Same(command, "rdm") || Same(command, "rds")) {
@@ -579,8 +455,13 @@ bool BenchConsole::Execute(const char* line) {
   } else if (Same(command, "group")) {
     SetGroup(args);
   } else if (Same(command, "quit") || Same(command, "exit")) {
+#if !A2B_BENCH_FILES
+    m_Network.Stop();
+#else
+    m_EepromJob.Abort();
     m_Network.Stop();
     m_Trace.Stop();
+#endif
     return false;
   } else {
     Print("Unknown command '%s' (help lists them)\n", command.c_str());
@@ -588,8 +469,19 @@ bool BenchConsole::Execute(const char* line) {
   return true;
 }
 
-/** Polls the bus once at the host's time; the events are printed at the end of it. */
-void BenchConsole::Poll() { m_Network.Poll(m_Trace.NowMs()); }
+/**
+ * Polls the bus once at the host's time (the events are printed at the end of it), then
+ * runs an `eeprom` job on by a transfer, and reports it when it ends.
+ */
+void BenchConsole::Poll() {
+  m_Network.Poll(m_Trace.NowMs());
+#if A2B_BENCH_FILES
+  if (m_EepromJob.Running() &&
+      m_EepromJob.Poll(m_Network, m_Trace.NowMs()) != EepromJob::State::kRunning) {
+    EepromFinished();
+  }
+#endif
+}
 
 /**
  * Gives what the console printed since the last call, and forgets it.
@@ -612,9 +504,9 @@ void BenchConsole::OnEvent(a2b::Network& network, const a2b::Event& event) {
   const unsigned node = static_cast<unsigned>(event.node);
   switch (event.type) {
     case a2b::EventType::kStateChanged:
-      Print("bus: %s\n", Name(event.state));
+      Print("bus: %s\n", a2b::ToString(event.state));
       if (event.state == a2b::NetworkState::kFailed) {
-        Print("  error: %s\n", Name(m_Network.Error()));
+        Print("  error: %s\n", a2b::ToString(m_Network.Error()));
         uint8_t product = 0;
         if (m_Network.Error() == a2b::NetworkError::kWrongMainNode &&
             ReadMainChip(m_Board.mainAddr, product)) {
@@ -632,11 +524,11 @@ void BenchConsole::OnEvent(a2b::Network& network, const a2b::Event& event) {
       ReportNode(event.node);
       return;
     case a2b::EventType::kNodeRejected:
-      Print("  sub-node %u rejected: %s\n", node, Name(event.rejection));
+      Print("  sub-node %u rejected: %s\n", node, a2b::ToString(event.rejection));
       return;
     case a2b::EventType::kNodeRemoved:
       m_OpenLineHinted = a2b::kNoNode;
-      Print("  sub-node %u removed: %s\n", node, Name(event.removal));
+      Print("  sub-node %u removed: %s\n", node, a2b::ToString(event.removal));
       return;
     case a2b::EventType::kInterrupt: {
       // The last sub-node reports its open B side each time a probe closes its switch
@@ -671,7 +563,7 @@ void BenchConsole::OnEvent(a2b::Network& network, const a2b::Event& event) {
     case a2b::EventType::kRoutingFailed: {
       const std::string where =
           (event.node == a2b::kNoNode) ? std::string() : " (" + NodeName(event.node) + ")";
-      Print("routing failed: %s%s\n", Name(event.routingError), where.c_str());
+      Print("routing failed: %s%s\n", a2b::ToString(event.routingError), where.c_str());
       return;
     }
   }
@@ -700,31 +592,70 @@ void BenchConsole::Help() {
       "board                    list the built-in boards; show the one picked\n"
       "board NAME [CHAIN]       pick a built-in board (one with exports for several main\n"
       "                         node chips takes the one for the chip found at start)\n"
+#if !A2B_BENCH_FILES
+      "                         CHAIN: the export's chain (default 0)\n"
+#else
       "board FILE [CHAIN]       load a SigmaStudio+ export (adi_a2b_busconfig.c); quote a\n"
       "                         path with spaces. CHAIN: the export's chain (default 0)\n"
+#endif
       "start                    import the board and start the bus (again if running)\n"
       "stop                     stop the bus (nothing more is sent)\n"
+#if !A2B_BENCH_FILES
+      "status                   the bus, its sub-nodes, links and module info\n"
+#else
       "status                   the bus, its sub-nodes, links, module info and trace\n"
+#endif
       "link                     list the links set\n"
       "link N utp|rj45|custom   the link into sub-node N (0-15). utp and rj45 power the\n"
       "                         next node over the A2B pair; rj45 also inverts the B side\n"
-      "                         (XCVRBINV on the node before it), single-step for now.\n"
+      "                         (XCVRBINV on the node before it), single-step (the stack\n"
+      "                         doesn't run two-step).\n"
       "                         custom leaves the node on its own power\n"
       "link N custom inverted   the same, with an RJ45 cable (B side inverted)\n"
-      "link N default           back to the board's link (or all: link all default)\n"
+      "link N default           back to the link the node before it gives (its image's B\n"
+      "                         port; the board's into sub-node 0); all: link all default\n"
+      "link all board           every link the board's, whatever the images' B ports say\n"
       "cable                    list the cable lengths set\n"
       "cable N METRES           the cable into sub-node N (0-15) for the response cycles:\n"
-      "                         0.1-30, e.g. 2.5; the board's is 4 m. Re-routes a routed bus\n"
-      "cable N default          back to the board's length (or all: cable all default)\n"
+      "                         from 0.1, e.g. 2.5 (the real length: a longer one can stop\n"
+      "                         discovery), in place of the image's of the node before it\n"
+      "                         and the board's (4 m). Re-routes a routed bus if it changes\n"
+      "cable N default          back to the image's, else the board's (all: cable all default)\n"
       "module                   list the boards set at sub-node positions (or the boards)\n"
-      "module N BOARD [FILE]    sub-node N (0-15, or all) is a Clockworks BOARD (ab0020,\n"
-      "                         ab0312): its settings, groups and codec program, the\n"
+#if !A2B_BENCH_FILES
+      "module N BOARD           sub-node N (0-15, or all) is a Clockworks BOARD (AB0020,\n"
+      "                         AB0312): its settings, groups and the board's codec\n"
+      "                         program, even with the EEPROMs read\n"
+#else
+      "module N BOARD [FILE]    sub-node N (0-15, or all) is a Clockworks BOARD (AB0020,\n"
+      "                         AB0312): its settings, groups and codec program, the\n"
       "                         board's or FILE's (SigmaStudio's XML), even with the\n"
       "                         EEPROMs read\n"
+      "module N file FILE       sub-node N's module info from an image file (.dat, the\n"
+      "                         image tool's), even with the EEPROMs read: try an image\n"
+      "                         before writing it\n"
+#endif
       "module N default         back to the EEPROM or ignoreEEPROM's image (or all)\n"
       "ignoreEEPROM 1|0         give sub-nodes the console's module info / read EEPROMs\n"
+#if A2B_BENCH_FILES
+      "eeprom                   the EEPROM settings, and the job running\n"
+      "eeprom config [addr A] [size BYTES] [page BYTES] [cycle MS] [chunk BYTES]\n"
+      "                         the sub-nodes' EEPROM: 7-bit address (default: where the\n"
+      "                         image was found, else 0x50; addr found goes back to that),\n"
+      "                         size (32768), write page (64), write cycle wait (6 ms),\n"
+      "                         bytes per read (256)\n"
+      "eeprom read N FILE [LEN|all]\n"
+      "                         read sub-node N's EEPROM into FILE: to the end of its image\n"
+      "                         (all of it if there's none), LEN bytes, or all of it\n"
+      "eeprom write N FILE      write an image (.dat) to sub-node N's EEPROM: checked first,\n"
+      "                         pages that differ, read back, the marker 0xAA last\n"
+      "eeprom verify N FILE     compare sub-node N's EEPROM with an image\n"
+      "eeprom info N            read sub-node N's image and say what it holds\n"
+      "eeprom erase N           clear sub-node N's marker: no module info there\n"
+      "eeprom abort             stop the job (a write stopped leaves the node blank)\n"
       "i2cTrace on FILE         write every I2C transfer to FILE (I2CT lines)\n"
       "i2cTrace off|status      stop tracing / show the trace\n"
+#endif
       "interrupts quiet|all     hide (the default) or show the open-line interrupts (types\n"
       "                         12, 13) of the last sub-node, which each probe behind it\n"
       "                         gives when nothing is plugged in there\n"
@@ -776,7 +707,11 @@ void BenchConsole::Help() {
       "                         set a group of the main node (used at the next start) or\n"
       "                         of the console's module info (ignoreEEPROM); CHANNELS: 0-1,\n"
       "                         0,2,4-7, or none to remove the group\n"
+#if !A2B_BENCH_FILES
+      "quit                     stop the bus (the console keeps running)\n");
+#else
       "quit                     stop the bus and leave\n");
+#endif
 }
 
 /**
@@ -790,7 +725,11 @@ void BenchConsole::Board(const std::vector<std::string>& args) {
     for (const BuiltInBoard& board : BuiltInBoards()) {
       Print("  %-8s %s\n", board.name, board.description);
     }
+#if !A2B_BENCH_FILES
+    Print("Board: %s", m_Bcd != nullptr ? m_BoardName.c_str() : "none (board NAME)");
+#else
     Print("Board: %s", m_Bcd != nullptr ? m_BoardName.c_str() : "none (board NAME or FILE)");
+#endif
     Print(m_Bcd != nullptr ? ", chain %u\n" : "\n", static_cast<unsigned>(m_Chain));
     return;
   }
@@ -799,6 +738,17 @@ void BenchConsole::Board(const std::vector<std::string>& args) {
     Print("board: CHAIN is a number\n");
     return;
   }
+#if !A2B_BENCH_FILES
+  bool builtIn = false;
+  for (const BuiltInBoard& board : BuiltInBoards()) {
+    builtIn = builtIn || Same(args[1], board.name);
+  }
+  if (!builtIn) {
+    Print("board %s: not a built-in board (board lists them); board FILE is %s\n", args[1].c_str(),
+          kNoFiles);
+    return;
+  }
+#endif
   if (Running()) {
     m_Network.Stop();
     Print("Bus stopped for the new board\n");
@@ -814,6 +764,7 @@ void BenchConsole::Board(const std::vector<std::string>& args) {
       return;
     }
   }
+#if A2B_BENCH_FILES
   m_Bcd = nullptr;  // The file's structures are freed by the load.
   m_BuiltIn = nullptr;
   m_BoardName.clear();
@@ -836,12 +787,13 @@ void BenchConsole::Board(const std::vector<std::string>& args) {
   m_Chain = static_cast<uint8_t>(chain);
   Print("Board %s, chain %ld (%u chain(s) in the export)\n", args[1].c_str(), chain,
         static_cast<unsigned>(m_Bcd->nNumMasterNode));
+#endif
 }
 
 /**
  * `start`: imports the board into a fresh BoardConfig and starts the bus; a bus already
  * started is stopped and started again. The links set with `link` stay set. A built-in
- * board with an export for more than one main-node chip (ab0020) first reads the main
+ * board with an export for more than one main-node chip (AB0020) first reads the main
  * node's VENDOR and PRODUCT, at the default export's main-node address, and takes the
  * export for that chip; a chip it has none for is refused, and a main node that doesn't
  * answer gets the default export. A board from a file, or with one export, is used as it is
@@ -887,6 +839,7 @@ void BenchConsole::Start() {
   if (m_LinksUtp) {
     m_Board.defaultLink.bSideInverted = false;  // UTP, whatever the export's XCVRBINV.
   }
+  ApplyBoardLinks();
   Print(
       "Main node AD24%02X at 0x%02X (sub-nodes 0x%02X), %u host script operation(s) (%u "
       "before the main node), links %s by default\n",
@@ -896,7 +849,7 @@ void BenchConsole::Start() {
       ProfileName(m_Board.defaultLink).c_str());
   const a2b::Result started = m_Network.Start();
   if (started != a2b::Result::kOk) {
-    Print("Can't start: %s\n", Name(started));
+    Print("Can't start: %s\n", a2b::ToString(started));
   }
 }
 
@@ -910,7 +863,7 @@ bool BenchConsole::ImportBoard(const ADI_A2B_BCD& bus) {
   const a2b::Result imported = a2b::ImportSsPlus(bus, m_Chain, m_Board, m_HostScript);
   if (imported != a2b::Result::kOk) {
     Print("Can't import chain %u of %s: %s\n", static_cast<unsigned>(m_Chain), m_BoardName.c_str(),
-          Name(imported));
+          a2b::ToString(imported));
     return false;
   }
   return true;
@@ -961,9 +914,9 @@ void BenchConsole::StopBus() {
 void BenchConsole::Status() {
   Print("Board: %s", m_Bcd != nullptr ? m_BoardName.c_str() : "none");
   Print(m_Bcd != nullptr ? ", chain %u\n" : "\n", static_cast<unsigned>(m_Chain));
-  Print("Bus: %s", Name(m_Network.State()));
+  Print("Bus: %s", a2b::ToString(m_Network.State()));
   if (m_Network.State() == a2b::NetworkState::kFailed) {
-    Print(" (%s)", Name(m_Network.Error()));
+    Print(" (%s)", a2b::ToString(m_Network.Error()));
   }
   if (m_Network.State() != a2b::NetworkState::kStopped) {
     Print(", main node AD24%02X at 0x%02X", m_Board.mainProduct, m_Board.mainAddr);
@@ -973,8 +926,9 @@ void BenchConsole::Status() {
   for (size_t i = 0; i < m_Network.SubNodeCount(); ++i) {
     ReportNode(static_cast<a2b::NodeAddr>(i));
   }
-  Print("Last rejection: %s\n", Name(m_Network.LastRejection()));
-  Print("Links: %s by default", ProfileName(m_Board.defaultLink).c_str());
+  Print("Last rejection: %s\n", a2b::ToString(m_Network.LastRejection()));
+  Print("Links: %s by default%s", ProfileName(m_Board.defaultLink).c_str(),
+        m_AllLinksBoard ? " (every link)" : " (into sub-node 0; the others from the images)");
   for (int n = 0; n < a2b::kMaxSubNodes; ++n) {
     if (m_LinkSet[n]) {
       Print("; into %d %s", n, ProfileName(m_Links[n]).c_str());
@@ -989,22 +943,31 @@ void BenchConsole::Status() {
   bool anyModule = false;
   for (int n = 0; n < a2b::kMaxSubNodes; ++n) {
     const clockworks::ModuleProfile* board = m_Modules.Board(static_cast<a2b::NodeAddr>(n));
-    if (board != nullptr) {
-      Print("%s%d %s", anyModule ? ", " : "\nBoards: sub-node ", n, board->name);
+    const bool image = m_Modules.HasImage(static_cast<a2b::NodeAddr>(n));
+    if (board != nullptr || image) {
+      Print("%s%d %s", anyModule ? ", " : "\nBoards: sub-node ", n,
+            image ? ("image " + m_ImageFiles[n]).c_str() : board->name);
       anyModule = true;
     }
   }
   Print("\nMute: bus %s, routing mute %s\n", m_Network.NetworkMuted() ? "muted" : "not muted",
-        Name(m_MuteMode));
+        a2b::ToString(m_MuteMode));
   Print("Module info: %s\n", m_IgnoreEeprom ? "the console's (EEPROMs ignored)" : "the EEPROMs");
+#if A2B_BENCH_FILES
+  if (Busy()) {
+    Print("EEPROM: a job is running on sub-node %u\n", static_cast<unsigned>(m_EepromJob.Node()));
+  }
+#endif
   Print("Interrupts: %s, %u open-line interrupt(s) of the last sub-node hidden\n",
         m_ShowAllInterrupts ? "all shown" : "quiet", static_cast<unsigned>(m_HiddenInterrupts));
+#if A2B_BENCH_FILES
   if (m_Trace.Tracing()) {
     Print("I2C trace: %s, %u transfer(s)\n", m_TraceFile.c_str(),
           static_cast<unsigned>(m_Trace.Count()));
   } else {
     Print("I2C trace: off\n");
   }
+#endif
 }
 
 /**
@@ -1022,31 +985,60 @@ void BenchConsole::Link(const std::vector<std::string>& args) {
       }
     }
     if (!any) {
-      Print("No links set: every link is the board's (%s)\n",
+      Print("No links set: ");
+    }
+    if (m_AllLinksBoard) {
+      Print("%severy other link is the board's (%s)\n", any ? "Then " : "",
             ProfileName(m_Board.defaultLink).c_str());
+    } else if (!any) {
+      Print(
+          "into sub-node 0 the board's (%s); into the others, what the node before it "
+          "gives (its image's B port)\n",
+          ProfileName(m_Board.defaultLink).c_str());
     }
     return;
   }
   if (args.size() == 3 && Same(args[1], "all") && Same(args[2], "default")) {
+    m_AllLinksBoard = false;
     for (int n = 0; n < a2b::kMaxSubNodes; ++n) {
       m_Network.ClearLinkProfile(static_cast<a2b::NodeAddr>(n));
       m_LinkSet[n] = false;
     }
-    Print("Every link is the board's\n");
+    Print(
+        "Every link: into sub-node 0 the board's; into the others, the image's B port of the "
+        "node before it\n");
+    return;
+  }
+  if (args.size() == 3 && Same(args[1], "all") && Same(args[2], "board")) {
+    m_AllLinksBoard = true;
+    if (Running()) {
+      ApplyBoardLinks();
+    }
+    Print(
+        "Every link not set with link N is the board's, whatever the images' B ports say "
+        "(%s)\n",
+        Running() ? ProfileName(m_Board.defaultLink).c_str() : "the export's, at start");
     return;
   }
   long position = 0;
   if (args.size() < 3 || !ToNumber(args[1], a2b::kMaxSubNodes - 1, position)) {
     Print(
         "link N utp|rj45|custom|default (N: 0-15; custom inverted for a locally powered RJ45 "
-        "link)\n");
+        "link), link all default|board\n");
     return;
   }
   const a2b::NodeAddr node = static_cast<a2b::NodeAddr>(position);
   if (Same(args[2], "default") && args.size() == 3) {
-    m_Network.ClearLinkProfile(node);
     m_LinkSet[position] = false;
-    Print("Link into sub-node %ld: the board's\n", position);
+    if (m_AllLinksBoard) {
+      (void)m_Network.SetLinkProfile(node, m_Board.defaultLink);
+    } else {
+      m_Network.ClearLinkProfile(node);
+    }
+    Print("Link into sub-node %ld: %s\n", position,
+          (position == 0 || m_AllLinksBoard)
+              ? "the board's"
+              : "what the node before it gives (its image's B port)");
     return;
   }
   a2b::LinkProfile profile;
@@ -1054,7 +1046,7 @@ void BenchConsole::Link(const std::vector<std::string>& args) {
   if (Same(args[2], "utp") && args.size() == 3) {
     profile = a2b::LinkProfile::Utp();
   } else if (Same(args[2], "rj45") && args.size() == 3) {
-    profile = a2b::LinkProfile::Rj45();  // B side inverted; single-step for now.
+    profile = a2b::LinkProfile::Rj45();  // B side inverted; single-step (no two-step yet).
     profile.discovery = a2b::LinkProfile::Discovery::kSingleStep;
     inverted = true;
   } else if (Same(args[2], "custom") &&
@@ -1070,7 +1062,7 @@ void BenchConsole::Link(const std::vector<std::string>& args) {
   profile.bSideInverted = inverted;
   const a2b::Result result = m_Network.SetLinkProfile(node, profile);
   if (result != a2b::Result::kOk) {
-    Print("Can't set the link: %s\n", Name(result));
+    Print("Can't set the link: %s\n", a2b::ToString(result));
     return;
   }
   m_LinkSet[position] = true;
@@ -1086,7 +1078,7 @@ void BenchConsole::Link(const std::vector<std::string>& args) {
  */
 void BenchConsole::Cable(const std::vector<std::string>& args) {
   const char* usage =
-      "cable N METRES|default (N: 0-15; METRES: 0.1-30, one decimal; or cable all default)\n";
+      "cable N METRES|default (N: 0-15; METRES: from 0.1, one decimal; or cable all default)\n";
   if (args.size() < 2) {
     bool any = false;
     for (int n = 0; n < a2b::kMaxSubNodes; ++n) {
@@ -1096,8 +1088,10 @@ void BenchConsole::Cable(const std::vector<std::string>& args) {
       }
     }
     if (!any) {
-      Print("No cables set: every link is the board's (%s)\n",
-            Metres(m_Board.routing.cableDm).c_str());
+      Print(
+          "No cables set: each link's is the image's of the node before it, else the "
+          "board's (%s)\n",
+          Metres(m_Board.routing.cableDm).c_str());
     }
     return;
   }
@@ -1106,7 +1100,8 @@ void BenchConsole::Cable(const std::vector<std::string>& args) {
       (void)m_Network.ClearCableLength(static_cast<a2b::NodeAddr>(n));
       m_Cables[n] = 0;
     }
-    Print("Every cable is the board's (%s)\n", Metres(m_Board.routing.cableDm).c_str());
+    Print("Every cable is the image's of the node before it, else the board's (%s)\n",
+          Metres(m_Board.routing.cableDm).c_str());
     return;
   }
   long position = 0;
@@ -1118,8 +1113,8 @@ void BenchConsole::Cable(const std::vector<std::string>& args) {
   if (Same(args[2], "default")) {
     (void)m_Network.ClearCableLength(node);
     m_Cables[position] = 0;
-    Print("Cable into sub-node %ld: the board's (%s)\n", position,
-          Metres(m_Board.routing.cableDm).c_str());
+    Print("Cable into sub-node %ld: the image's of the node before it, else the board's (%s)\n",
+          position, Metres(m_Board.routing.cableDm).c_str());
     return;
   }
   uint16_t decimetres = 0;
@@ -1145,14 +1140,22 @@ void BenchConsole::Module(const std::vector<std::string>& args) {
   for (const clockworks::ModuleProfile& board : clockworks::Boards()) {
     names += (names.empty() ? "" : "|") + std::string(board.name);
   }
+#if !A2B_BENCH_FILES
+  const std::string usage = "module N|all " + names + " or module N|all default (N: 0-15)\n";
+#else
   const std::string usage = "module N|all " + names +
-                            " [FILE], or module N|all default (N: 0-15; FILE: the codec's "
-                            "SigmaStudio XML program, in place of the board's)\n";
+                            " [FILE], module N|all file IMAGE, or module N|all default (N: "
+                            "0-15; FILE: the codec's SigmaStudio XML program, in place of the "
+                            "board's; IMAGE: a module-info image, .dat)\n";
+#endif
   if (args.size() == 1) {
     bool any = false;
     for (int n = 0; n < a2b::kMaxSubNodes; ++n) {
       const clockworks::ModuleProfile* board = m_Modules.Board(static_cast<a2b::NodeAddr>(n));
-      if (board != nullptr) {
+      if (m_Modules.HasImage(static_cast<a2b::NodeAddr>(n))) {
+        Print("module %d file %s\n", n, m_ImageFiles[n].c_str());
+        any = true;
+      } else if (board != nullptr) {
         Print("module %d %s", n, board->name);
         if (board->codecName != nullptr) {
           Print(", %s program %s (%u writes)", board->codecName, m_ModuleFiles[n].c_str(),
@@ -1163,7 +1166,9 @@ void BenchConsole::Module(const std::vector<std::string>& args) {
       }
     }
     if (!any) {
-      Print("No boards set: sub-nodes get their EEPROM's or ignoreEEPROM's module info\n");
+      Print(
+          "No boards or images set: sub-nodes get their EEPROM's or ignoreEEPROM's module "
+          "info\n");
       for (const clockworks::ModuleProfile& board : clockworks::Boards()) {
         Print("  %-8s %s\n", board.name, board.description);
       }
@@ -1184,10 +1189,22 @@ void BenchConsole::Module(const std::vector<std::string>& args) {
       m_Modules.SetBoard(static_cast<a2b::NodeAddr>(n), nullptr, SigmaProgram());
       m_ModuleFiles[n].clear();
       m_ModuleWrites[n] = 0;
+      m_ImageFiles[n].clear();
     }
-    Print("%s: no board set (for nodes identified from now on)\n", who.c_str());
+    Print("%s: no board or image set (for nodes identified from now on)\n", who.c_str());
     return;
   }
+#if !A2B_BENCH_FILES
+  if (args.size() == 4) {
+    Print("module N %s FILE: %s\n", args[2].c_str(), kNoFiles);
+    return;
+  }
+#else
+  if (args.size() == 4 && Same(args[2], "file")) {
+    ModuleImage(first, last, args[3]);
+    return;
+  }
+#endif
   const clockworks::ModuleProfile* board = clockworks::FindBoard(args[2]);
   if (board == nullptr || args.size() > 4 || (args.size() == 4 && board->codecName == nullptr)) {
     Print("%s", usage.c_str());
@@ -1196,8 +1213,7 @@ void BenchConsole::Module(const std::vector<std::string>& args) {
   SigmaProgram program;
   std::string error;
   const bool fromFile = (args.size() == 4);
-  if (fromFile ? !ReadSigmaXml(args[3], board->codecAddr, program, error)
-               : !clockworks::DefaultProgram(*board, program, error)) {
+  if (!CodecProgram(*board, args, program, error)) {
     Print("Can't read the codec program: %s\n", error.c_str());
     return;
   }
@@ -1211,6 +1227,7 @@ void BenchConsole::Module(const std::vector<std::string>& args) {
     m_Modules.SetBoard(static_cast<a2b::NodeAddr>(n), board, program);
     m_ModuleFiles[n] = fromFile ? args[3] : "the board's default";
     m_ModuleWrites[n] = writes;
+    m_ImageFiles[n].clear();
   }
   Print("%s: %s", who.c_str(), board->name);
   if (board->codecName != nullptr) {
@@ -1241,41 +1258,6 @@ void BenchConsole::IgnoreEeprom(const std::vector<std::string>& args) {
   Print(m_IgnoreEeprom ? "EEPROMs ignored: sub-nodes get the console's module info (CFG-4 on "
                          "an AD2437, CFG-0 on an AD2433)\n"
                        : "Module info from the EEPROMs\n");
-}
-
-/**
- * `i2cTrace on FILE`, `off`, `status`: the I2C trace.
- * @param args The command line's words.
- */
-void BenchConsole::Trace(const std::vector<std::string>& args) {
-  if (args.size() == 3 && Same(args[1], "on")) {
-    if (!m_Trace.Start(args[2].c_str())) {
-      Print("Can't write %s\n", args[2].c_str());
-      m_TraceFile.clear();
-      return;
-    }
-    m_TraceFile = args[2];
-    Print("Tracing I2C to %s\n", args[2].c_str());
-  } else if (args.size() == 2 && Same(args[1], "off")) {
-    const bool was = m_Trace.Tracing();
-    m_Trace.Stop();
-    if (was) {
-      Print("Trace %s closed: %u transfer(s)\n", m_TraceFile.c_str(),
-            static_cast<unsigned>(m_Trace.Count()));
-    } else {
-      Print("Not tracing\n");
-    }
-    m_TraceFile.clear();
-  } else if (args.size() == 1 || (args.size() == 2 && Same(args[1], "status"))) {
-    if (m_Trace.Tracing()) {
-      Print("Tracing I2C to %s: %u transfer(s)\n", m_TraceFile.c_str(),
-            static_cast<unsigned>(m_Trace.Count()));
-    } else {
-      Print("Not tracing\n");
-    }
-  } else {
-    Print("i2cTrace on FILE, i2cTrace off, i2cTrace status\n");
-  }
 }
 
 /**
@@ -1469,7 +1451,7 @@ std::string BenchConsole::Why(a2b::NodeAddr node, a2b::Result result, bool regis
   if (result == a2b::Result::kI2cError) {
     return "I2C error (no answer)";
   }
-  return Name(result);
+  return a2b::ToString(result);
 }
 
 /**
@@ -1496,7 +1478,7 @@ void BenchConsole::AddConnection(const std::vector<std::string>& args) {
               ? (add ? "a node isn't in the bus, hasn't got the group (groups lists them), or "
                        "both are the same node"
                      : "no such connection, or a node isn't in the bus")
-              : Name(result));
+              : a2b::ToString(result));
     return;
   }
   Print("%s %s G%u -> %s G%u (applyRouting routes it)\n", add ? "Connected" : "Removed",
@@ -1534,7 +1516,7 @@ std::string BenchConsole::ChannelsCarried(const a2b::Connection& connection) con
   }
   const auto groupsOf = [this](a2b::NodeAddr node) -> const a2b::ChannelGroups& {
     return (node == a2b::kMainNode) ? m_Board.routing.groups
-                                    : m_Network.SubNode(node)->moduleInfo.groups;
+                                    : m_Network.SubNodeInfoAt(node)->moduleInfo.groups;
   };
   const a2b::ChannelGroup* rx = groupsOf(source).FindRx(connection.source.group);
   const a2b::ChannelGroup* tx = groupsOf(sink).FindTx(connection.sink.group);
@@ -1574,7 +1556,7 @@ std::string BenchConsole::ChannelsCarried(const a2b::Connection& connection) con
 void BenchConsole::ApplyRouting() {
   const a2b::RoutingError error = m_Network.ApplyRouting();
   if (error != a2b::RoutingError::kNone) {
-    Print("Can't route: %s\n", Name(error));
+    Print("Can't route: %s\n", a2b::ToString(error));
     return;
   }
   Print(Running() ? "Routing: written at the next poll, once the chain is up\n"
@@ -1616,7 +1598,7 @@ void BenchConsole::SetRoute(const std::vector<std::string>& args) {
 
 /**
  * `importCon S:G D:G [S:G D:G...]`: replaces every connection with the pairs given, by chip
- * ID.
+ * ID. No pairs is an empty list: every connection goes.
  * @param args The command line's words.
  */
 void BenchConsole::ImportConnections(const std::vector<std::string>& args) {
@@ -1670,7 +1652,7 @@ void BenchConsole::MuteBus(const std::vector<std::string>& args) {
  */
 void BenchConsole::MuteMode(const std::vector<std::string>& args) {
   if (args.size() == 1) {
-    Print("Routing mute: %s\n", Name(m_MuteMode));
+    Print("Routing mute: %s\n", a2b::ToString(m_MuteMode));
     return;
   }
   if (args.size() != 2) {
@@ -1688,7 +1670,7 @@ void BenchConsole::MuteMode(const std::vector<std::string>& args) {
     return;
   }
   m_Board.routing.mute = m_MuteMode;  // The bus reads the board at each plan.
-  Print("Routing mute: %s (from the next plan)\n", Name(m_MuteMode));
+  Print("Routing mute: %s (from the next plan)\n", a2b::ToString(m_MuteMode));
 }
 
 /** `bandwidth`: how full the bus is with the plan built last. */
@@ -1756,7 +1738,7 @@ void BenchConsole::ShowRouting() {
     }
     a2b::PortSettings port;
     const a2b::SubNodeInfo* node =
-        main ? nullptr : m_Network.SubNode(static_cast<a2b::NodeAddr>(i - 1));
+        main ? nullptr : m_Network.SubNodeInfoAt(static_cast<a2b::NodeAddr>(i - 1));
     port.productId = main ? m_Board.mainProduct : (node != nullptr ? node->identity.productId : 0);
     if (!a2b::ComputeChannelMap(port).crossbar) {
       Print(
@@ -1783,7 +1765,8 @@ void BenchConsole::ShowGroups() {
   Print("console's module info (ignoreEEPROM): %s\n", GroupsLine(m_Plain.groups).c_str());
   for (size_t i = 0; i < m_Network.SubNodeCount(); ++i) {
     Print("sub-node %u: %s\n", static_cast<unsigned>(i),
-          GroupsLine(m_Network.SubNode(static_cast<a2b::NodeAddr>(i))->moduleInfo.groups).c_str());
+          GroupsLine(m_Network.SubNodeInfoAt(static_cast<a2b::NodeAddr>(i))->moduleInfo.groups)
+              .c_str());
   }
 }
 
@@ -1874,7 +1857,7 @@ void BenchConsole::HintOpenLine(a2b::NodeAddr node, uint8_t type) {
 
 /** Prints one sub-node's chip, chip ID, module and link, and the board whose image it got. */
 void BenchConsole::ReportNode(a2b::NodeAddr position) {
-  const a2b::SubNodeInfo* node = m_Network.SubNode(position);
+  const a2b::SubNodeInfo* node = m_Network.SubNodeInfoAt(position);
   if (node == nullptr) {
     return;
   }
@@ -1887,6 +1870,15 @@ void BenchConsole::ReportNode(a2b::NodeAddr position) {
       id[5], module.vendorId, module.productId, static_cast<unsigned>(module.powerConfig),
       static_cast<unsigned>(module.peripheralBlocks), LinkName(position).c_str());
   Print("    %s\n", GroupsLine(module.groups).c_str());
+  Print("    image for %s; B port %s, its cable %s\n", TargetChipName(module.targetChip).c_str(),
+        BPortTypeName(module.bPortType).c_str(),
+        module.bCableDm == 0 ? "not given" : Metres(module.bCableDm).c_str());
+  if (module.fastI2c) {
+    Print("    its I2C port at 400 kHz (the image's I2CCFG.DATARATE)\n");
+  }
+  if (m_Modules.UsingImage(position)) {
+    Print("    module info from the image %s\n", m_ImageFiles[position].c_str());
+  }
   const clockworks::ModuleProfile* board = m_Modules.Board(position);
   if (board != nullptr) {
     if (!clockworks::Supports(*board, node->identity.productId)) {
@@ -1907,12 +1899,41 @@ void BenchConsole::ReportNode(a2b::NodeAddr position) {
   }
 }
 
-/** The link into sub-node @p position: set with `link`, else the board's. */
+/**
+ * The link into sub-node @p position: set with `link`; else the one the node before it gives
+ * (its image's B port and its chip, as SubNode::DownstreamLink() gives it: the bench's nodes
+ * are plain SubNodes); else, into sub-node 0, the board's.
+ */
 std::string BenchConsole::LinkName(a2b::NodeAddr position) const {
   if (m_LinkSet[position]) {
     return ProfileName(m_Links[position]);
   }
-  return ProfileName(m_Board.defaultLink) + " (board)";
+  const a2b::SubNodeInfo* upstream =
+      (m_AllLinksBoard || position == 0)
+          ? nullptr
+          : m_Network.SubNodeInfoAt(static_cast<a2b::NodeAddr>(position - 1));
+  if (upstream == nullptr) {
+    return ProfileName(m_Board.defaultLink) + " (board)";
+  }
+  const uint8_t port = upstream->moduleInfo.bPortType;
+  return ProfileName(a2b::LinkProfile::ForBPort(port, upstream->identity.productId)) +
+         " (sub-node " + std::to_string(position - 1) + "'s " + BPortTypeName(port) + " port)";
+}
+
+/**
+ * `link all board`: gives every link not set with `link N` the board's (BoardConfig::
+ * defaultLink, from the export), whatever the images' B ports say. Called at each start,
+ * after the import, and when the setting is made on a running bus.
+ */
+void BenchConsole::ApplyBoardLinks() {
+  if (!m_AllLinksBoard) {
+    return;
+  }
+  for (int n = 0; n < a2b::kMaxSubNodes; ++n) {
+    if (!m_LinkSet[n]) {
+      (void)m_Network.SetLinkProfile(static_cast<a2b::NodeAddr>(n), m_Board.defaultLink);
+    }
+  }
 }
 
 /** True while the bus is started: not stopped, not failed. */

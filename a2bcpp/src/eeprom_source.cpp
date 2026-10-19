@@ -19,8 +19,9 @@
  *
  * Reads go through Network::PeripheralWriteRead(): the sub-node's CHIP register is set to
  * the EEPROM's address, then NODEADR.PERI (TRMs, "Remote Peripheral Access"). A sub-node's
- * I2C port runs at 100 kHz unless its I2CCFG says otherwise (I2CCFG.DATARATE, reset 0),
- * so the 144 bytes take about 15 ms.
+ * I2C port runs at 100 kHz from reset (I2CCFG.DATARATE 0), so the start and the groups are
+ * read at 100 kHz and the 144 bytes take about 15 ms; the peripheral blocks are read after
+ * NodeSetup has applied the image's DATARATE, at 400 kHz if it is set.
  *
  * Copyright 2026 by ClockWorks Signal Processing LLC
  * Licensed under the terms found in CLOCKWORKS_SOFTWARE_LICENSE.txt and included here by reference.
@@ -86,7 +87,8 @@ size_t EepromModuleInfoSource::GetModuleInfo(const SubNodeIdentity& node, uint8_
  */
 Result EepromModuleInfoSource::ReadModuleInfo(const SubNodeIdentity& node, uint32_t offset,
                                               uint8_t* buf, size_t len) {
-  if (!IsSubNode(node.position) || m_Found[node.position] == 0 || offset + len > 0x10000) {
+  if (!IsSubNode(node.position) || m_Found[node.position] == 0 || offset > 0x10000 ||
+      len > 0x10000 - offset) {
     return Result::kInvalidArgument;
   }
   return Read(node.position, m_Found[node.position], offset, buf, len);

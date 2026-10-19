@@ -54,7 +54,7 @@
  * the source, a TX channel of the sink), or the plan fails as RoutingError::kNoSuchChannel.
  *
  * Differences from ADI's calculation (decisions.md, "Bugs fixed"; a differential test
- * against a2bpnp_calc.c is planned): it kept every RX channel (RXMASK 0xFF, an
+ * against a2bpnp_calc.c is on the roadmap): it kept every RX channel (RXMASK 0xFF, an
  * OR on the reset value), computed DNOFFSET/UPOFFSET from stream indexes, carried frame
  * offsets and crossbar indexes over from one node to the next, assumed a group's ID was its
  * index, and ignored the 32-slot limits.

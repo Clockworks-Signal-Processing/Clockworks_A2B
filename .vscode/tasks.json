@@ -127,6 +127,131 @@
             "problemMatcher": []
         },
         // -------------------------------------------------------------------
+        // RP2040 bench console (a2bcpp/examples/bench/rp2040): Debug build in build/a2b-bench-rp2040, Release build
+        // in build/a2b-bench-rp2040-release (the A2B menu uses these). Each configure sets the build type: the
+        // example doesn't, and the Pico SDK would default to Release.
+        // -------------------------------------------------------------------
+        {
+            "label": "RP2040 bench: Clean",
+            "type": "process",
+            "command": "${env:USERPROFILE}/.pico-sdk/cmake/v3.28.6/bin/cmake.exe",
+            "args": ["-E", "rm", "-rf", "build/a2b-bench-rp2040", "build/a2b-bench-rp2040-release"],
+            "options": { "cwd": "${workspaceFolder}" },
+            "presentation": { "reveal": "always", "panel": "shared" },
+            "problemMatcher": []
+        },
+        {
+            "label": "RP2040 bench: Configure (Debug)",
+            "hide": true,
+            "type": "process",
+            "command": "${env:USERPROFILE}/.pico-sdk/cmake/v3.28.6/bin/cmake.exe",
+            "args": [
+                "-S", "a2bcpp/examples/bench/rp2040", "-B", "build/a2b-bench-rp2040", "-G", "Ninja", "-DCMAKE_BUILD_TYPE=Debug",
+                "-DCMAKE_MAKE_PROGRAM=${env:USERPROFILE}/.pico-sdk/ninja/v1.12.1/ninja.exe"
+            ],
+            // The same environment as the integrated terminal's (settings.json): without
+            // it, a PICO_SDK_PATH set in the user's environment makes the example skip the
+            // extension's setup and then not find the toolchain or picotool.
+            "options": {
+                "cwd": "${workspaceFolder}",
+                "env": {
+                    "PICO_SDK_PATH": "${env:USERPROFILE}/.pico-sdk/sdk/2.0.0",
+                    "PICO_TOOLCHAIN_PATH": "${env:USERPROFILE}/.pico-sdk/toolchain/13_2_Rel1",
+                    "Path": "${env:USERPROFILE}/.pico-sdk/toolchain/13_2_Rel1/bin;${env:USERPROFILE}/.pico-sdk/picotool/2.0.0/picotool;${env:USERPROFILE}/.pico-sdk/cmake/v3.28.6/bin;${env:USERPROFILE}/.pico-sdk/ninja/v1.12.1;${env:PATH}"
+                }
+            },
+            "presentation": { "reveal": "always", "panel": "shared" },
+            "problemMatcher": []
+        },
+        {
+            "label": "RP2040 bench: Build (Debug)",
+            "type": "process",
+            "command": "${env:USERPROFILE}/.pico-sdk/cmake/v3.28.6/bin/cmake.exe",
+            "args": ["--build", "build/a2b-bench-rp2040"],
+            // The same environment as the integrated terminal's (settings.json): without
+            // it, a PICO_SDK_PATH set in the user's environment makes the example skip the
+            // extension's setup and then not find the toolchain or picotool.
+            "options": {
+                "cwd": "${workspaceFolder}",
+                "env": {
+                    "PICO_SDK_PATH": "${env:USERPROFILE}/.pico-sdk/sdk/2.0.0",
+                    "PICO_TOOLCHAIN_PATH": "${env:USERPROFILE}/.pico-sdk/toolchain/13_2_Rel1",
+                    "Path": "${env:USERPROFILE}/.pico-sdk/toolchain/13_2_Rel1/bin;${env:USERPROFILE}/.pico-sdk/picotool/2.0.0/picotool;${env:USERPROFILE}/.pico-sdk/cmake/v3.28.6/bin;${env:USERPROFILE}/.pico-sdk/ninja/v1.12.1;${env:PATH}"
+                }
+            },
+            "dependsOn": "RP2040 bench: Configure (Debug)",
+            "group": "build",
+            "presentation": { "reveal": "always", "panel": "shared" },
+            "problemMatcher": {
+                "base": "$gcc",
+                "fileLocation": ["autoDetect", "${workspaceFolder}"]
+            }
+        },
+        {
+            "label": "RP2040 bench: Configure (Release)",
+            "hide": true,
+            "type": "process",
+            "command": "${env:USERPROFILE}/.pico-sdk/cmake/v3.28.6/bin/cmake.exe",
+            "args": [
+                "-S", "a2bcpp/examples/bench/rp2040", "-B", "build/a2b-bench-rp2040-release", "-G", "Ninja", "-DCMAKE_BUILD_TYPE=Release",
+                "-DCMAKE_MAKE_PROGRAM=${env:USERPROFILE}/.pico-sdk/ninja/v1.12.1/ninja.exe"
+            ],
+            // The same environment as the integrated terminal's (settings.json): without
+            // it, a PICO_SDK_PATH set in the user's environment makes the example skip the
+            // extension's setup and then not find the toolchain or picotool.
+            "options": {
+                "cwd": "${workspaceFolder}",
+                "env": {
+                    "PICO_SDK_PATH": "${env:USERPROFILE}/.pico-sdk/sdk/2.0.0",
+                    "PICO_TOOLCHAIN_PATH": "${env:USERPROFILE}/.pico-sdk/toolchain/13_2_Rel1",
+                    "Path": "${env:USERPROFILE}/.pico-sdk/toolchain/13_2_Rel1/bin;${env:USERPROFILE}/.pico-sdk/picotool/2.0.0/picotool;${env:USERPROFILE}/.pico-sdk/cmake/v3.28.6/bin;${env:USERPROFILE}/.pico-sdk/ninja/v1.12.1;${env:PATH}"
+                }
+            },
+            "presentation": { "reveal": "always", "panel": "shared" },
+            "problemMatcher": []
+        },
+        {
+            "label": "RP2040 bench: Build (Release)",
+            "type": "process",
+            "command": "${env:USERPROFILE}/.pico-sdk/cmake/v3.28.6/bin/cmake.exe",
+            "args": ["--build", "build/a2b-bench-rp2040-release"],
+            // The same environment as the integrated terminal's (settings.json): without
+            // it, a PICO_SDK_PATH set in the user's environment makes the example skip the
+            // extension's setup and then not find the toolchain or picotool.
+            "options": {
+                "cwd": "${workspaceFolder}",
+                "env": {
+                    "PICO_SDK_PATH": "${env:USERPROFILE}/.pico-sdk/sdk/2.0.0",
+                    "PICO_TOOLCHAIN_PATH": "${env:USERPROFILE}/.pico-sdk/toolchain/13_2_Rel1",
+                    "Path": "${env:USERPROFILE}/.pico-sdk/toolchain/13_2_Rel1/bin;${env:USERPROFILE}/.pico-sdk/picotool/2.0.0/picotool;${env:USERPROFILE}/.pico-sdk/cmake/v3.28.6/bin;${env:USERPROFILE}/.pico-sdk/ninja/v1.12.1;${env:PATH}"
+                }
+            },
+            "dependsOn": "RP2040 bench: Configure (Release)",
+            "group": "build",
+            "presentation": { "reveal": "always", "panel": "shared" },
+            "problemMatcher": {
+                "base": "$gcc",
+                "fileLocation": ["autoDetect", "${workspaceFolder}"]
+            }
+        },
+        {
+            // Builds Release, then programs it through the debug probe (CMSIS-DAP) and
+            // restarts the board. The console: the Pico's uart0 (GP0/GP1, 230400 baud).
+            "label": "RP2040 bench: Release (load and run)",
+            "type": "process",
+            "command": "${env:USERPROFILE}/.pico-sdk/openocd/0.12.0+dev/openocd.exe",
+            "args": [
+                "-s", "${env:USERPROFILE}/.pico-sdk/openocd/0.12.0+dev/scripts",
+                "-f", "interface/cmsis-dap.cfg",
+                "-f", "target/rp2040.cfg",
+                "-c", "adapter speed 5000; program build/a2b-bench-rp2040-release/a2b_bench.elf verify reset exit"
+            ],
+            "options": { "cwd": "${workspaceFolder}" },
+            "dependsOn": "RP2040 bench: Build (Release)",
+            "presentation": { "reveal": "always", "panel": "shared" },
+            "problemMatcher": []
+        },
+        // -------------------------------------------------------------------
         // RP2040 minimal (a2bcpp/examples/minimal/rp2040): Debug build in build/a2b-minimal-rp2040, Release build in
         // build/a2b-minimal-rp2040-release (the A2B menu uses these). Each configure sets the build type: the
         // example doesn't, and the Pico SDK would default to Release.
@@ -301,7 +426,7 @@
             "args": [
                 "-o", "ConnectTimeout=5", "-o", "ServerAliveInterval=5", "-o", "ServerAliveCountMax=3",
                 "${config:a2b.piUser}@${config:a2b.piHost}",
-                "pkill -x gdbserver; pkill -x a2b_bench; pkill -x a2b_pnp; exit 0"
+                "pkill -x gdbserver; pkill -x a2b_bench; exit 0"
             ],
             "presentation": {
                 "reveal": "always",

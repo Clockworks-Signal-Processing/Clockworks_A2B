@@ -72,6 +72,14 @@ class Network {
   Result WriteRegisters(NodeAddr node, uint16_t reg, const uint8_t* data,
                         size_t len);  ///< Writes a node's registers, at the app's risk.
 
+  // Chip features the stack doesn't support yet: each returns Result::kNotSupported, so an
+  // app can be written against them now (the roadmap's "Features not included").
+  Result SetSpreadSpectrum(bool enable);  ///< Spread-spectrum clocking on every node.
+  Result SetupGpioOverDistance(NodeAddr node, uint8_t pin, uint8_t busPorts, bool output,
+                               bool inverted);  ///< Ties a node's GPIO pin to bus ports.
+  Result ClearGpioOverDistance(NodeAddr node, uint8_t pin);  ///< Frees a pin from them.
+  Result ReadVirtualIoPort(uint8_t& ports);  ///< The bus ports' levels, as the main node sees them.
+
   Result AddConnection(const Connection& connection);  ///< Adds a connection, by chip ID.
   Result AddConnection(NodeAddr source, uint8_t sourceGroup, NodeAddr sink,
                        uint8_t sinkGroup);  ///< Adds a connection between nodes in the bus.
@@ -92,21 +100,20 @@ class Network {
   bool NetworkMuted() const;           ///< MuteNetwork(true) is in force.
   BandwidthUsage Bandwidth() const;    ///< How full the bus is with the plan built last.
 
-  NetworkState State() const;                           ///< What the bus is doing.
-  NetworkError Error() const;                           ///< Why it failed.
-  size_t SubNodeCount() const;                          ///< Sub-nodes in the bus.
-  const SubNodeInfo* SubNode(NodeAddr position) const;  ///< A sub-node, or nullptr.
-  a2b::SubNode* NodeObject(NodeAddr position);          ///< A sub-node's object, or nullptr.
-  RejectReason LastRejection() const;                   ///< Why the last node was rejected.
-  bool DiscoveryPaused() const;                         ///< PauseDiscovery() is in force.
+  NetworkState State() const;                                 ///< What the bus is doing.
+  NetworkError Error() const;                                 ///< Why it failed.
+  size_t SubNodeCount() const;                                ///< Sub-nodes in the bus.
+  const SubNodeInfo* SubNodeInfoAt(NodeAddr position) const;  ///< A sub-node, or nullptr.
+  SubNode* NodeObject(NodeAddr position);                     ///< A sub-node's object, or nullptr.
+  RejectReason LastRejection() const;                         ///< Why the last node was rejected.
+  bool DiscoveryPaused() const;                               ///< PauseDiscovery() is in force.
 
  private:
-  class Impl;  ///< The state and the work (network.cpp).
+  class Impl;  ///< The state and the work (src/network_impl.h).
 
-  /** @brief Bytes of storage for the Impl (14984 on the RP2040, 16896 on 64-bit hosts;
-      4 KB of it the peripheral-script buffer, 384 B the event queue, about
-      6 KB the routing: connections, plans, channel groups; a2bcpp/docs/ram.md);
-      network.cpp checks that it fits. */
+  /** @brief Bytes of storage for the Impl: about 15 KB on the RP2040, 4 KB of it the
+      peripheral-script buffer and about 6 KB the routing (a2bcpp/docs/ram.md has the
+      breakdown); network.cpp checks that it fits. */
   static constexpr size_t kImplSize = (sizeof(void*) > 4) ? 17408 : 15360;
 
   alignas(8) unsigned char m_Storage[kImplSize];  ///< Holds the Impl.

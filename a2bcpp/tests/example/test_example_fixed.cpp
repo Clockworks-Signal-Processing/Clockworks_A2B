@@ -60,7 +60,7 @@ A2B_TEST(Ab0310BenchRoutesItself) {
   static const clockworks::ModuleProfile kGeneric = clockworks::GenericModule();
   static const FixedConnection kConnections[] = {{kMainNode, 0, 0, 0}, {0, 0, kMainNode, 0}};
   FixedSetup setup;
-  setup.boards[0] = clockworks::FindBoard("ab0312");
+  setup.boards[0] = clockworks::FindBoard("AB0312");
   setup.fallback = &kGeneric;
   (void)setup.mainGroups.AddRx(0, 0x3);
   (void)setup.mainGroups.AddTx(0, 0x3);

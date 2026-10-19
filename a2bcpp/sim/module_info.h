@@ -36,6 +36,11 @@ struct ModuleInfoHeader {
   uint16_t maxPowerMw = 0;        ///< Bytes 0x24-0x25, low byte first.
   uint16_t minPowerMw = 0;        ///< Bytes 0x26-0x27, low byte first.
   uint16_t maxCurrentMa = 0;      ///< Bytes 0x29-0x2A, low byte first.
+  uint16_t targetChip = 0;        ///< Bytes 0x07-0x08, low byte first: 0 (not stated).
+  /** Byte 0x28, the B port type: 2 (UTP), so the link to the next node is single-step and
+      not inverted. */
+  uint8_t bPortType = 2;
+  uint16_t bCableM = 0;  ///< Bytes 0x6C-0x6D, low byte first: the B-side cable in metres.
 };
 
 /** @brief The sub-node register settings of an image (bytes 0x80-0x8F); power-on values

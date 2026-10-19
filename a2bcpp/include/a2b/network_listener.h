@@ -57,6 +57,9 @@ enum class RejectReason : uint8_t {
       policy of NetworkListener::OnNodeIdentified()). */
   kPowerBudget,
   kByApp,  ///< The app's NetworkListener::OnNodeIdentified(), or Network::RejectNode().
+  /** Its module-info image is for another transceiver (ModuleInfo::targetChip): an image for
+      a board with its chip soldered down, on a node with a different chip. */
+  kWrongChip,
 };
 
 /** @brief Why a sub-node left the bus (EventType::kNodeRemoved). */

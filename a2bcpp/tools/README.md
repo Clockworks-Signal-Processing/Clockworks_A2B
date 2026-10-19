@@ -68,3 +68,30 @@ wait (INV and MSTR at least 25 ms after the main node's last soft reset) and the
 power-configuration settle (a node's switch closes at least 100 ms after its power configuration
 is overridden). A boot trace from before ADI's stack waited out SUSTAIN breaks the SUSTAIN rule;
 the goldens keep it. The waits and their rules are listed in [timing.md](../docs/timing.md).
+
+## 4. Reading a decoded trace
+
+`python3 -I a2bcpp/tools/trace_decode.py TRACE` names each access's target:
+- `M` is the main node, `S<n>` sub-node n, and `BC` a broadcast;
+- `P<n>:<addr>` is sub-node n's peripheral at that I2C address: its EEPROM at 0x50, an
+  AB0020's ADAU1761 at 0x39;
+- `H:<addr>` is a device on the host's own bus, such as the main AB0020's codec.
+
+What to look for:
+- **A node read from its EEPROM:** the marker and the image's first 144 bytes, then its
+  groups, at 100 kHz; then its register writes, ending with I2CCFG 0x01 for a 400 kHz image;
+  then each peripheral unit, read from the EEPROM and written to the peripheral in one
+  transfer.
+- **A codec program's time:** from the node's first `P<n>:39` write to the start of the
+  transfer after its last. **Per-byte rates:** from transfers of 1000 bytes or more, start to
+  the next transfer's start (each transfer also has a fixed cost: about 8 ms behind a USBi).
+- **Failures that are expected:** an AB0204 has no EEPROM, so its search at 0x50-0x54 fails
+  five times, and the console then gives it the AB0204's default image.
+- **Interrupts:** INTTYPE 0xFF (main node running) and 0x18 (discovery done) are normal, and
+  so is 0x0C (open line) from the last node of a chain behind an AD242x
+  ([hardware notes](../docs/hardware_notes.md#open-line-inttype-12-and-13)).
+- **Routing:** the slot registers on each node, then CONTROL 0x81 (NEWSTRCT); on AD243x nodes,
+  TXXBAR set to 0x1F first (the local mute), then the real crossbar.
+- **A trace taken with the EEPROMs ignored** (`ignoreEEPROM 1`) shows the console's image and
+  no EEPROM reads. `--trace FILE` and `i2cTrace on FILE` start FILE afresh: give each run its
+  own name.

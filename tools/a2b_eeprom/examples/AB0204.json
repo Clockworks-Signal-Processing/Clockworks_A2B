@@ -1,0 +1,72 @@
+{
+  "format": "a2b-eeprom-project",
+  "version": 1,
+  "target_chip": "AD2427",
+  "view_as": "AD242x",
+  "eeprom_size": 32768,
+  "notes": "AB0204 as a sub-node: four PDM microphones on an AD2427, the settings of clockworks::Ab0204() (a2bcpp/examples/clockworks/clockworks_boards.cpp). RX 0 is all four microphones, RX 1 and RX 2 the pairs. Module 0C54:0204: Clockworks' vendor ID and the board's number. The AD2427 is soldered down. The AB0204 has no EEPROM: this image is for `module N file` or to compile in. Bus powered only (CFG0), as every AD2427 microphone board.",
+  "header": {
+    "vendor_id": "0x0C54",
+    "product_id": "0x0204",
+    "version_id": "0x0010",
+    "sw_version": "1.0.0.0",
+    "secondary_function": "0x00000000"
+  },
+  "module": {
+    "device_name": "AB0204",
+    "device_type": "0x00000001",
+    "power_config": 0,
+    "local_power": false,
+    "max_power_mw": 0,
+    "min_power_mw": 0,
+    "max_current_ma": 0,
+    "cable_type": 2,
+    "cable_length": 0,
+    "min_down_slot": 7,
+    "min_up_slot": 7,
+    "spi_tunnel": 0,
+    "spi_tunnel_down": [0, 0],
+    "spi_tunnel_up": [0, 0],
+    "branches": 0,
+    "local_micro": 0,
+    "local_micro_mode": 0,
+    "local_micro_peripherals": 0
+  },
+  "registers": {
+    "i2ccfg": "0x00",
+    "spicfg": "0x00",
+    "spickdiv": "0x00",
+    "spipincfg": "0x00",
+    "i2scfg": "0x00",
+    "i2sgcfg": "0x00",
+    "i2srate": "0x00",
+    "pdmctl": "0x1F",
+    "pdmctl2": "0x00",
+    "clk1cfg": "0x00",
+    "clk2cfg": "0x00",
+    "gpiooen": "0x00",
+    "gpioien": "0x00",
+    "pinten": "0x00",
+    "pintinv": "0x00",
+    "pincfg": "0x01",
+    "gpiodat": "0x00"
+  },
+  "groups": {
+    "tx": [],
+    "rx": [
+      {"id": 0, "name": "Mics 1-4", "channels": "0x0000000F"},
+      {"id": 1, "name": "Mics 1-2", "channels": "0x00000003"},
+      {"id": 2, "name": "Mics 3-4", "channels": "0x0000000C"}
+    ]
+  },
+  "peripherals": [],
+  "supplier": {
+    "vendor_id": "CLKWORKS",
+    "values": {
+      "id": "AB0204",
+      "features": [
+        {"uid": "0x9C41D7086AF2E35B", "name": "MICS", "value0": 4, "value1": 0, "text": "PDM"}
+      ]
+    }
+  }
+}

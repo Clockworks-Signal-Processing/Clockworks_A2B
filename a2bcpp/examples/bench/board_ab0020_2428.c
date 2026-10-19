@@ -1,5 +1,5 @@
 /*
- * The bench console's built-in board "ab0020" with an AD2428 module as the main node: the
+ * The bench console's built-in board "AB0020" with an AD2428 module as the main node: the
  * AB0020 AD2428 bench project's SigmaStudio+ 2.3.0 export
  * (tools/SS+reference/2x_AB0020_EVM_with_2428, with the fixes found on the bench), compiled with the reference ADI headers (tools/SS+reference/adi), as the C++ import
  * is, with its sBusDescription renamed so that several exports fit in one program.

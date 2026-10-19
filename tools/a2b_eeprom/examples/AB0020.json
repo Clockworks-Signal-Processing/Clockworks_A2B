@@ -1,0 +1,87 @@
+{
+  "format": "a2b-eeprom-project",
+  "version": 1,
+  "target_chip": "External",
+  "view_as": "AD243x",
+  "eeprom_size": 32768,
+  "notes": "AB0020 as a sub-node: the settings and ADAU1761 program of clockworks::Ab0020() (a2bcpp/examples/clockworks/clockworks_boards.cpp). The ADAU1761 is on DRX0 (SIO0) and DTX0 (SIO4), as ADI's samples give their codec. Module 0C54:0020: Clockworks' vendor ID and the board's number. The EEPROM is on the base board and the transceiver is a plug-in module (an AD2437, AD2433 or AD2428), so the target chip is External. B port: UTP. Local power by default; the board can be set for bus power. I2C at 400 kHz (I2CCFG.DATARATE) once the image's start is read, as it has run with AD2428 and AD2437 modules. The program's 1730-byte write is split at 1020 data bytes (5 bytes per program-memory address), to stay well inside an ADI USBi's status window.",
+  "header": {
+    "vendor_id": "0x0C54",
+    "product_id": "0x0020",
+    "version_id": "0x0010",
+    "sw_version": "1.0.0.0",
+    "secondary_function": "0x00000000"
+  },
+  "module": {
+    "device_name": "AB0020",
+    "device_type": "0x0000000C",
+    "power_config": 4,
+    "local_power": true,
+    "max_power_mw": 0,
+    "min_power_mw": 0,
+    "max_current_ma": 0,
+    "cable_type": 2,
+    "cable_length": 0,
+    "min_down_slot": 7,
+    "min_up_slot": 7,
+    "spi_tunnel": 0,
+    "spi_tunnel_down": [0, 0],
+    "spi_tunnel_up": [0, 0],
+    "branches": 0,
+    "local_micro": 0,
+    "local_micro_mode": 0,
+    "local_micro_peripherals": 0
+  },
+  "registers": {
+    "i2ccfg": "0x01",
+    "spicfg": "0x02",
+    "spickdiv": "0x00",
+    "spipincfg": "0x00",
+    "i2scfg": "0x11",
+    "i2sgcfg": "0xE0",
+    "i2srate": "0x00",
+    "pdmctl": "0x00",
+    "pdmctl2": "0x00",
+    "clk1cfg": "0x00",
+    "clk2cfg": "0x81",
+    "gpiooen": "0x80",
+    "gpioien": "0x00",
+    "pinten": "0x00",
+    "pintinv": "0x00",
+    "pincfg": "0x01",
+    "gpiodat": "0x80"
+  },
+  "groups": {
+    "tx": [
+      {"id": 0, "name": "Codec DAC", "channels": "0x00000003"}
+    ],
+    "rx": [
+      {"id": 0, "name": "Codec ADC", "channels": "0x00000003"}
+    ]
+  },
+  "peripherals": [
+    {
+      "name": "ADAU1761",
+      "interface": "i2c",
+      "address": "0x39",
+      "tx_groups": "0x0001",
+      "rx_groups": "0x0001",
+      "rx_interface": "0x0021",
+      "tx_interface": "0x0030",
+      "addr_width": 2,
+      "data_width": 1,
+      "cmd_width": 0,
+      "split": {"max_bytes": 1022, "bytes_per_address": 5},
+      "xml": "../../SS+reference/2x_AB0020_EVM_with_2437/AB0020-sub-node-ADAU1761.xml"
+    }
+  ],
+  "supplier": {
+    "vendor_id": "CLKWORKS",
+    "values": {
+      "id": "AB0020",
+      "features": [
+        {"uid": "0x3E7A91C05D2B8F14", "name": "CODEC", "value0": 48000, "value1": 2, "text": "ADAU1761"}
+      ]
+    }
+  }
+}

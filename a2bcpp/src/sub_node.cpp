@@ -23,8 +23,9 @@
  * - OnRemoved(): as above.
  *
  * Which profile a link uses: Network::SetLinkProfile() for its position if the app set
- * one, else the upstream node's DownstreamLink(), whose default is BoardConfig::
- * defaultLink.
+ * one, else the upstream node's DownstreamLink(), whose default is the link its image's B
+ * port type gives (LinkProfile::ForBPort()); BoardConfig::defaultLink is the link to
+ * sub-node 0.
  *
  * Copyright 2026 by ClockWorks Signal Processing LLC
  * Licensed under the terms found in CLOCKWORKS_SOFTWARE_LICENSE.txt and included here by reference.
@@ -50,10 +51,20 @@ SubNode::~SubNode() = default;
 /**
  * The link from this node's B side to the next sub-node, unless the app set one for that
  * position with Network::SetLinkProfile(). Override it for a module whose downstream
- * connector needs a particular link (e.g. XCVRBINV on an RJ45 socket).
- * @return BoardConfig::defaultLink.
+ * connector needs another link than its image gives; BoardLink() is the board's default.
+ * @return The link the node's image gives: LinkProfile::ForBPort() of its B port type
+ *         (ModuleInfo::bPortType) and its chip.
  */
-LinkProfile SubNode::DownstreamLink() const { return *m_BoardLink; }
+LinkProfile SubNode::DownstreamLink() const {
+  return LinkProfile::ForBPort(m_Info->moduleInfo.bPortType, m_Info->identity.productId);
+}
+
+/**
+ * The board's default link (BoardConfig::defaultLink), for a DownstreamLink() that wants it
+ * in place of the image's.
+ * @return The board's link.
+ */
+const LinkProfile& SubNode::BoardLink() const { return *m_BoardLink; }
 
 /**
  * The node's interrupt masks, written before it first powers the next link. The

@@ -2,8 +2,9 @@
 
 What the C++ stack is meant to do, why it is built the way it is, and the decisions that
 shaped it. The hardware lessons are in [hardware_notes.md](hardware_notes.md), the
-architecture in [architecture.md](architecture.md), what is left to do in the
-[roadmap](../../docs/cpp-stack/ROADMAP.md).
+architecture in [architecture.md](architecture.md), what isn't built or tested in the
+[roadmap](../../ROADMAP.md). The designs for features not built yet are at the
+end, under [Designed, not built](decisions.md#designed-not-built).
 
 The **prime goal is a stack that is simpler to use** than ADI's PnP stack, while keeping its
 `a2b_pnp_*` capabilities. "ADI's stack" below means ADI's A2B stack and PnP layer
@@ -27,9 +28,8 @@ someone migrating.
 - SPI works only when the main node is an AD2433 or AD2437. The stack doesn't police this: the
   application knows its main-node hardware, and an SPI call on a main node without SPI returns
   an error.
-- The power configuration (CFG0 or CFG4) matters to the hardware, not the software. The stack
-  applies each node's setting as given, from its module info or from the `LinkProfile`, and
-  has no rules about mixing them.
+- The power configuration (CFG0 or CFG4) is each chip's own (Policy decisions, below), not
+  the image's; the stack has no rules about mixing chips with different ones.
 
 ### Hot-plug PnP only
 The main node is configured from the application. Sub-nodes are always found by periodic
@@ -48,7 +48,28 @@ blind discovery. There is no fixed-topology mode.
 Nodes can be discovered without using their EEPROM content, because on first power-up the
 EEPROMs may be blank; the application then supplies each node's module info. Checking that an
 EEPROM is present, writing it and building images are all **application code**, built on the
-stack's peripheral read and write.
+stack's peripheral read and write. The stack has the sources: `EepromModuleInfoSource`, and
+`ImageModuleInfoSource` for images in memory (a file, or an array compiled in).
+
+Provisioning, as built ([provisioning.md](provisioning.md)):
+- **Images are built on a host**, by the image tool (`tools/a2b_eeprom`, standard-library
+  Python 3.8+: a GUI and a command line), from a project file. The bench console writes,
+  reads and checks them (`eeprom ...`).
+- **The format is ADI's, fixed:** the PnP specification together with ADI's sample images
+  (`adi/module_info/`). Where the two disagree, the samples win: they are what SigmaStudio+
+  writes and what EEPROMs in the field hold. For example, the peripheral block is at 0x800,
+  not 0x500, and write units carry the I2C address in byte 2. Each interpretation is listed
+  in provisioning.md. The Python builder, the stack's parser and the samples are checked
+  against each other by tests, so the two implementations can't drift.
+- **Vendor data** goes in the Supplier Information block (0x400), its layout named by the
+  block's vendor ID. Clockworks' ("CLKWORKS") is an ID and up to six features: the 212 bytes
+  there hold six 32-byte features, not eight.
+- **The EEPROM** is the Clockworks boards' 24FC256: 32 KB, 64-byte pages, 16-bit addresses.
+  An image is at most the EEPROM's size, and the format allows 64 KB.
+- **A write is safe to stop:** the marker is cleared first and written last, so a stopped
+  write leaves a blank node, never a half image.
+- **Blank boards are provisioned** with `ignoreEEPROM` and the links forced from the known
+  hardware: the whole chain joins, then each EEPROM is written.
 
 ### Peripherals
 The stack provides read, write and write-read only. I2C works; SPI is not yet supported, but
@@ -57,8 +78,8 @@ the address type reserves room for it (slave-select on one or more node GPIO lin
 ### Several buses
 One `Network` object per bus, N independent buses per host. The code and the simulator tests
 are in place; hardware with two buses has not been tried. Dual parallel AD2437 buses (paired
-chips on each module, bus 2's main node clocked from bus 1's) are designed, not built; see the
-roadmap.
+chips on each module, bus 2's main node clocked from bus 1's) are designed, not built
+([below](decisions.md#dual-buses-buspair)).
 
 ### Interconnects
 - UTP: single-step. RJ45 and XLR: two-step. Custom: single-step, with power on wires other
@@ -67,8 +88,17 @@ roadmap.
   profile defaults to inverted; UTP, XLR and Custom default to off, and the application can
   change any of them. Per the TRMs, a node's XCVRBINV is set before its SWCTL.ENSW, and later
   CONTROL writes (for example NEWSTRCT) must keep it.
-- Two-step is an option the host application chooses per link. Its sequence: read the EEPROM,
-  then turn on the CFG4 (24 V) power. The XLR code is carried over untested (no XLR hardware).
+- Two-step is an option the host application chooses per link, UTP links included (a UTP
+  link into an AD2437 may be two-step; the defaults stay as above). Its sequence: read the
+  EEPROM, then turn on the CFG4 (24 V) power. Not built: the design is under
+  [Designed, not built](decisions.md#two-step-links). Until it is, an RJ45 link runs single-step with its
+  B side inverted.
+- **A sub-node's image gives the link after it:** its B-side cable type (0x28) is the
+  module's B port, in the specification's numbering plus Clockworks' RJ45-CUSTOM,
+  RJ45-CUSTOM-INV and CUSTOM (`LinkProfile::ForBPort()`; provisioning.md). XLR and RJ45 are
+  two-step on an AD2437 and UTP on any other chip, which has no 24 V switch. The custom types
+  have no handler yet (`CustomBPortLink()`, "Unsupported B port type"): the chain ends there.
+  The app's link wins; `BoardConfig::defaultLink` is the main node's.
 
 ### When to stop looking for nodes
 That is the application's decision. The stack doesn't know where the chain ends: the app sets
@@ -76,7 +106,8 @@ the maximum number of sub-nodes (default 15) and can stop hot-plug probing whene
 (`PauseDiscovery()`).
 
 ### API
-A C++ core. A thin C facade that keeps the `a2bpnp.h` names and types is planned.
+A C++ core. A thin C facade that keeps the `a2bpnp.h` names and types is designed, not built
+([below](decisions.md#the-c-facade)).
 
 ## Why C++
 
@@ -87,8 +118,9 @@ The rewrite meets the "simpler to use" goal, with four caveats.
   by a message router, a job scheduler, per-plugin mailboxes and memory pools. About half of
   the core stack exists only for that model, and the plugins are linked statically anyway.
 - The size drops by about three-quarters: ADI's stack and PnP layer are about 30k lines of live
-  C plus about 24k lines of generated or duplicated platform files; the C++ core is about 8k
-  lines plus about 3k lines of simulator and tests.
+  C plus about 24k lines of generated or duplicated platform files; the C++ core is about 6k
+  lines of code (comments and blank lines aside), with about 14k more in the simulator and
+  tests.
 - ADI's PnP layer is tangled into the stack: it includes private stack headers, relies on
   `A2B_FEATURE_PNP` patches throughout, writes a continue flag back into a notification
   payload, and uses the BDD as its live register image.
@@ -160,8 +192,8 @@ Everything a user touches or derives from. The last column names ADI's counterpa
 | `NetworkListener` | App interface: `OnEvent(Network&, Event)`; `OnNodeIdentified(NodeReview)` returns a `RejectReason` (read-only; `kNone` accepts); `OnAudioMute()`/`OnAudioUnmute()`, called from `Poll()` around each routing plan, not queued. | `PNP_CALLBACK`, `INTR_CALLBACK`, `ERR_CALLBACK` |
 | `SubNode` | Hooks, all without I/O: `DownstreamLink()`, `InterruptMask()`, `TweakRegisters(RegisterImage&)` (edits values before they are written), `OnConfigured(OpList&)` (may append operations), `OnRemoved()`, `TypeTag()` (no RTTI). | `dscvryNodeComplete`, `PreSlaveInit`, `FinalMasterSetup` |
 | `NodeFactory` | Keys are module vendor/product IDs from module info, plus one optional app function (which may use position or CHIPID). `Make<T>` builds the node in a fixed slot, with a `static_assert` on its size. | plugin `open()` polling |
-| `ModuleInfoSource` | Interface. The default `EepromModuleInfoSource` scans 0x50-0x54, validates the 0xAA marker and the header CRC-8 at 0x1F, and parses. "Ignore EEPROM" means the app installs its own source. The app may return a raw module-info image, which goes through the same parser. | `a2b_ReadVerify_ModuleInfo` |
-| `LinkProfile` | Discovery `Single`/`TwoStep`, power `OnA2BPair`/`SeparateWires`/`None`, `BSideInverted` (XCVRBINV), the PG check and which sub-node GPIO carries PG (default GPIO7), the high-voltage check. Presets `Utp`, `Rj45`, `Xlr`, `Custom`. **Precedence:** `Network::SetLinkProfile(position)`, then the upstream node's `DownstreamLink()`, then the board default. The EEPROM cable-type byte is not used: nothing reads it, and ADI's own images set it inconsistently. | `bTwoStepDisc`, `mainXcvrBInv`/`subXcvrBInv` |
+| `ModuleInfoSource` | Interface. The default `EepromModuleInfoSource` scans 0x50-0x54, validates the 0xAA marker and the header CRC-8 at 0x1F, and parses. "Ignore EEPROM" means the app installs its own source. The app may return a raw module-info image, which goes through the same parser; `ImageModuleInfoSource` gives images held in memory (a file read, or an array compiled in). | `a2b_ReadVerify_ModuleInfo` |
+| `LinkProfile` | Discovery `Single`/`TwoStep`/`Unsupported`, power `OnA2BPair`/`SeparateWires`/`None`, `BSideInverted` (XCVRBINV), the PG check and which sub-node GPIO carries PG (default GPIO7), the high-voltage check. Presets `Utp`, `Rj45`, `Xlr`, `Custom`; `ForBPort()`, the link an image's B port type gives on a chip. **Precedence:** `Network::SetLinkProfile(position)`, then the upstream node's `DownstreamLink()` (by default its image's B port), then the board default (the main node's link). ADI's stack never read the EEPROM cable-type byte, and ADI's images number it differently from the specification; the specification's numbering is used. | `bTwoStepDisc`, `mainXcvrBInv`/`subXcvrBInv` |
 | `PeripheralAddress` | `Network::PeripheralWrite`/`Read`/`WriteRead(Node, Addr, ...)`: main node over the host I2C, sub-node through the CHIP register. `Addr` is I2C 7-bit, with an SPI form reserved. | `a2b_i2cPeriph*`, `a2b_pnp_I2CReadPeri`/`I2CWritePeri` |
 | `RoutingPolicy` | Hooks `RespCycles()` and `MapGroups()`, which gives each node's `ChannelMap` (a crossbar or TDM order, and the channels its port carries). The plan is a `RoutingPlan` (a `NodeRouting` per node), built by the internal `RoutingPlanner` (AD243x crossbars, AD242x TDM order). | `AutoCalcSlot`, `crossbarCalc`, `calcMstrRespCycs`, `UpdateSlots` |
 | `ConnectionTable` | The connections, by chip ID or position, 32 at most; a sink takes one source; kept through `Start()`; two modules with one chip ID (blank: zeros) are told apart by position. | `a2bpnp_conn_mng.cpp` |
@@ -197,13 +229,17 @@ write to them goes through it), `ChipCaps` (a capabilities table, no per-chip op
 ### Customisation example
 
 ```cpp
-/** @brief Module whose B side is an RJ45 link: two-step discovery, port-B polarity swapped. */
+/** @brief Module whose B side is an inverted RJ45 link run single-step, whatever its image says. */
 class Rj45Module : public a2b::SubNode {
  public:
   using SubNode::SubNode;
-  a2b::LinkProfile DownstreamLink() const override { return a2b::LinkProfile::Rj45(); }
+  a2b::LinkProfile DownstreamLink() const override {
+    a2b::LinkProfile link = a2b::LinkProfile::Utp();
+    link.bSideInverted = true;
+    return link;
+  }
 };
-factory.ByModule(0x00AD, 0x0037, a2b::Make<Rj45Module>);   // module vendor/product IDs
+factory.ByModule(0x0C54, 0x0312, a2b::Make<Rj45Module>);   // module vendor/product IDs
 ```
 
 More in the [cookbook](cookbook.md).
@@ -227,7 +263,8 @@ Each item is ported, and has a rule in the trace comparison ([testing.md](testin
   Hosts without a RESETn pulse at start-up find the main node still running from the last
   session, so this sequence runs even when `Platform::SetMainNodeReset()` is supported, and
   [timing.md](timing.md) lists the wait as a hard minimum.
-- GPIO over distance (not yet on `Network`; see the roadmap).
+- GPIO over distance: `Network` has its calls (`SetupGpioOverDistance()` and the others),
+  which return `kNotSupported` until it is built (roadmap).
 - The power budget, **now enforced** in the default `OnNodeIdentified` policy (ADI's stack
   stores it and never uses it).
 
@@ -271,7 +308,6 @@ ADI's stack has these defects; the C++ stack does the intended thing instead. Ea
 - AD2430/AD2438 parts, and their VMTR path (the AD2437 VMTR use is kept)
 - the AD241x cross-talk fix
 - the demo audio routing
-- the EEPROM cable-type byte
 
 ## Policy decisions
 
@@ -285,13 +321,39 @@ ADI's stack has these defects; the C++ stack does the intended thing instead. Ea
   node; the main node's port stays at the SYNC rate. A sub-node's 96/192 kHz comes from its
   module image; a module with no EEPROM is 48 kHz. There is no per-position hook or console
   setting.
+- **A sub-node's I2C rate:** 100 kHz from reset, then 400 kHz if its image's
+  I2CCFG.DATARATE is set. ADI's stack ignored the image's I2CCFG. The image's start and groups
+  are always read at 100 kHz, so any EEPROM works. The rate changes before the peripheral
+  programs, which are most of the traffic. The image's other I2CCFG bits are not applied; see
+  [provisioning.md](provisioning.md).
 - **No reduced data rate and no bus monitoring (sniffing).** A module image with SHARE, REDUCE
   or any other rate field fails as invalid data (the node is rejected with `kBadModuleInfo`),
   so nothing runs on a rate the routing doesn't plan for.
-- **Cable length** defaults to 4 m on every link (AD2431-35 TRM: adequate when the lengths are
-  unknown, as each node adjusts its response time during discovery, -4 to +15 bit times), with a
-  per-link override (`Network::SetCableLength(n, dm)`, 0.1-30 m; 30 m is the AD2437's longest
-  link, 15 m the AD242x's). A measured cable length is not yet used.
+- **Cable length:** each link's comes from the app (`Network::SetCableLength(n, dm)`), else
+  the upstream node's image (its B-side cable length, in metres), else the board's, 4 m by
+  default (AD2431-35 TRM: adequate when the lengths are unknown, as each node adjusts its
+  response time during discovery, -4 to +15 bit times). There is no upper limit: the data
+  sheets' longest links (15 m AD242x, 30 m AD2437) are warnings in the image tool only, since
+  110 ft (33.5 m) has run clean on an AD2428. A length is refused only when its response
+  cycles can't be written, which fails the plan (`RoutingError::kNoResponseCycles`). A length
+  longer than the real cable breaks discovery
+  ([hardware notes](hardware_notes.md#routing-and-audio)), so the value is taken as given and
+  the cable it describes is the app's to get right; the stack doesn't measure cables. A
+  change on a routed bus replans only if the length in use for a link in the chain changes.
+- **The target chip** (header 0x07, reserved in ADI's specification): an image that names a
+  transceiver is refused on any other (`RejectReason::kWrongChip`); External (0x7FFF, a
+  plug-in module) and not stated (0, ADI's images) take any chip. ADI's stack had no such
+  field.
+- **A sub-node's power configuration is its chip's:** each supported chip has one (CFG-4
+  on the AD2437, CFG-0 on the AD2433 and the AD242x), and it replaces the image's once the
+  node is identified. ADI's stack took the image's, so an image for an AD2437 module
+  overrode an AD2433's detected CFG-0 to CFG-4. A board with a plug-in module can't know
+  its chip; see [provisioning.md](provisioning.md).
+- **One image for both chip families:** on an AD242x node the stack writes the image's
+  PDMCTL2 and PINCFG with bits 7:6 clear (HPFCORNER and GPIOSEL on the AD243x; unused on the
+  AD242x), as it leaves the SPI registers out, whatever the image's target chip. ADI's stack
+  wrote the image's bytes as they were. An External image's other settings must mean the
+  same on both families, which the image tool checks; see [provisioning.md](provisioning.md).
 - **Every probe's DISCVRY** is the response-cycle formula's value for its position, not ADI's
   main-node RESPCYCS less 4 per node. SigmaStudio+ takes RESPOFFS 254 ("accurate"); the stack's
   value is slightly lower, and both lie in the valid window.
@@ -302,7 +364,7 @@ ADI's stack has these defects; the C++ stack does the intended thing instead. Ea
 - **Muting:** the local mute (the default) silences rather than playing wrong channels; see
   [cookbook.md](cookbook.md#routing) and [hardware_notes.md](hardware_notes.md#muting).
 - **The AB0204 default** (an AD2427 with no EEPROM image is taken to be a four-microphone
-  AB0204) lives in the Clockworks example (`examples/bench/clockworks_boards`), not the stack.
+  AB0204) lives in the Clockworks example (`examples/clockworks/clockworks_boards`), not the stack.
 - **The fixed and minimal examples stay at one bus**, to show the least an app needs; the quick
   start, main-node guide and cookbook show the few lines a second bus takes.
 - **Trace replay was dropped.** Replaying captured traces through the simulator was not built;
@@ -316,3 +378,63 @@ ADI's stack has these defects; the C++ stack does the intended thing instead. Ea
   builds, `tools/SS+reference/adi`. No ADI header compiles an SS+ 2.3.0 export, so that
   `adi_a2b_busconfig.h` is ADI's 2023 header with the fields of its older one and of SS+ 2.3.0
   added, and `adi_a2b_datatypes.h` is single-core. See [bench_console.md](bench_console.md).
+
+## Designed, not built
+
+Features whose design is settled but which aren't built. The roadmap lists them with the rest
+of what isn't included; their stubs, where a chip register exists, return `kNotSupported`.
+
+### Two-step links
+RJ45 and XLR links into an AD2437 are two-step by design (ADI's `discovery.c`): the node is found
+at 5 V, its module info read, and only then is the 24 V high-power switch turned on. `LinkProfile`
+asks for it per link (`Discovery::kTwoStep`; the presets `Rj45()` and `Xlr()`), and today such a
+link is refused by `SetLinkProfile()` and not probed when an image's B port gives it. The design:
+1. Check power-good: the main node through `Platform::PowerGood()`, a sub-node through the GPIO
+   its `LinkProfile` names (`powerGoodGpio`, GPIO7 by default).
+2. Set SWBYP so the link runs at 5 V, then discover the node.
+3. Take the node's power capability from its `ModuleInfoSource`.
+4. Clear the upstream node's ENSW and discover again at high voltage.
+5. Check 24 V with the voltage monitor (VMTR, `checkHighVoltage`).
+
+Compared with ADI's stack: CFG4 (24 V) is turned on only when the node's module info gives that
+power configuration, and keeping the node is the app's decision (`OnNodeIdentified()`); a failed
+24 V check stops processing the node; the capability test uses the real chip, not a placeholder
+product ID; Custom stays single-step with `SeparateWires` power. To build with it: the `SubNode`
+hooks `SwitchBypass()` and `HighPowerSwitch()`; the simulator's check that XCVRBINV is written
+before ENSW and kept on later CONTROL writes (scenario 10); whether `Utp()` should run the
+AD2437's 24 V check (ADI's stack ran it on every AD2437 sub-node); simulator scenarios 16-19; the
+bench console's `link N xlr` and a way to ask for two-step on a UTP link. No XLR hardware has been
+run.
+
+### Power diagnostics
+A `PowerDiag` step after a power-fault interrupt that tells the faults apart. In particular the
+open line (INTTYPE 12, or 13 at a low VIN) an AD242x reports from the end of the chain on every
+probe behind it with nothing plugged in there is expected, and must be told from a real cable
+fault ([hardware notes](hardware_notes.md#open-line-inttype-12-and-13)). Today the stack passes
+both on as `kInterrupt` events and the bench console hides the first. Scenario 8.
+
+### Dual buses (BusPair)
+`BusPair` couples two `Network`s for the AD2437's dual parallel buses: paired chips on each
+module, the host controlling both main nodes, bus 2's main node clocked from bus 1's.
+- **Follower mode:** only the primary bus runs blind discovery. When the primary accepts node k,
+  the secondary runs one directed discovery step for its partner, from that partner's own EEPROM.
+- **Start and faults:** the secondary starts after the primary main node's PLL locks; a primary
+  main-node fault stops the secondary.
+- **Drops:** when the primary loses node k, the secondary loses its partner k and everything
+  beyond it.
+- **Missing partner:** the chain is daisy-linked, so the secondary truncates at k-1 and raises
+  `PartnerMissing(k)`; a policy hook decides, by default keeping the primary running.
+- **Routing:** one plan per bus at first; the app decides which connections use which bus.
+- Still to confirm from the AD2437 documentation: the secondary main node's clock-source
+  settings, and whether a partner must be configured first. Scenario 21.
+
+### The C facade
+A thin C facade that keeps the `a2bpnp.h` names and types, so an application written for ADI's
+stack moves over with few changes, with the facade-only additions
+`a2b_pnp_SetLinkProfile(h, node, profile)`, `a2b_pnp_PairBuses(hPrimary, hSecondary)` and
+`a2b_pnp_SetModuleInfoSource(h, fn, ctx)` (`fn` returns a module-info image's length, 0 for
+none). `a2b_pnp_UpdatePnPModuleInfo(All)` becomes an application-side helper with the same
+signature, and the info getters (`GetDiscTimeInfo`, `ReadOEMInfo`, `GetVersion`,
+`GetDevicePwrInfo`) sit behind the facade. It comes with C API compatibility notes and a
+migration map (old function to new class), and its RP2040 RAM must stay at or below ADI's
+([ram.md](ram.md)).

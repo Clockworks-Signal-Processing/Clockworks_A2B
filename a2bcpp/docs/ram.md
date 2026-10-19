@@ -1,7 +1,7 @@
 # RAM on the RP2040
 
-The RP2040 has 264 KB of SRAM. The C++ stack must use no more than ADI's stack does (the C
-facade's exit criterion in the [roadmap](../../docs/cpp-stack/ROADMAP.md)), and less is the goal.
+The RP2040 has 264 KB of SRAM. The C++ stack must use no more than ADI's stack does (a
+condition of the C facade, [decisions](decisions.md#the-c-facade)), and less is the goal.
 This page records what the current version uses. `a2bcpp/tools/ram_report.py` reruns the
 numbers; rerun it when a change adds per-bus state.
 
@@ -32,7 +32,7 @@ bandwidth):
 | Component | Bytes |
 |---|---:|
 | Peripheral-script buffer (a unit is written in one transfer: ADI's ADAU1701 program is 4090 B; the size field allows 4095) | 4096 |
-| `SubNodeInfo` × 16 (each with its `ChannelGroups`, 136 B) | 220 × 16 |
+| `SubNodeInfo` × 16 (each with its `ChannelGroups`, 136 B; the image's target chip, B port and cable length added 4 B) | 224 × 16 |
 | `SubNode` slots, 16 × `kSubNodeSlotSize` (64), and their pointers | 1024 + 64 |
 | `RoutingPlan` × 2 (written, being built) | 1020 × 2 |
 | `RoutingPlanner` working arrays, its input and the response-cycle input | 812 + 272 + 80 |
@@ -50,10 +50,10 @@ If RAM gets tight, the groups (8 each way per node) and the second plan are wher
 could be built straight into the registers' writes at the cost of `Routing()`, and each
 `SubNodeInfo` keeps the node's parsed register list (48 B of it), which could move out.
 
-The minimal example's app object (one `BoardConfig`, a 64-op host script, the `Network`) was
-17,384 bytes in its RP2040 build, and the whole example's `.bss` 30,628 bytes (Pico SDK 2.0.0,
-stdio and I2C drivers included). **Not re-measured** since the routing was added; the fixed app's
-figure (about 28 KB static RAM, [quick_start.md](quick_start.md)) is a separate measurement.
+The minimal example's RP2040 build (Debug, Pico SDK 2.0.0, stdio and I2C drivers included)
+has 37,540 bytes of static RAM: `.bss` 30,632 (its app object: one `BoardConfig`, a 64-op host
+script, the `Network`) and `.data` 6,908. The fixed app's figures are below, beside the bench
+console's.
 
 ### Stack
 
@@ -75,6 +75,40 @@ each thread needs the single-bus figure plus its driver.
 
 `SetAudioRoutes()` keeps a table of 32 connection ends on the stack (336 B at `-Og`). It is an
 app call, not on `Poll()`'s path, but an app calling it from a small task stack should count it.
+
+## The bench console on the RP2040
+
+The bench console's Pico build (`a2bcpp/examples/bench/rp2040`, [bench
+console](bench_console.md#on-the-rp2040)), measured from its ELF (`arm-none-eabi-size -A`, the
+`.bin` for flash), Pico SDK 2.0.0, toolchain 13_2_Rel1:
+
+| What | Debug (`-Og`) | Release (`-O3`) |
+|---|---:|---:|
+| Flash (the `.bin`) | 233,032 | 280,876 |
+| `.data` | 18,520 | 18,360 |
+| `.bss` | 37,112 | 37,120 |
+| **Static RAM** (`.data` + `.bss`) | **55,632** | **55,480** |
+| Left for the heap (`.heap`) | 206,320 | 206,472 |
+
+Of the `.bss`, the `BenchConsole` is 23,688 bytes (its `Network`, `BoardConfig`, 256-op host
+script and the console's settings) and the four built-in exports' node structures 11,424. The
+fixed app, built with them for comparison: 161,976 bytes of flash and 28,884 of static RAM
+(Debug).
+
+The console uses the heap (its strings, the command line's words, the codec programs of
+`module N BOARD`, the output waiting for the UART); the stack doesn't. **Heap in use: 33,032
+bytes**, read on the bench with the console's `heap` command
+(`Rp2040HeapInUse()`, newlib's `mallinfo().uordblks`) after the AB0310 run with four sub-nodes
+found and audio routed. That leaves about 173 KB of the 206 KB heap. It is not broken down
+by user; the fixed app, which keeps no console strings or board lists, used 1,460 bytes.
+
+Stack: the Pico SDK's main stack is 2 KB (`.stack_dummy`), with the rest of the 4 KB
+SCRATCH_Y bank and SCRATCH_X (unused with one core) below it before anything else. The
+deepest paths, from `-fstack-usage` at `-Og`, are about 1.5 KB: a command, `start` importing
+the board (`main` 232, the host's `Run` 224, `Start` 104, `ImportBoard` 744,
+`ImportSsPlus` 176, `AddUnit` 104, ...), and a poll whose event is printed (`Network::Poll`
+432 as above, `OnEvent` 104, `ReportNode` 264, the SDK's `vsnprintf` 112 and number
+formatting about 220), each plus `malloc`'s and the I2C driver's.
 
 ## How it is measured
 

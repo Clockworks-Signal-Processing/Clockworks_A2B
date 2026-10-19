@@ -126,7 +126,8 @@ It works with the repository in any folder on drives C: to F: (the drives listed
 
 With a C++ file open, click the configuration name at the bottom right of the status bar and
 pick **Linux arm64** to see the code as the Linux build does (64-bit pointers, Linux headers
-from the Debian distro), or **RP2040 fixed** / **RP2040 minimal** for the RP2040 views.
+from the Debian distro), or **RP2040 fixed** / **RP2040 bench** / **RP2040 minimal** for the
+RP2040 views.
 
 ### From a terminal instead
 

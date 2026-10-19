@@ -68,8 +68,8 @@ Terminal → Run Task… and Run and Debug:
 | Release | **Windows bench: Release (run)** | Builds the optimized `.../Release/examples/bench/a2b_bench.exe` and runs it in the task terminal |
 
 The builds run `a2bcpp/tools/build_windows.ps1` (`Debug`, `Release` or `clean`). The program
-starts the bus on the board set in `a2b.windowsBoard` (default `ab0020`, the Clockworks
-AB0020; `ref`, `ab0310` or a SigmaStudio+ export's C file also work), after any console
+starts the bus on the board set in `a2b.windowsBoard` (default `AB0020`, the Clockworks
+AB0020; `ref`, `AB0310` or a SigmaStudio+ export's C file also work), after any console
 commands in `a2b.windowsBenchArgs` (separated by `;`, for example
 `ignoreEEPROM 1; link 2 custom`). Both settings differ from PC to PC, so set them in your VS
 Code **User** settings. Then it reads commands at the `A2B>` prompt (`help` lists them; `quit`
@@ -81,7 +81,7 @@ From the repository root, in PowerShell:
 
 ```powershell
 a2bcpp\tools\build_windows.ps1 Release       # or Debug, or clean
-build\a2b-bench-windows\Release\examples\bench\a2b_bench.exe --board ab0020 start
+build\a2b-bench-windows\Release\examples\bench\a2b_bench.exe --board AB0020 start
 ```
 
 The build copies `libusb-1.0.dll` next to the program; that and Windows' own DLLs are all it

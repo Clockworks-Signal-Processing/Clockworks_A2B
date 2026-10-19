@@ -22,9 +22,9 @@ namespace sim {
 /// A 24xx-series EEPROM: page writes, write-cycle busy time, write protect (see eeprom.cpp).
 class Eeprom : public I2cDevice {
  public:
-  static constexpr size_t kDefaultSize = 16384;        ///< 24C128.
-  static constexpr size_t kDefaultPageSize = 64;       ///< A2B_PNP_EEPROM_PAGE_SIZE.
-  static constexpr uint32_t kDefaultWriteCycleMs = 5;  ///< tWR of common parts.
+  static constexpr size_t kDefaultSize = 32768;        ///< 24FC256, on the Clockworks boards.
+  static constexpr size_t kDefaultPageSize = 64;       ///< 24FC256 (A2B_PNP_EEPROM_PAGE_SIZE).
+  static constexpr uint32_t kDefaultWriteCycleMs = 5;  ///< 24FC256's tWC, as common parts'.
 
   explicit Eeprom(size_t size = kDefaultSize, size_t pageSize = kDefaultPageSize,
                   uint32_t writeCycleMs = kDefaultWriteCycleMs);  ///< Erased (0xFF) memory.

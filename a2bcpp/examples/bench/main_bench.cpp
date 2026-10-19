@@ -6,11 +6,13 @@
  *
  * Windows reaches the A2B board through the ADI USBi (libusb, WinUSB driver). Linux uses
  * the host's I2C through i2c-dev (/dev/i2c-1 on the Pi), or the USBi with `--usbi` when
- * the console was built with libusb (a USBi on a Linux host is future work: it may need
- * the USBi's firmware loaded and a udev rule). The options are shorthands for the first
+ * the console was built with libusb (a USBi on a Linux host is untried: it may need the
+ * USBi's firmware loaded and a udev rule). The options are shorthands for the first
  * commands; each COMMAND argument (quoted if it has spaces, e.g. "link 5 utp") runs next,
  * then the console reads commands from the keyboard. Commands are read on their own
- * thread, so the bus is polled every millisecond whatever is typed. `--commands=LIST` is
+ * thread, so the bus is polled every millisecond whatever is typed; while an `eeprom` job
+ * runs, the next command waits for it (lines typed meanwhile are kept), except `eeprom
+ * abort` and `quit`, which run at once (BenchConsole::RunsWhileBusy()). `--commands=LIST` is
  * several commands in one argument, separated by ';' (none if LIST is empty), for a
  * launcher that passes a setting as one argument: VS Code's "a2b.windowsBenchArgs".
  *
@@ -31,7 +33,7 @@
 #include "a2b_build_stamp.h"
 #include "bench_console.h"
 
-#ifdef A2B_BENCH_USBI
+#ifdef A2B_CPP_USBI
 #include "libusb_link.h"
 #include "usbi_platform.h"
 #endif
@@ -63,6 +65,26 @@ void ReadLines(Input* input) {
     const std::lock_guard<std::mutex> guard(input->lock);
     input->lines.push_back(line);
   }
+}
+
+/**
+ * Takes the next line to run, if there is one: the first one typed, or while an `eeprom`
+ * job runs, the first that runs at once (`eeprom abort`, `quit`); the others stay queued.
+ * @param input The lines typed.
+ * @param busy An `eeprom` job is running.
+ * @param line Set to the line.
+ * @return True if @p line holds one.
+ */
+bool TakeLine(Input& input, bool busy, std::string& line) {
+  const std::lock_guard<std::mutex> guard(input.lock);
+  for (auto it = input.lines.begin(); it != input.lines.end(); ++it) {
+    if (!busy || BenchConsole::RunsWhileBusy(it->c_str())) {
+      line = *it;
+      input.lines.erase(it);
+      return true;
+    }
+  }
+  return false;
 }
 
 /** Prints what the console printed; the prompt after a command. */
@@ -134,7 +156,7 @@ void PrintCommandLine(int argc, char** argv) {
 
 /**
  * Takes the value option argv[i] needs, argv[i + 1]: there must be one, and it mustn't be
- * another option, or "--board --ignore-eeprom ab0020" would load a board file named
+ * another option, or "--board --ignore-eeprom AB0020" would load a board file named
  * "--ignore-eeprom".
  * @param argc Argument count.
  * @param argv The arguments.
@@ -228,7 +250,7 @@ int main(int argc, char** argv) {
   }
 
   a2b::Platform* host = nullptr;
-#ifdef A2B_BENCH_USBI
+#ifdef A2B_CPP_USBI
   static a2b::LibusbLink link;
   static a2b::UsbiPlatform usbi(link);
   if (useUsbi) {
@@ -261,37 +283,39 @@ int main(int argc, char** argv) {
 
   static BenchConsole console(*host);
   std::printf("A2B bench console: help lists the commands\n");
+  // Typed lines are read from the start, so `eeprom abort` reaches a start-up command's job.
+  static Input input;
+  std::thread(ReadLines, &input).detach();
   bool running = true;
   while (running && !commands.empty()) {
     std::printf("A2B> %s\n", commands.front().c_str());
     running = console.Execute(commands.front().c_str());
     commands.pop_front();
     Flush(console, false);
+    while (running && console.Busy()) {  // An `eeprom` job: the next command waits for it.
+      std::string line;
+      if (TakeLine(input, true, line)) {
+        running = console.Execute(line.c_str());
+      }
+      console.Poll();
+      Flush(console, false);
+      std::this_thread::sleep_for(std::chrono::milliseconds(1));
+    }
   }
   if (!running) {
     return 0;
   }
   Flush(console, true);
 
-  static Input input;
-  std::thread(ReadLines, &input).detach();
   while (running) {
     std::string line;
-    bool got = false;
-    {
-      const std::lock_guard<std::mutex> guard(input.lock);
-      if (!input.lines.empty()) {
-        line = input.lines.front();
-        input.lines.pop_front();
-        got = true;
-      }
-    }
-    if (got) {
+    if (TakeLine(input, console.Busy(), line)) {
       running = console.Execute(line.c_str());
-      Flush(console, running);
+      Flush(console, running && !console.Busy());  // No prompt while a job holds the input.
     }
+    const bool busy = console.Busy();
     console.Poll();
-    Flush(console, false);
+    Flush(console, busy && !console.Busy());  // The prompt again when a job ends.
     std::this_thread::sleep_for(std::chrono::milliseconds(1));
   }
   return 0;

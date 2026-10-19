@@ -12,6 +12,17 @@
             "intelliSenseMode": "linux-gcc-arm"
         },
         {
+            // The bench console on the RP2040 (a2bcpp/examples/bench/rp2040). Uses the compile
+            // commands written by its Debug build, so build it once ("RP2040 bench: Build
+            // (Debug)") first.
+            "name": "RP2040 bench",
+            "compilerPath": "${userHome}/.pico-sdk/toolchain/13_2_Rel1/bin/arm-none-eabi-gcc.exe",
+            "compileCommands": "${workspaceFolder}/build/a2b-bench-rp2040/compile_commands.json",
+            "cStandard": "c17",
+            "cppStandard": "c++17",
+            "intelliSenseMode": "linux-gcc-arm"
+        },
+        {
             // The a2bcpp minimal app on the RP2040 (a2bcpp/examples/minimal/rp2040). Uses the
             // compile commands written by its Debug build, so build it once ("RP2040 minimal:
             // Build (Debug)") first.
@@ -36,6 +47,7 @@
                 "${workspaceFolder}/a2bcpp/platforms/linux",
                 "${workspaceFolder}/a2bcpp/import/ss_plus",
                 "${workspaceFolder}/a2bcpp/examples/bench",
+                "${workspaceFolder}/a2bcpp/examples/clockworks",
                 "${workspaceFolder}/tools/SS+reference/adi",
                 "${workspaceFolder}/adi/headers/linux",
                 "${workspaceFolder}/adi/headers/stack",

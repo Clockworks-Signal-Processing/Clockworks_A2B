@@ -328,7 +328,6 @@ A2B_TEST(CableLengthPerLink) {
   A2B_CHECK(network.SetCableLength(16, 40) == Result::kInvalidArgument);
   A2B_CHECK(network.SetCableLength(kMainNode, 40) == Result::kInvalidArgument);
   A2B_CHECK(network.SetCableLength(0, 0) == Result::kInvalidArgument);
-  A2B_CHECK(network.SetCableLength(0, kMaxCableDm + 1) == Result::kInvalidArgument);
   A2B_CHECK(network.ClearCableLength(16) == Result::kInvalidArgument);
   A2B_CHECK(network.AddConnection(kMainNode, 0, 0, 0) == Result::kOk);
   A2B_CHECK(network.ApplyRouting() == RoutingError::kNone);
@@ -354,13 +353,14 @@ A2B_TEST(CableLengthPerLink) {
   A2B_CHECK_EQ(network.Routing().respCycles.maxMain, longer.maxMain);
   A2B_CHECK_EQ(network.Routing().main.respCycles, longer.main);
   A2B_CHECK_EQ(bench.bus.Main().AppliedReg(reg::kRespcycs), longer.main);
-  // A 30 m link into position 1: the next probe's DISCVRY takes both cables.
-  A2B_CHECK(network.SetCableLength(1, kMaxCableDm) == Result::kOk);
+  // A 34 m link into position 1 (past the data sheets' 30 m, which the stack doesn't
+  // enforce): the next probe's DISCVRY takes both cables.
+  A2B_CHECK(network.SetCableLength(1, 340) == Result::kOk);
   RespCycleInput input;
   input.subNodeCount = 2;
   input.mainRespCycles = longer.main;
   input.cableDm[0] = 150;
-  input.cableDm[1] = kMaxCableDm;
+  input.cableDm[1] = 340;
   const uint8_t discvry = ComputeResponseCycles(input).sub[1];
   input.cableDm[1] = 40;
   A2B_CHECK(discvry != ComputeResponseCycles(input).sub[1]);
@@ -374,6 +374,31 @@ A2B_TEST(CableLengthPerLink) {
   A2B_CHECK_EQ(network.CableLength(0), 40);
   A2B_CHECK(bench.RunUntilApplied(applied + 1));
   A2B_CHECK_EQ(bench.bus.AccessesInNewStructSettle(), 0u);
+  // The length in use unchanged, or a link past the chain: no plan (a plan mutes the audio).
+  const size_t planned = bench.listener.Of(EventType::kRoutingApplied).size();
+  A2B_CHECK(network.SetCableLength(0, 40) == Result::kOk);
+  A2B_CHECK(network.SetCableLength(5, 120) == Result::kOk);
+  A2B_CHECK(network.ClearCableLength(6) == Result::kOk);
+  bench.Run(1000);
+  A2B_CHECK_EQ(bench.listener.Of(EventType::kRoutingApplied).size(), planned);
+  A2B_CHECK_EQ(bench.listener.Of(EventType::kRoutingFailed).size(), 0u);
+}
+
+A2B_TEST(CableTooLongForTheSlotsFailsThePlan) {
+  // No upper limit on a length; one whose response cycles can't be written fails the plan.
+  RoutingBench bench;
+  bench.PlugChain(1);
+  A2B_CHECK(bench.StartWith(1));
+  Network& network = bench.network;
+  A2B_CHECK(network.AddConnection(kMainNode, 0, 0, 0) == Result::kOk);
+  A2B_CHECK(network.ApplyRouting() == RoutingError::kNone);
+  A2B_CHECK(bench.RunUntilApplied(1));
+  A2B_CHECK(network.SetCableLength(0, 60000) == Result::kOk);  // 6 km
+  A2B_CHECK_EQ(network.CableLength(0), 60000);
+  bench.Run(1000);
+  const std::vector<Event> failed = bench.listener.Of(EventType::kRoutingFailed);
+  A2B_CHECK(!failed.empty());
+  A2B_CHECK(failed.empty() || failed.back().routingError == RoutingError::kNoResponseCycles);
 }
 
 /** A policy with its own response cycles: the main node at 0x90, 5 less a position. */
@@ -501,7 +526,7 @@ A2B_TEST(PortOffIsRefusedUnlessThePolicySaysOtherwise) {
 }
 
 A2B_TEST(NodeInNoConnectionNeedsNoCrossbar) {
-  // An AD2428 in an AD2437 chain, in no connection: the chain is routed (it was once refused).
+  // An AD2428 in an AD2437 chain, in no connection: the chain is routed.
   // Mixed chains are in test_sim_mixed_routing.
   RoutingBench bench;
   bench.bus.Plug(test::Ad2437(0x10));

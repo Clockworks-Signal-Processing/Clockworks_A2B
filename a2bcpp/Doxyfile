@@ -4,6 +4,7 @@ PROJECT_NAME           = "a2bcpp"
 PROJECT_BRIEF          = "C++ A2B plug-and-play stack"
 OUTPUT_DIRECTORY       = ../build/a2bcpp-doxygen
 INPUT                  = include src import platforms examples docs
+USE_MDFILE_AS_MAINPAGE = docs/quick_start.md
 FILE_PATTERNS          = *.h *.cpp *.md
 RECURSIVE              = YES
 EXTRACT_ALL            = NO

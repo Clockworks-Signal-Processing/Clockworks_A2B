@@ -13,8 +13,8 @@
 #include <utility>
 #include <vector>
 
+#include "a2b/crc8.h"
 #include "a2b/module_info.h"
-#include "crc8.h"
 #include "detail/regdefs.h"
 #include "test_harness.h"
 
@@ -60,6 +60,10 @@ A2B_TEST(ParsesAdisRj45Image) {
   A2B_CHECK_EQ(info.siliconVersion, 0x10);
   A2B_CHECK_EQ(info.powerConfig, 4);
   A2B_CHECK(!info.localPower);
+  A2B_CHECK(info.fastI2c);  // I2CCFG 0x01: DATARATE, 400 kHz.
+  A2B_CHECK_EQ(info.targetChip, kChipNotStated);
+  A2B_CHECK_EQ(info.bPortType, 2);  // UTP in the specification's numbering ("RJ45" in ADI's).
+  A2B_CHECK_EQ(info.bCableDm, 40);  // The TRMs' 4 m.
   A2B_CHECK_EQ(info.peripheralBlocks, 3);  // ADAU1701, BD28623, microphones.
   // Its settings, in ADI's write order, power-on values left out: I2SGCFG 0xE0,
   // I2SCFG 0x19, PINCFG 0x81, CLK2CFG 0x81, SPICFG 0x19, SPICKDIV 0x17, SPIPINCFG 0x10.
@@ -73,12 +77,71 @@ A2B_TEST(ParsesAdisRj45Image) {
   }
 }
 
+A2B_TEST(ParsesTheImageToolsExamples) {
+  // The images tools/a2b_eeprom builds (its examples, built from their projects): the stack
+  // takes them as it takes ADI's, with every CRC right (the module-info block's too).
+  struct Example {
+    const char* path;
+    uint8_t i2sgcfg;
+    uint8_t pdmctl;
+    uint8_t blocks;
+    size_t rxGroups;
+    uint16_t productId;   // The board's number.
+    uint16_t targetChip;  // External: a plug-in transceiver module.
+    uint8_t bPortType;    // 1 RJ45, 2 UTP.
+    bool localPower;      // The AB0020 and AB0312 by default; AD2427 boards are bus powered.
+    bool fastI2c;         // I2CCFG.DATARATE: the AB0020 and AB0312 at 400 kHz.
+  };
+  const Example examples[] = {
+      {"tools/a2b_eeprom/examples/AB0020.dat", 0xE0, 0x00, 1, 1, 0x0020, kChipExternal, 2, true,
+       true},
+      {"tools/a2b_eeprom/examples/AB0312.dat", 0xE0, 0x00, 0, 1, 0x0312, kChipExternal, 1, true,
+       true},
+      {"tools/a2b_eeprom/examples/AB0204.dat", 0x00, 0x1F, 0, 3, 0x0204, 0x2427, 2, false, false},
+  };
+  for (const Example& example : examples) {
+    const std::vector<uint8_t> image = ReadRepoFile(example.path);
+    A2B_CHECK(image.size() >= 0x500);
+    if (image.size() < 0x500) {
+      continue;
+    }
+    ModuleInfo info;
+    A2B_CHECK(ParseModuleInfo(image.data(), image.size(), info) == Result::kOk);
+    A2B_CHECK_EQ(info.vendorId, 0x0C54);  // Clockworks.
+    A2B_CHECK_EQ(info.productId, example.productId);
+    A2B_CHECK_EQ(info.targetChip, example.targetChip);
+    A2B_CHECK_EQ(info.bPortType, example.bPortType);
+    A2B_CHECK_EQ(info.bCableDm, 0);
+    A2B_CHECK(info.localPower == example.localPower);
+    A2B_CHECK(info.fastI2c == example.fastI2c);  // The examples run at 400 kHz.
+    A2B_CHECK_EQ(info.peripheralBlocks, example.blocks);
+    uint8_t i2sgcfg = 0;
+    uint8_t pdmctl = 0;
+    for (size_t i = 0; i < info.regCount; ++i) {
+      i2sgcfg = (info.reg[i] == reg::kI2sgcfg) ? info.value[i] : i2sgcfg;
+      pdmctl = (info.reg[i] == reg::kPdmctl) ? info.value[i] : pdmctl;
+    }
+    A2B_CHECK_EQ(i2sgcfg, example.i2sgcfg);
+    A2B_CHECK_EQ(pdmctl, example.pdmctl);
+    ChannelGroups groups;
+    A2B_CHECK(ParseChannelGroups(&image[kGroupTableOffset], info.groupTableLen, groups) ==
+              Result::kOk);
+    A2B_CHECK_EQ(groups.rxCount, example.rxGroups);
+    const size_t blockCrc = kGroupTableOffset + info.groupTableLen;
+    A2B_CHECK_EQ(Crc8(&image[0x20], blockCrc - 0x20), image[blockCrc]);
+    A2B_CHECK_EQ(Crc8(&image[0x400], 0xFF), image[0x4FF]);  // The vendor block, its last byte.
+  }
+}
+
 A2B_TEST(ParsesAdisXlrImage) {
   const std::vector<uint8_t> image =
       ReadRepoFile("adi/module_info/adi_a2b_node_ModuleInfo_1.3.0.0_XLR.dat");
   ModuleInfo info;
   A2B_CHECK(ParseModuleInfo(image.data(), image.size(), info) == Result::kOk);
   A2B_CHECK_EQ(info.productId, 0x0037);
+  A2B_CHECK(!info.fastI2c);         // I2CCFG 0x00, where the RJ45 image has 0x01.
+  A2B_CHECK_EQ(info.bPortType, 0);  // XLR.
+  A2B_CHECK_EQ(info.bCableDm, 40);
   // Its power figures: 5000 and 500 (mW), 200 (mA). The RJ45 image leaves them 0.
   A2B_CHECK_EQ(info.maxPowerMw, 5000);
   A2B_CHECK_EQ(info.minPowerMw, 500);
@@ -106,6 +169,52 @@ A2B_TEST(AnyModuleIdAndPowerConfigPass) {
   A2B_CHECK_EQ(info.powerConfig, 1);
   A2B_CHECK(info.localPower);
   A2B_CHECK_EQ(info.regCount, 0u);
+}
+
+A2B_TEST(OnlyDatarateIsTakenFromI2ccfg) {
+  // I2CCFG isn't a register setting: NodeSetup writes it, with DATARATE alone from the image.
+  std::vector<uint8_t> image = MinimalImage();
+  ModuleInfo info;
+  A2B_CHECK(ParseModuleInfo(image.data(), image.size(), info) == Result::kOk);
+  A2B_CHECK(!info.fastI2c);
+  image[0x7F] = 0x8E;  // DISI2C, FMPLUS, FRAMERATE and EACK.
+  A2B_CHECK(ParseModuleInfo(image.data(), image.size(), info) == Result::kOk);
+  A2B_CHECK(!info.fastI2c);
+  image[0x7F] = 0x01;
+  A2B_CHECK(ParseModuleInfo(image.data(), image.size(), info) == Result::kOk);
+  A2B_CHECK(info.fastI2c);
+  for (size_t i = 0; i < info.regCount; ++i) {
+    A2B_CHECK(info.reg[i] != reg::kI2ccfg);
+  }
+}
+
+A2B_TEST(TargetChipDecidesWhichNodesTakeTheImage) {
+  // Header 0x07-0x08: a named chip must be the node's; External and not stated take any.
+  std::vector<uint8_t> image = MinimalImage();
+  ModuleInfo info;
+  const uint16_t codes[] = {0x0000, 0xFFFF, kChipExternal, 0x2437, 0x2427, 0x1234};
+  const bool onAd2437[] = {true, true, true, true, false, false};
+  const bool onAd2427[] = {true, true, true, false, true, false};
+  for (size_t i = 0; i < 6; ++i) {
+    image[0x07] = static_cast<uint8_t>(codes[i]);
+    image[0x08] = static_cast<uint8_t>(codes[i] >> 8);
+    image[0x1F] = Crc8(image.data(), 0x1F);
+    A2B_CHECK(ParseModuleInfo(image.data(), image.size(), info) == Result::kOk);
+    A2B_CHECK_EQ(info.targetChip, codes[i] == 0xFFFF ? kChipNotStated : codes[i]);
+    A2B_CHECK_EQ(ImageFitsChip(info, 0x37), onAd2437[i]);
+    A2B_CHECK_EQ(ImageFitsChip(info, 0x27), onAd2427[i]);
+  }
+}
+
+A2B_TEST(BPortTypeAndCableLength) {
+  // 0x28 and 0x6C-0x6D, outside the header CRC and not checked.
+  std::vector<uint8_t> image = MinimalImage();
+  image[0x28] = 4;     // RJ45-CUSTOM-INV.
+  image[0x6C] = 0x14;  // 20 m, low byte first.
+  ModuleInfo info;
+  A2B_CHECK(ParseModuleInfo(image.data(), image.size(), info) == Result::kOk);
+  A2B_CHECK_EQ(info.bPortType, 4);
+  A2B_CHECK_EQ(info.bCableDm, 200);
 }
 
 A2B_TEST(PinCfgZeroIsWritten) {

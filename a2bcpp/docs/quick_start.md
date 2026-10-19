@@ -16,7 +16,8 @@ unplugged is taken out with the nodes after it, and found again when it is plugg
 in. What happens comes to the app as **events**, and the app can accept or reject each
 node. A host can run **several buses**, one `Network` each (below). **Routing** connects
 nodes' channel groups (AD243x crossbars and AD242x TDM order, in mixed chains too;
-[customisation cookbook](cookbook.md), "Routing"). Two-step links are not built yet. How it all runs inside is in the
+[customisation cookbook](cookbook.md), "Routing"). Two-step links are not supported
+([roadmap](../../ROADMAP.md)). How it all runs inside is in the
 [architecture guide](architecture.md).
 
 ## What an app does
@@ -117,7 +118,7 @@ class Listener : public a2b::NetworkListener {
  public:
   void OnEvent(a2b::Network& network, const a2b::Event& event) override {
     switch (event.type) {
-      case a2b::EventType::kNodeAdded:       // event.node is in the bus: network.SubNode(event.node)
+      case a2b::EventType::kNodeAdded:       // event.node is in the bus: network.SubNodeInfoAt(event.node)
       case a2b::EventType::kNodeRemoved:     // it left: event.removal (dropped, rejected, restart, stopped)
       case a2b::EventType::kNodeRejected:    // it wasn't taken in: event.rejection
       case a2b::EventType::kStateChanged:    // event.state
@@ -173,7 +174,8 @@ peripheral scripts (writes and waits, e.g. an ADAU1701's program) before the nod
 as found.
 
 To ignore the EEPROMs, e.g. to provision blank modules, the app gives the images itself
-through a `ModuleInfoSource`; no EEPROM is read then:
+through a `ModuleInfoSource` (an image file or array: `ImageModuleInfoSource`; writing the
+EEPROMs: [provisioning.md](provisioning.md)); no EEPROM is read then:
 
 ```cpp
 class Source : public a2b::ModuleInfoSource {
@@ -191,9 +193,8 @@ network.SetModuleInfoSource(&source);   // nullptr: back to the EEPROMs
 ```
 
 With `--ignore-eeprom` the example gives every node the settings the bench modules had
-in golden G13 (GPIO0-6 inputs, PINCFG 0) and power configuration CFG-4, which the
-bench's AD2437 modules detect. Give the power configuration the modules have: a
-different one is overridden.
+in golden G13 (GPIO0-6 inputs, PINCFG 0). Each node runs in its chip's own power
+configuration (CFG-4 on an AD2437, CFG-0 on the others), whatever an image says.
 
 ## Several buses
 
@@ -344,29 +345,27 @@ builds in the same names plus `-release`.
 
 The console is the Pico's uart0 (GP0 TX, GP1 RX) at 230400 baud: the Debug Probe's UART
 port, wired to GP0/GP1, is a COM port on the PC. `build/a2b-fixed-rp2040/a2b_fixed.uf2`
-can be copied to the Pico in BOOTSEL mode instead. Built with SDK 2.0.0: about 143 KB of
-flash and 28 KB of static RAM (`.data` and `.bss`; the rest of the RAM is the heap and
-the stack).
+can be copied to the Pico in BOOTSEL mode instead. Built with SDK 2.0.0 (Debug): about
+160 KB of flash and 29 KB of static RAM (`.data` and `.bss`; the rest of the RAM is the heap
+and the stack; [ram.md](ram.md) has the figures).
 
 On the bench, with an AB0310, an AB0312 and four more AD2437 modules on RJ45
 links: the five sub-nodes found and configured (the AB0312's image at sub-node 0, the
 generic one at the others), both connections routed with nothing typed (main node
 RESPCYCS 0x7B), 1460 bytes of heap in use.
 
-**Tried on hardware.** The Pi build has run on the bench with one AD2437 bus:
-- the chain of four found and configured from their EEPROMs;
-- a fifth module hot-plugged at the end, rejected for its EEPROM (a test pattern) and found with
-  `--ignore-eeprom`;
-- the last node switched off and on again (by its supply: the 24 V removed at the node before it),
-  removed and found again;
-- a chain of six, the link into the last one UTP and the others RJ45 (`--ignore-eeprom --utp 5`),
-  with the cable pulled and put back between nodes 4 and 5, between 3 and 4, and between the main
-  node and node 0: each time the nodes after the cut were removed and found again.
+#### The bench console
 
-An AD2428 main node (from Windows) and a peripheral script with units (the AB0020's codec program,
-`module N ab0020`) have run on the bench ([bench console](bench_console.md)). On the RP2040, the
-fixed app has run on the bench (above). **Not tried on hardware:** two buses and an AD2433 main node
-(simulator only), and the minimal example on its RP2040 board.
+`a2bcpp/examples/bench/rp2040` builds the bench console for the same board, wiring and
+UART: the `A2B>` commands typed on the Pico's console, without the ones that need files
+(`eeprom`, `i2cTrace`, boards and programs from files). It starts with `board AB0310`
+picked; type `start`. Build and program it as the fixed app, with `bench` for `fixed`
+(`build/a2b-bench-rp2040/a2b_bench.elf`), or from the A2B menu's "RP2040 bench" section.
+The [bench console guide](bench_console.md#on-the-rp2040) has the rest.
+
+What has run on hardware, on each host, is in the
+[roadmap](../../ROADMAP.md#tested-on-hardware); the RP2040 minimal example
+hasn't yet.
 
 ### Windows (USBi)
 
@@ -405,5 +404,12 @@ with the same export, and is part of the test suite
   module-info sources, events, the node review, interrupts, timings, several buses.
 - [Timing](timing.md): every wait and timeout.
 - [Porting guide](porting.md): a `Platform` for another host, and the USBi platform.
-- [Bench console](bench_console.md): the stack from typed commands, on Windows (USBi) and
-  Linux.
+- [Bench console](bench_console.md): the stack from typed commands, on Windows (USBi),
+  Linux and the RP2040.
+- [Main- and sub-node programming](main_and_sub_node_programming.md): where each node's
+  settings come from, in short.
+- [Provisioning](provisioning.md): the module-info image, the image tool and writing EEPROMs.
+- [Hardware notes](hardware_notes.md): what the chips, boards and adapters taught us.
+- [Design decisions](decisions.md): requirements, rationale, policies, and the designs not
+  built yet.
+- [Testing](testing.md) and [RAM](ram.md): the tests, the simulator, and the RP2040 figures.

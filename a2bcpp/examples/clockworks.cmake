@@ -1,12 +1,12 @@
 # What the examples that use Clockworks boards share: the checks on tools/SS+reference and
-# the clockworks_boards library (examples/bench/clockworks_boards.cpp, sigma_xml.cpp and the
-# codec programs built in as text). Included by the bench console, the fixed app and the
-# fixed app's RP2040 project. Needs A2B_REPO_ROOT, A2B_SS_REFERENCE_HEADERS and
+# the clockworks_boards library (examples/clockworks: clockworks_boards.cpp, sigma_xml.cpp and
+# the codec programs built in as text). Included by a2bcpp/CMakeLists.txt for the desktop
+# examples and by the bench and fixed RP2040 projects. Needs A2B_REPO_ROOT, A2B_SS_REFERENCE_HEADERS and
 # A2B_SS_PLUS_HEADERS (a2bcpp/CMakeLists.txt) and the a2bcpp and a2bcpp_options targets.
 # ClockWorks Signal Processing LLC
 
 set(A2B_SS_REFERENCE ${A2B_REPO_ROOT}/tools/SS+reference)
-set(A2B_CLOCKWORKS_SOURCE_DIR ${CMAKE_CURRENT_LIST_DIR}/bench)
+set(A2B_CLOCKWORKS_SOURCE_DIR ${CMAKE_CURRENT_LIST_DIR}/clockworks)
 
 # A program that compiles tools/SS+reference's exports must build the SigmaStudio+ import
 # with the reference ADI headers (tools/SS+reference/adi), or the import would read their
@@ -29,23 +29,21 @@ endfunction()
 
 # The library a2b_clockworks_boards: the Clockworks board profiles, their module-info
 # images and BoardModuleSource, with the codec programs built in as text
-# (bench_files.cpp.in, generated here). A changed codec program reconfigures.
+# (clockworks_files.cpp.in, generated here). A changed codec program reconfigures.
 function(a2b_add_clockworks_boards)
   if(TARGET a2b_clockworks_boards)
     return()
   endif()
   set(ab0020 ${A2B_SS_REFERENCE}/2x_AB0020_EVM_with_2437)
   file(READ ${ab0020}/AB0020-sub-node-ADAU1761.xml A2B_AB0020_SUB_NODE_XML)
-  configure_file(${A2B_CLOCKWORKS_SOURCE_DIR}/bench_files.cpp.in
-                 ${CMAKE_CURRENT_BINARY_DIR}/bench_files.cpp @ONLY)
+  configure_file(${A2B_CLOCKWORKS_SOURCE_DIR}/clockworks_files.cpp.in
+                 ${CMAKE_CURRENT_BINARY_DIR}/clockworks_files.cpp @ONLY)
   set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
                ${ab0020}/AB0020-sub-node-ADAU1761.xml)
   add_library(a2b_clockworks_boards STATIC
       ${A2B_CLOCKWORKS_SOURCE_DIR}/clockworks_boards.cpp
       ${A2B_CLOCKWORKS_SOURCE_DIR}/sigma_xml.cpp
-      ${CMAKE_CURRENT_BINARY_DIR}/bench_files.cpp)
-  # The stack's CRC-8 (src/crc8.h), for the module images' peripheral scripts.
-  target_include_directories(a2b_clockworks_boards
-      PUBLIC ${A2B_CLOCKWORKS_SOURCE_DIR} PRIVATE ${A2B_REPO_ROOT}/a2bcpp/src)
+      ${CMAKE_CURRENT_BINARY_DIR}/clockworks_files.cpp)
+  target_include_directories(a2b_clockworks_boards PUBLIC ${A2B_CLOCKWORKS_SOURCE_DIR})
   target_link_libraries(a2b_clockworks_boards PUBLIC a2bcpp PRIVATE a2bcpp_options)
 endfunction()

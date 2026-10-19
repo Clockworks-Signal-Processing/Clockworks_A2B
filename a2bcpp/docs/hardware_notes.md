@@ -91,10 +91,14 @@ two faces.
    "Data-Only and Power-Only Bus Operation"). A node on its own supply that still draws the bias
    current (its A side DC-coupled) is found over a UTP link too.
 
-The same happened with an AD2437 behind an AD2427. A `Custom` link originally left the switch
-open but never set SWBYP, so no Custom link could have worked; a link not powered over the A2B
-pair now sets SWBYP on the node before it, and the simulator models it (`LinkSpec::isolated`).
-The bench console prints a hint when the last sub-node reports an open line.
+The same happens with an AD2437 behind an AD2427. A link not powered over the A2B pair must set
+SWBYP on the node before it: leaving the switch open without SWBYP gives no link at all (an early
+`Custom` link did that). The simulator models it (`LinkSpec::isolated`), and the bench console
+prints a hint when the last sub-node reports an open line.
+
+**No image can say that the next board has its own supply:** it is the downstream board's
+property, not the upstream module's. The app sets the link (`link N custom` in the bench
+console) on every start; `link all default` clears it (`link all board` keeps it).
 
 ### XCVRBINV and the order of writes
 A node's XCVRBINV is set before its SWCTL.ENSW, and every later CONTROL write (NEWSTRCT, for
@@ -102,6 +106,13 @@ example) must keep it. DSCDONE comes only when polarity, ENSW (or the node's own
 response-cycle window are right. A node that is discovered but on the wrong polarity is found,
 yet nothing behind it is. Boards differ: the AB0020 is UTP on both ports, although the export
 copied from the reference board sets XCVRBINV, so its links must all be UTP.
+
+- An RJ45-to-UTP adapter on the main node's output makes the link UTP: no XCVRBINV, whatever
+  the board's export says.
+- The AB0310 with an AB0331 (a UTP link through a UTP/RJ45 adapter) needs XCVRBINV off on the
+  main node.
+- A chain that mixes connection types can need a different value on each link. Discovery
+  doesn't try the other polarity: on the wrong one, the main node is found and nothing else.
 
 ### Discovery
 - **NODEADR points at node n - 1** when DISCVRY is written for node n (TRMs, DISCVRY register).
@@ -117,6 +128,10 @@ copied from the reference board sets XCVRBINV, so its links must all be UTP.
   length limit (the 32-byte limits are SPI's). The host's I2C must allow clock stretching.
 - **I2CCFG.FRAMERATE** (1 = 44.1 kHz, sub-nodes only) is set by the stack when
   `routing.frameRateHz` is 44100; the EEPROM read before it runs about 8% slow, harmlessly.
+- **I2CCFG.DATARATE** (1 = 400 kHz, sub-nodes only) is set by the stack when the node's image
+  asks for it. The write comes after the image's start and groups are read at 100 kHz, and
+  before the peripheral programs ([provisioning.md](provisioning.md)). Remote writes take about
+  113 µs a byte at 100 kHz and 45 µs at 400 kHz (TRM, remote I2C latency).
 
 ### Drops and power faults
 - A dropped node NAKs; the stack retries a read 2-4 times (the TRMs' advice; it uses 3), takes the
@@ -144,8 +159,19 @@ copied from the reference board sets XCVRBINV, so its links must all be UTP.
   The TRMs apply a new structure within 5 superframes (0.1 ms at 48 kHz), and the main node holds
   off its own INTTYPE reads of the sub-nodes meanwhile, so an INTTYPE read inside the settle could
   give 0x80.
+- **Cable lengths.** Give the real length, or leave the 4 m default on short cables. A
+  declared length *longer* than the cable breaks discovery: 10 m declared on a 1 m link needed
+  several tries and rejected a node, and 15 m or 20 m found nothing past sub-node 0. The real
+  lengths (4 m, then 1 m) moved the main node's RESPCYCS window by one cycle and the sub-nodes'
+  values by one or two. 110 ft (33.5 m) of cable ran clean on an AD2428 chain with
+  SigmaStudio+, past the data sheets' 15 m (AD242x) and 30 m (AD2437), so the stack enforces
+  no limit: it refuses only a length whose response cycles can't be written. A length changed
+  on a running, routed bus replans at once; with a wrong length that plan's write once failed
+  on an I2C error after NEWSTRCT and the chain dropped and was found again. Set lengths before
+  `Start()`.
 - **Response cycles** use the AD2431-35 TRM's Formula B (integer arithmetic, as the RP2040 has no
-  floating point). The cable length defaults to 4 m per hop; each node adjusts its response time
+  floating point). The cable length is 4 m per hop unless the app or the upstream node's image
+  (its B-side cable, in metres) gives one; each node adjusts its response time
   during discovery (-4 to +15 bit times). The AD2437 TRM Rev 0.2 subtracts 7 instead of 8, and
   one cable delay instead of two, in RESPCYCS_UP, and rounds the main node's value down: under
   one cycle apart. RESPOFFS 254 (SigmaStudio+'s "accurate", used unless "conservative" is set)
@@ -162,7 +188,7 @@ copied from the reference board sets XCVRBINV, so its links must all be UTP.
   between. Formula B covers "AD2426/27/28/3x or mixed" systems.
 - **I2S port off means no SYNC.** A sub-node image that leaves the I2S port off gives "no SYNC"
   from that node. The routing refuses a connection whose channels aren't on a node's port
-  (`RoutingError::kNoSuchChannel`), so this is now caught instead of routed.
+  (`RoutingError::kNoSuchChannel`).
 - **Sample rates.** A sub-node's 96 or 192 kHz is its own port at 2x or 4x the superframe rate
   (I2SRATE 5 or 6), so a 96 kHz stereo stream is four slots per superframe on that node.
 
@@ -189,12 +215,35 @@ NODEADR and CHIP may be written, and the `Transport` rewrites them before its ne
 
 - **AB0020** (main or sub-node, ADAU1761 codec at I2C 0x39): UTP on both ports. The codec gives
   the AD2437 its SYNC and bit clock, so it is programmed first. SPI must be off in its image.
-  Its sub-node program is 38 writes of 6076 bytes in all (the largest 1732 B; about 0.16 s at
-  100 kHz), one 100 ms delay and one read of its PLL register, which a peripheral script skips.
+  Its sub-node program is 38 writes of 6076 bytes in all (the largest 1732 B, with its
+  sub-address), one 100 ms delay and one read of its PLL register, which a peripheral script
+  skips. Behind an ADI USBi the largest write took 375 ms at 100 kHz and 281 ms at 400 kHz,
+  at the edge of the USBi's status window (Host adapters, below), so the image tool's example
+  splits it in two and sets 400 kHz; [timing](timing.md) has the figures. On the Pi the whole
+  program takes 1.26 s at 400 kHz and 2.06 s at 100 kHz.
   A codec needs its program again after a re-plug unless the module's peripheral script (or
   EEPROM) supplies it.
 - **`ignoreEEPROM 1`'s image** turns the I2S port on but programs no codec: an AB0020 sub-node
-  needs `module N ab0020` for its codec program.
+  needs `module N AB0020` for its codec program, or its EEPROM written with the image tool's
+  `AB0020.dat`.
+- **The Clockworks boards' EEPROM is on the base board** (AB0020, AB0310, AB0312); the plug-in
+  A2B module has none, so their images name no chip (target chip External) and the stack
+  reads the chip from the module. An AB0312's RJ45 B port is two-step with an AD2437 module
+  (which the stack doesn't run: the chain ends there unless the link is set, `link N rj45`)
+  and UTP with any other ([provisioning](provisioning.md)).
+- **A node's power configuration is its chip's, not its image's.** An image holds one power
+  configuration, but a board with a plug-in module may carry an AD2437 (CFG-4) or an AD2428 or
+  AD2433 (CFG-0). Taking the image's once gave an AD2428 module CFG-4, and would have
+  overridden an AD2433's; the stack now uses the chip's own and ignores the image's byte
+  ([decisions](decisions.md#policy-decisions)).
+- **The Clockworks boards' EEPROM** is a Microchip 24FC256 or equivalent: 32 KB, 64-byte
+  write pages, 5 ms write cycle, 16-bit addresses, at 0x50. ADI's specification recommends
+  "256KB" with 2-byte addresses and names the M24512 (64 KB): it means 256 Kbit.
+- **The EEPROM's write cycle, seen through a sub-node:** it is busy about 13 ms after a page
+  write starts. At the bench console's default 6 ms wait, nearly every page's first write is
+  NAKed and the retry 2 ms later succeeds (on the Pi, 17 retries for 18 pages); the main node
+  raises no I2C error interrupt for these NAKs. Behind a USBi no NAK shows at all: each transfer
+  takes about 8 ms, longer than the write cycle ([provisioning](provisioning.md)).
 - **AB0310/AB0312:** RJ45 links (XCVRBINV); the AB0020's I2S settings; SYNC and BCLK from the
   board; BCLK is for 32-bit slots.
 - **AB0204** (an AD2427 with four PDM MEMS microphones): the microphones' 3.072 MHz clock on the
@@ -217,13 +266,17 @@ NODEADR and CHIP may be written, and the `Transport` rewrites them before its ne
   been power-cycled; the bench console's hint names the address.
 - **Known limit, as in ADI's USBi PAL:** the status is polled for about 0.3 s, so a transfer
   clock-stretched longer (a 4 KB script unit behind a 100 kHz sub-node port) reads as failed.
-  Watch for it when writing larger module images.
+  The image tool warns about a unit over 2 KB, and the bench console's EEPROM reads and writes
+  stay small (256 and 66 bytes).
+- **USBi transfer time:** each transfer costs about 8 ms whatever its length, on top of about
+  215 µs a byte at 100 kHz ([timing](timing.md)). It hides an EEPROM's write-cycle NAKs (above),
+  so test write-cycle handling on the Pi or RP2040.
 - **Raspberry Pi (i2c-dev):** a write followed by a read must be one `ioctl(I2C_RDWR)` with two
   messages, and a read alone one `ioctl` ([setup_pi.md](setup_pi.md)). The Pi has no reset or IRQ
   line wired on the reference board: the stack resets the main node in software and polls.
   The ADI stack's `A2B_FEATURE_OPTIMAL_RESPCYCS` search was needed for cables longer than 5 m;
   a short-cable bench passes either way.
-- **RP2040:** the fixed app runs on the AB0310 board, with the Pico SDK's malloc panicking when
-  out of memory. The standalone Pico projects find the SDK through `PICO_SDK_PATH`, not the VS
-  Code extension; the console UART runs at 230400.
+- **RP2040:** the fixed app and the bench console run on the AB0310 board, with the Pico SDK's
+  malloc panicking when out of memory. The Pico projects take the SDK from `PICO_SDK_PATH` if
+  it is set, else from the VS Code extension's `~/.pico-sdk`; the console UART runs at 230400.
 - **Host I2C must allow clock stretching** (sub-node peripherals stretch the clock).

@@ -25,6 +25,11 @@
  * sub-nodes (all three data sheets; a mixed chain is held to the most restrictive, also
  * 16); BoardPolicy::maxSubNodes sets the bus's own limit.
  *
+ * Power configuration: each chip has one. The AD2437 data sheet: "supports one power
+ * configuration: CFG-4". The AD2431W-35W data sheet, Table 1: CFG-0 for the AD2433 (an
+ * external PMOS on the high side; CFG-4 uses NMOS on both sides). The AD242x data sheet and
+ * TRM have no power configurations: CFG-0.
+ *
  * I2S/TDM: the same Table 1 gives the AD2427 none ("I2S/TDM support: No"; its pin list:
  * "for the AD2426 and AD2427, the DRX0 function is not supported", and likewise DRX1), only
  * its four PDM microphone inputs on DRX0/DRX1, clocked from BCLK or PDMCLK/IO7. The AD2428,
@@ -40,20 +45,20 @@
 namespace a2b {
 namespace {
 
-// TODO(test on hardware): an AD2433 main node; AD2437 and AD2428 ones have run on the bench.
+// TODO(test on hardware): an AD2433 main node.
 // TODO(datasheet): the AD2437 TRM (rev 0.2) does not describe spread-spectrum clocking;
 // ADI's stack programs it (PLLCTL) on AD243x main nodes.
 constexpr ChipCaps kChipTable[] = {
     // product, name, family, SPI, xbar, MSINV, spread, VMTR, page 1, switch config,
-    // switch mode, main-node capable, I2S/TDM
+    // switch mode, main-node capable, I2S/TDM, power configuration
     {0x27, "AD2427", ChipFamily::kAd242x, false, false, false, true, false, false, false, 0x00,
-     false, false},
+     false, false, 0},
     {0x28, "AD2428", ChipFamily::kAd242x, false, false, false, true, false, false, false, 0x00,
-     true, true},
+     true, true, 0},
     {0x33, "AD2433", ChipFamily::kAd243x, true, true, true, true, true, true, true, 0x10, true,
-     true},
+     true, 0},
     {0x37, "AD2437", ChipFamily::kAd243x, true, true, true, true, true, true, true, 0x10, true,
-     true},
+     true, 4},
 };
 
 }  // namespace

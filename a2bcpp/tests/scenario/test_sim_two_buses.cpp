@@ -5,7 +5,7 @@
  *        start-up, probes, chain checks, broadcasts, drops, restarts, reset and IRQ lines,
  *        events and rejections stay its own; a listener, source or factory may serve both.
  *
- * G12 (two buses on the bench) is not captured yet, so two buses are simulator-only.
+ * Two buses have not run on hardware: this scenario is their only test.
  *
  * Copyright 2026 by ClockWorks Signal Processing LLC
  * Licensed under the terms found in CLOCKWORKS_SOFTWARE_LICENSE.txt and included here by reference.
@@ -136,11 +136,11 @@ A2B_TEST(Scenario15BothBusesFindTheirOwnChains) {
   // Each Network reports its own nodes, with its bus index, and each listener gets only
   // its own bus's events.
   for (NodeAddr n = 0; n < 3; ++n) {
-    const SubNodeInfo* info = buses.network0.SubNode(n);
+    const SubNodeInfo* info = buses.network0.SubNodeInfoAt(n);
     A2B_CHECK(info != nullptr && info->identity.chipId[5] == 0x10 + n && info->identity.bus == 0);
   }
   for (NodeAddr n = 0; n < 2; ++n) {
-    const SubNodeInfo* info = buses.network1.SubNode(n);
+    const SubNodeInfo* info = buses.network1.SubNodeInfoAt(n);
     A2B_CHECK(info != nullptr && info->identity.chipId[5] == 0x20 + n && info->identity.bus == 1);
   }
   const std::vector<Event> added0 = buses.listener0.Of(EventType::kNodeAdded);
@@ -474,8 +474,8 @@ A2B_TEST(SharedSourceAndFactory) {
   A2B_CHECK(buses.StartWith(2, 1));
   A2B_CHECK_EQ(source.calls[0], 2);
   A2B_CHECK_EQ(source.calls[1], 1);
-  A2B_CHECK_EQ(buses.network0.SubNode(1)->moduleInfo.productId, 0x0037);
-  A2B_CHECK_EQ(buses.network1.SubNode(0)->moduleInfo.productId, 0x0038);
+  A2B_CHECK_EQ(buses.network0.SubNodeInfoAt(1)->moduleInfo.productId, 0x0037);
+  A2B_CHECK_EQ(buses.network1.SubNodeInfoAt(0)->moduleInfo.productId, 0x0038);
   A2B_CHECK(buses.network0.NodeObject(0)->TypeTag() == 0xB0);
   A2B_CHECK(buses.network0.NodeObject(1)->TypeTag() == 0xB0);
   A2B_CHECK(buses.network1.NodeObject(0)->TypeTag() == 0xB1);
@@ -525,8 +525,8 @@ A2B_TEST(TwoMainNodeChipsOnOneHost) {
   buses.bus1.Plug(SubOf(0x37, 0x21));
   buses.bus1.Plug(SubOf(0x28, 0x22));
   A2B_CHECK(buses.StartWith(3, 3));
-  A2B_CHECK_EQ(buses.network0.SubNode(1)->identity.productId, 0x27);
-  A2B_CHECK_EQ(buses.network1.SubNode(2)->identity.productId, 0x28);
+  A2B_CHECK_EQ(buses.network0.SubNodeInfoAt(1)->identity.productId, 0x27);
+  A2B_CHECK_EQ(buses.network1.SubNodeInfoAt(2)->identity.productId, 0x28);
   // Each main node's switch in its own chip's mode, with ENSW.
   A2B_CHECK_EQ(buses.bus0.Main().Reg(reg::kSwctl), 0x11);
   A2B_CHECK_EQ(buses.bus1.Main().Reg(reg::kSwctl), 0x01);

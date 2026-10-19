@@ -142,7 +142,7 @@ A2B_TEST(HelpBoardsAndRefusals) {
   A2B_CHECK(Has(help, "importCon S:G D:G"));
   const std::string boards = Run(console, "board");
   A2B_CHECK(Has(boards, "ref "));
-  A2B_CHECK(Has(boards, "ab0020"));
+  A2B_CHECK(Has(boards, "AB0020"));
   A2B_CHECK(Has(boards, "Board: none"));
   A2B_CHECK(Has(Run(console, "start"), "No board"));
   A2B_CHECK(Has(Run(console, "frobnicate"), "Unknown command 'frobnicate'"));
@@ -163,12 +163,17 @@ A2B_TEST(BuiltInBoardBringsUpTheChain) {
   PlugWithEeprom(bus, Chip(0x37, 2));
   BenchConsole console(sim);
   A2B_CHECK(Has(Run(console, "BOARD Ref"), "Board ref, chain 0"));
+  // The bench's links are all RJ45, single-step: the board's, not the images' B ports (UTP).
+  A2B_CHECK(Has(Run(console, "link all board"),
+                "Every link not set with link N is the board's, whatever the images' B ports say "
+                "(the export's, at start)"));
   A2B_CHECK(Has(Run(console, "start"), "Main node AD2437 at 0x68 (sub-nodes 0x69)"));
   const std::string events = RunFor(sim, console, 2000);
   A2B_CHECK(Has(events, "bus: running"));
   A2B_CHECK(Has(events,
                 "sub-node 1: AD2437 version 0x21, chip ID 000000000002, module "
-                "00AD:0037, CFG-4, 0 peripheral block(s), link rj45 (board)"));
+                "00AD:0037, CFG-4, 0 peripheral block(s), link rj45 (board)\n"));
+  A2B_CHECK(Has(events, "    image for not stated; B port UTP, its cable not given\n"));
   const std::string status = Run(console, "status");
   A2B_CHECK(Has(status, "Bus: running, main node AD2437 at 0x68, 2 sub-node(s)"));
   A2B_CHECK(Has(status, "Module info: the EEPROMs"));
@@ -182,11 +187,22 @@ A2B_TEST(AbBoardRunsItsCodecScript) {
   sim::Bus& bus = sim.AddBus(0x68, 0x69, Ad2437());
   bus.StartRunning();
   BenchConsole console(sim);
-  Run(console, "board ab0020");
+  Run(console, "board AB0020");
   A2B_CHECK(Has(Run(console, "start"), "40 host script operation(s) (40 before the main node)"));
   // No codec at 0x39 on this simulated host bus: the script's first write fails.
   const std::string events = RunFor(sim, console, 500);
   A2B_CHECK(Has(events, "error: the board's host script failed"));
+}
+
+A2B_TEST(BoardNamesTakeAnyCase) {
+  // Board names are upper case (AB0020); typed in lower case they still work.
+  sim::Simulator sim;
+  sim.AddBus(0x68, 0x69, Ad2437());
+  BenchConsole console(sim);
+  A2B_CHECK(Has(Run(console, "board ab0020"), "Board AB0020, chain 0"));
+  A2B_CHECK(Has(Run(console, "status"), "Board: AB0020"));
+  A2B_CHECK(Has(Run(console, "module 0 ab0312"), "Sub-node 0: AB0312"));
+  A2B_CHECK(Has(Run(console, "module"), "module 0 AB0312"));
 }
 
 /** A codec on the host bus that takes every transfer. */
@@ -218,7 +234,7 @@ A2B_TEST(AbBoardLinksAreUtp) {
   PlugBlank(bus, Chip(0x37, 1), false);
   PlugBlank(bus, Chip(0x37, 2), false);
   BenchConsole console(sim);
-  Run(console, "board ab0020");
+  Run(console, "board AB0020");
   Run(console, "ignoreEEPROM 1");
   A2B_CHECK(Has(Run(console, "start"), "links utp by default"));
   const std::string events = RunFor(sim, console, 3000);
@@ -244,7 +260,7 @@ A2B_TEST(ConnectionsFromTheConsole) {
   PlugBlank(bus, Chip(0x37, 1), false);
   PlugBlank(bus, Chip(0x37, 2), false);
   BenchConsole console(sim);
-  Run(console, "board ab0020");
+  Run(console, "board AB0020");
   Run(console, "ignoreEEPROM 1");
   A2B_CHECK(Has(Run(console, "listCon"), "No connections"));
   A2B_CHECK(Has(Run(console, "routing"), "No routing written"));
@@ -295,7 +311,9 @@ A2B_TEST(ConnectionsFromTheConsole) {
   A2B_CHECK(Has(Run(console, "group main rx 1 32"), "group main|image rx|tx ID CHANNELS"));
   A2B_CHECK(Has(Run(console, "group sub rx 1 0"), "group main|image rx|tx ID CHANNELS"));
   // Cable lengths: the board's 4 m, one link's own, a routed bus planned again.
-  A2B_CHECK(Has(Run(console, "cable"), "No cables set: every link is the board's (4.0 m)"));
+  A2B_CHECK(Has(Run(console, "cable"),
+                "No cables set: each link's is the image's of the node before it, else the "
+                "board's (4.0 m)"));
   A2B_CHECK(Has(Run(console, "addCon m:0 0:0"), "Connected"));
   Run(console, "applyRouting");
   RunFor(sim, console, 100);
@@ -305,12 +323,16 @@ A2B_TEST(ConnectionsFromTheConsole) {
   A2B_CHECK(Has(Run(console, "cable"), "cable 0 12.5 m"));
   A2B_CHECK(Has(Run(console, "status"), "Cables: 4.0 m by default; into 0 12.5 m"));
   A2B_CHECK(Has(Run(console, "cable 1 30"), "Cable into sub-node 1: 30.0 m"));
-  A2B_CHECK(Has(Run(console, "cable 1 30.1"), "cable N METRES|default"));
+  A2B_CHECK(Has(Run(console, "cable 1 33.5"), "Cable into sub-node 1: 33.5 m"));  // 110 ft
+  A2B_CHECK(Has(Run(console, "cable 1 6553.6"), "cable N METRES|default"));
   A2B_CHECK(Has(Run(console, "cable 1 0"), "cable N METRES|default"));
   A2B_CHECK(Has(Run(console, "cable 1 2.55"), "cable N METRES|default"));
   A2B_CHECK(Has(Run(console, "cable 16 4"), "cable N METRES|default"));
-  A2B_CHECK(Has(Run(console, "cable 1 default"), "Cable into sub-node 1: the board's (4.0 m)"));
-  A2B_CHECK(Has(Run(console, "cable all default"), "Every cable is the board's (4.0 m)"));
+  A2B_CHECK(
+      Has(Run(console, "cable 1 default"),
+          "Cable into sub-node 1: the image's of the node before it, else the board's (4.0 m)"));
+  A2B_CHECK(Has(Run(console, "cable all default"),
+                "Every cable is the image's of the node before it, else the board's (4.0 m)"));
   A2B_CHECK_EQ(console.Bus().CableLength(0), 40);
 }
 
@@ -325,7 +347,7 @@ A2B_TEST(MuteAndRouteCommandsFromTheConsole) {
   PlugBlank(bus, Chip(0x37, 1), false);
   PlugBlank(bus, Chip(0x37, 2), false);
   BenchConsole console(sim);
-  Run(console, "board ab0020");
+  Run(console, "board AB0020");
   Run(console, "ignoreEEPROM 1");
   A2B_CHECK(Has(Run(console, "mute"), "The bus is not muted"));
   A2B_CHECK(Has(Run(console, "muteMode"), "Routing mute: local"));
@@ -390,7 +412,7 @@ A2B_TEST(LocalMuteInAMixedChainFromTheConsole) {
   PlugBlank(bus, Chip(0x37, 1), false);
   PlugBlank(bus, Chip(0x28, 2), false);
   BenchConsole console(sim);
-  Run(console, "board ab0020");
+  Run(console, "board AB0020");
   Run(console, "ignoreEEPROM 1");
   Run(console, "group image rx 1 1");
   Run(console, "start");
@@ -436,20 +458,32 @@ A2B_TEST(Ab0310WithAnAb0312AndUnknownNodes) {
   PlugBlank(bus, Chip(0x37, 2), true);
   PlugBlank(bus, Chip(0x37, 3), true);
   BenchConsole console(sim);
-  A2B_CHECK(Has(Run(console, "board"), "ab0310"));
-  Run(console, "board ab0310");
+  A2B_CHECK(Has(Run(console, "board"), "AB0310"));
+  Run(console, "board AB0310");
   Run(console, "ignoreEEPROM 1");
-  A2B_CHECK(Has(Run(console, "module"), "ab0312   AB0312: I2S on a header"));
-  A2B_CHECK(Has(Run(console, "module 0 ab0312 file.xml"), "module N|all ab0020|ab0312"));
-  A2B_CHECK(Has(Run(console, "module 0 ab0312"), "Sub-node 0: ab0312"));
+  A2B_CHECK(Has(Run(console, "module"), "AB0312   AB0312: I2S on a header"));
+  A2B_CHECK(Has(Run(console, "module 0 AB0312 file.xml"), "module N|all AB0020|AB0312"));
+  A2B_CHECK(Has(Run(console, "module 0 AB0312"), "Sub-node 0: AB0312"));
   A2B_CHECK(Has(Run(console, "start"),
                 "0 host script operation(s) (0 before the main node), links rj45 by default"));
-  const std::string events = RunFor(sim, console, 3000);
+  // The AB0312's B port is ADI's RJ45: on an AD2437, two-step, which isn't run yet.
+  std::string events = RunFor(sim, console, 3000);
+  A2B_CHECK_EQ(console.Bus().SubNodeCount(), 1);
+  A2B_CHECK(Has(events, "    image for External; B port RJ45, its cable not given\n"));
+  bool logged = false;
+  for (const std::string& line : sim.LogLines()) {
+    logged = logged || Has(line, "link to sub-node 1 is two-step (unsupported); not probed");
+  }
+  A2B_CHECK(logged);
+  // Every link the board's (RJ45, single-step).
+  Run(console, "link all board");
+  Run(console, "start");
+  events = RunFor(sim, console, 3000);
   A2B_CHECK_EQ(console.Bus().SubNodeCount(), 3);
-  A2B_CHECK(Has(events, "link rj45 (board)"));
-  A2B_CHECK(!Has(events, "utp"));
-  A2B_CHECK(Has(events, "    ab0312\n"));
-  A2B_CHECK(Has(Run(console, "status"), "Boards: sub-node 0 ab0312"));
+  A2B_CHECK(Has(events, "link rj45 (board)\n"));
+  A2B_CHECK(!Has(events, "link utp"));
+  A2B_CHECK(Has(events, "    AB0312\n"));
+  A2B_CHECK(Has(Run(console, "status"), "Boards: sub-node 0 AB0312"));
   // The AB0312's registers, as its project sets them; the others the console's image.
   A2B_CHECK_EQ(bus.Sub(0).Reg(0x41), 0xE0);
   A2B_CHECK_EQ(bus.Sub(0).Reg(0x42), 0x11);
@@ -471,7 +505,7 @@ A2B_TEST(Ab0310WithAnAb0312AndUnknownNodes) {
 }
 
 A2B_TEST(Ab0020ModuleFromTheConsole) {
-  // `module all ab0020`: an AB0020 at sub-node 0 (no EEPROM) gets the bench project's
+  // `module all AB0020`: an AB0020 at sub-node 0 (no EEPROM) gets the bench project's
   // settings, its groups and its built-in ADAU1761 program at set-up; an AD2427 at sub-node 1
   // (no AB0020 has one) reads its EEPROM instead.
   const std::string file =
@@ -491,30 +525,30 @@ A2B_TEST(Ab0020ModuleFromTheConsole) {
   spec.chip = Chip(0x27, 2);
   bus.Plug(spec).AddEeprom(0x50).Load(sim::MakeModuleInfoImage(sim::ModuleInfoHeader()));
   BenchConsole console(sim);
-  Run(console, "board ab0020");
+  Run(console, "board AB0020");
   const std::string none = Run(console, "module");
-  A2B_CHECK(Has(none, "No boards set"));
-  A2B_CHECK(Has(none, "ab0020   AB0020: ADAU1761"));
-  A2B_CHECK(Has(Run(console, "module 0 ab0020 /no/such/file.xml"),
+  A2B_CHECK(Has(none, "No boards or images set"));
+  A2B_CHECK(Has(none, "AB0020   AB0020: ADAU1761"));
+  A2B_CHECK(Has(Run(console, "module 0 AB0020 /no/such/file.xml"),
                 "Can't read the codec program: can't open /no/such/file.xml"));
-  A2B_CHECK(Has(Run(console, "module 16 ab0020"), "module N|all ab0020|ab0312|ab0204 [FILE]"));
-  A2B_CHECK(Has(Run(console, "module 0 ab0021"), "module N|all ab0020|ab0312|ab0204 [FILE]"));
+  A2B_CHECK(Has(Run(console, "module 16 AB0020"), "module N|all AB0020|AB0312|AB0204 [FILE]"));
+  A2B_CHECK(Has(Run(console, "module 0 ab0021"), "module N|all AB0020|AB0312|AB0204 [FILE]"));
   // A file in place of the built-in program: the same program here.
-  A2B_CHECK(Has(Run(console, ("module 0 ab0020 " + file).c_str()),
-                "Sub-node 0: ab0020, ADAU1761 program 38 writes, 6076 bytes, 1 wait(s)"));
-  A2B_CHECK(Has(Run(console, "module"), ("module 0 ab0020, ADAU1761 program " + file).c_str()));
-  const std::string set = Run(console, "module all ab0020");
-  A2B_CHECK(Has(set, "Every sub-node: ab0020, ADAU1761 program 38 writes, 6076 bytes, 1 wait(s)"));
+  A2B_CHECK(Has(Run(console, ("module 0 AB0020 " + file).c_str()),
+                "Sub-node 0: AB0020, ADAU1761 program 38 writes, 6076 bytes, 1 wait(s)"));
+  A2B_CHECK(Has(Run(console, "module"), ("module 0 AB0020, ADAU1761 program " + file).c_str()));
+  const std::string set = Run(console, "module all AB0020");
+  A2B_CHECK(Has(set, "Every sub-node: AB0020, ADAU1761 program 38 writes, 6076 bytes, 1 wait(s)"));
   A2B_CHECK(Has(set, "1 read action(s) skipped"));
-  A2B_CHECK(Has(Run(console, "module"), "module 0 ab0020, ADAU1761 program the board's default"));
+  A2B_CHECK(Has(Run(console, "module"), "module 0 AB0020, ADAU1761 program the board's default"));
   Run(console, "start");
   const std::string events = RunFor(sim, console, 3000);
   A2B_CHECK_EQ(console.Bus().SubNodeCount(), 2);
-  A2B_CHECK(Has(events, "ab0020: ADAU1761 programmed from the board's default (38 writes)"));
+  A2B_CHECK(Has(events, "AB0020: ADAU1761 programmed from the board's default (38 writes)"));
   A2B_CHECK(Has(events, "1 peripheral block(s)"));
   A2B_CHECK(Has(events, "    rx G0 0-1, tx G0 0-1"));
-  A2B_CHECK(Has(events, "set as ab0020, which isn't made with an AD2427"));
-  A2B_CHECK(Has(Run(console, "status"), "Boards: sub-node 0 ab0020, 1 ab0020, 2 ab0020"));
+  A2B_CHECK(Has(events, "set as AB0020, which isn't made with an AD2427"));
+  A2B_CHECK(Has(Run(console, "status"), "Boards: sub-node 0 AB0020, 1 AB0020, 2 AB0020"));
   // The AB0020's registers, as the bench project sets them.
   A2B_CHECK_EQ(bus.Sub(0).Reg(0x41), 0xE0);
   A2B_CHECK_EQ(bus.Sub(0).Reg(0x42), 0x11);
@@ -557,8 +591,8 @@ A2B_TEST(Ab0020ModuleFromTheConsole) {
     A2B_CHECK(audio.Played(0, 0) == sim::Signal::From(-1, 0));
     A2B_CHECK(audio.Played(-1, 1) == sim::Signal::From(0, 1));
   }
-  A2B_CHECK(Has(Run(console, "module all default"), "Every sub-node: no board set"));
-  A2B_CHECK(Has(Run(console, "module"), "No boards set"));
+  A2B_CHECK(Has(Run(console, "module all default"), "Every sub-node: no board or image set"));
+  A2B_CHECK(Has(Run(console, "module"), "No boards or images set"));
 }
 
 A2B_TEST(LastNodeOpenLineInterruptsHidden) {
@@ -571,6 +605,7 @@ A2B_TEST(LastNodeOpenLineInterruptsHidden) {
   PlugBlank(bus, Chip(0x28, 2), true);
   BenchConsole console(sim);
   Run(console, "board ref");
+  Run(console, "link all board");
   Run(console, "ignoreEEPROM 1");
   Run(console, "start");
   RunFor(sim, console, 2000);
@@ -624,11 +659,11 @@ A2B_TEST(Ab0020TakesTheExportForTheMainNodesChip) {
     sim.AttachHostDevice(0x39, codec);
     PlugBlank(bus, Chip(0x28, 1), false);
     BenchConsole console(sim);
-    Run(console, "board ab0020");
+    Run(console, "board AB0020");
     Run(console, "ignoreEEPROM 1");
     const std::string started = Run(console, "start");
     char found[64];
-    std::snprintf(found, sizeof(found), "Main node AD24%02X found: board ab0020's export for it",
+    std::snprintf(found, sizeof(found), "Main node AD24%02X found: board AB0020's export for it",
                   product);
     char importing[32];
     std::snprintf(importing, sizeof(importing), "Main node AD24%02X at 0x68", product);
@@ -646,18 +681,18 @@ A2B_TEST(Ab0020RefusesAChipItHasNoExportFor) {
   main.productId = 0x33;
   sim.AddBus(0x68, 0x69, main).StartRunning();
   BenchConsole console(sim);
-  Run(console, "board ab0020");
+  Run(console, "board AB0020");
   A2B_CHECK(Has(Run(console, "start"),
-                "The main node is an AD2433: board ab0020 has exports for the AD2437 or AD2428 "
+                "The main node is an AD2433: board AB0020 has exports for the AD2437 or AD2428 "
                 "only (board FILE loads another)"));
   RunFor(sim, console, 200);
   A2B_CHECK(console.Bus().State() == a2b::NetworkState::kStopped);
   // A main node that doesn't answer gets the board's default export (the stack then reports).
   sim::Simulator quiet;
   BenchConsole silent(quiet);
-  Run(silent, "board ab0020");
+  Run(silent, "board AB0020");
   A2B_CHECK(Has(Run(silent, "start"),
-                "The main node at 0x68 didn't answer: board ab0020's AD2437 export"));
+                "The main node at 0x68 didn't answer: board AB0020's AD2437 export"));
 }
 
 A2B_TEST(BuiltInExportsAreForTheirChips) {
@@ -689,13 +724,14 @@ A2B_TEST(Ad2428MainFromAFileWithMixedSubNodes) {
   const std::string loaded = Run(console, ("board \"" + path + "\"").c_str());
   A2B_CHECK(Has(loaded, "chain 0 (1 chain(s) in the export)"));
   A2B_CHECK(!Has(loaded, "warning"));
+  Run(console, "link all board");
   A2B_CHECK(Has(Run(console, "ignoreEEPROM 1"), "EEPROMs ignored"));
   A2B_CHECK(Has(Run(console, "start"), "Main node AD2428 at 0x68"));
   std::string events = RunFor(sim, console, 3000);
   A2B_CHECK(Has(events, "sub-node 0: AD2428"));
   A2B_CHECK(Has(events,
                 "sub-node 2: AD2427 version 0x21, chip ID 000000000003, module "
-                "00AD:0037, CFG-0"));
+                "0C54:0204, CFG-0"));
   A2B_CHECK_EQ(console.Bus().SubNodeCount(), 3);
 
   // An AD2437 plugged in at the end: the console's image gives it CFG-4, as it detects.
@@ -711,10 +747,10 @@ A2B_TEST(Ad2428MainFromAFileWithMixedSubNodes) {
 
 A2B_TEST(Ad2427WithoutEepromIsFourMicrophones) {
   // The AD2428 bench: an AD2428 main node (the reference export made AD2428), an
-  // AB0020 with an AD2428 at sub-node 0 (`module 0 ab0020`), an AB0204 at sub-node 1: an
+  // AB0020 with an AD2428 at sub-node 0 (`module 0 AB0020`), an AB0204 at sub-node 1: an
   // AD2427 with four PDM microphones and no EEPROM, so the AB0204 default. Then an AD2427
   // with an EEPROM image, set up from it; one with a blank EEPROM, the default again; and an
-  // AD2428 with no EEPROM, rejected as before (it has no default).
+  // AD2428 with no EEPROM: rejected (it has no default).
   const std::string path = WriteAd2428Export(true);
   sim::Simulator sim;
   sim::ChipSpec main;
@@ -738,14 +774,16 @@ A2B_TEST(Ad2427WithoutEepromIsFourMicrophones) {
   PlugBlank(bus, Chip(0x28, 5), true);
   BenchConsole console(sim);
   A2B_CHECK(!Has(Run(console, ("board \"" + path + "\"").c_str()), "warning"));
-  A2B_CHECK(Has(Run(console, "module"), "ab0204   AB0204: four PDM mics"));
-  A2B_CHECK(Has(Run(console, "module 0 ab0020"), "Sub-node 0: ab0020"));
+  Run(console, "link all board");
+  A2B_CHECK(Has(Run(console, "module"), "AB0204   AB0204: four PDM mics"));
+  A2B_CHECK(Has(Run(console, "module 0 AB0020"), "Sub-node 0: AB0020"));
   Run(console, "start");
   const std::string events = RunFor(sim, console, 4000);
   A2B_CHECK_EQ(console.Bus().SubNodeCount(), 4);
   A2B_CHECK(console.Bus().LastRejection() == a2b::RejectReason::kNoModuleInfo);
   A2B_CHECK(Has(events,
-                "    rx G0 0-3, rx G1 0-1, rx G2 2-3\n    ab0204 (no EEPROM: the AD2427's "
+                "    rx G0 0-3, rx G1 0-1, rx G2 2-3\n    image for AD2427; B port UTP, its cable "
+                "not given\n    AB0204 (no EEPROM: the AD2427's "
                 "default)\n  sub-node 2"));
   // The AB0204's PDM settings; I2SGCFG stays TDM2 32-bit, so BCLK is 64 x SYNC (3.072 MHz).
   A2B_CHECK_EQ(bus.Sub(1).Reg(0x47), 0x1F);
@@ -825,7 +863,8 @@ A2B_TEST(IsolatedAd2437BehindAnAd2428WithLinkCustom) {
 }
 
 A2B_TEST(LinkProfilesPerPosition) {
-  // Sub-node 1's link is straight (UTP), the others inverted: found only with `link 1 utp`.
+  // Sub-node 1's link is straight (UTP), the others inverted. With every link the board's
+  // (rj45), sub-node 1 is found only with `link 1 utp`.
   sim::Simulator sim;
   sim::Bus& bus = sim.AddBus(0x68, 0x69, Ad2437());
   bus.StartRunning();
@@ -833,6 +872,7 @@ A2B_TEST(LinkProfilesPerPosition) {
   PlugBlank(bus, Chip(0x37, 2), false);
   BenchConsole console(sim);
   Run(console, "board ref");
+  Run(console, "link all board");
   Run(console, "ignoreEEPROM on");
   Run(console, "start");
   RunFor(sim, console, 2000);
@@ -846,17 +886,19 @@ A2B_TEST(LinkProfilesPerPosition) {
   A2B_CHECK(Has(Run(console, "link 5 rj45"), "Link into sub-node 5: rj45"));
   A2B_CHECK(Has(Run(console, "link 5 utp inverted"), "link N utp|rj45|custom|default"));
   A2B_CHECK(Has(Run(console, "link 5 inverted"), "link N utp|rj45|custom|default"));
-  A2B_CHECK(Has(Run(console, "link 4 default"), "the board's"));
-  A2B_CHECK(Has(Run(console, "link all default"), "Every link is the board's"));
+  A2B_CHECK(Has(Run(console, "link 4 default"), "Link into sub-node 4: the board's"));
+  A2B_CHECK(Has(Run(console, "link 0 default"), "Link into sub-node 0: the board's"));
+  A2B_CHECK(Has(Run(console, "link all default"), "Every link: into sub-node 0 the board's"));
   A2B_CHECK(Has(Run(console, "link"), "No links set"));
 
-  // `start` again with the link set: both found from the start.
-  Run(console, "link 1 utp");
+  // `start` again with no links set: sub-node 0's image (the generic one) gives UTP, so
+  // sub-node 1 is found from the start.
   Run(console, "start");
   RunFor(sim, console, 2000);
   A2B_CHECK_EQ(console.Bus().SubNodeCount(), 2);
+  A2B_CHECK(Has(Run(console, "status"), "utp (sub-node 0's UTP port)"));
   // A new board stops the bus.
-  A2B_CHECK(Has(Run(console, "board ab0020"), "Bus stopped for the new board"));
+  A2B_CHECK(Has(Run(console, "board AB0020"), "Bus stopped for the new board"));
 }
 
 A2B_TEST(TraceToAFile) {
@@ -899,6 +941,7 @@ struct ConsoleBench {
       PlugBlank(bus, Chip(0x37, static_cast<uint8_t>(i + 1)), true);
     }
     Run(console, "board ref");
+    Run(console, "link all board");
     Run(console, "ignoreEEPROM 1");
     Run(console, "start");
     RunFor(sim, console, 2000);

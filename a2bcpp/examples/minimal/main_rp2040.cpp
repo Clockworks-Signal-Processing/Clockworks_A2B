@@ -11,6 +11,7 @@
 #include <cstdio>
 
 #include "a2b_build_stamp.h"
+#include "ab0310_wiring.h"
 #include "minimal_app.h"
 #include "pico/stdlib.h"
 #include "rp2040_platform.h"
@@ -21,9 +22,6 @@ extern ADI_A2B_BCD sBusDescription;  ///< From the SigmaStudio+ export linked in
 
 namespace {
 
-constexpr unsigned kSdaPin = 16;   ///< The board's SDA.
-constexpr unsigned kSclPin = 17;   ///< The board's SCL.
-constexpr unsigned kResetPin = 2;  ///< The main node's RESETn.
 /** Give sub-nodes the app's module info instead of reading their EEPROMs. */
 constexpr bool kIgnoreEeprom = false;
 
@@ -36,9 +34,8 @@ constexpr bool kIgnoreEeprom = false;
 int main() {
   stdio_init_all();
   std::printf("a2b_minimal built %s\n", A2B_BUILD_STAMP);
-  static a2b::Rp2040Platform platform(i2c0, kSdaPin, kSclPin);
-  platform.SetResetPin(kResetPin);
-  platform.Init();
+  static a2b::Rp2040Platform platform(i2c0, a2b::ab0310::kSdaPin, a2b::ab0310::kSclPin);
+  a2b::ab0310::SetUp(platform);
   static MinimalApp app(platform, kIgnoreEeprom);
   if (app.Setup(sBusDescription) != a2b::Result::kOk) {
     std::printf("Set-up failed\n");

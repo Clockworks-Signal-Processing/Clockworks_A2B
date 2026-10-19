@@ -2,7 +2,7 @@
  * @file sigma_xml.h
  * @brief Reads a SigmaStudio XML program export (the `<ROM>` file it writes for a codec,
  *        e.g. an ADAU1761's) into I2C writes and waits, for the bench console's module
- *        images (`module N ab0020 FILE`).
+ *        images (`module N AB0020 FILE`).
  *
  * Copyright 2026 by ClockWorks Signal Processing LLC
  * Licensed under the terms found in CLOCKWORKS_SOFTWARE_LICENSE.txt and included here by reference.

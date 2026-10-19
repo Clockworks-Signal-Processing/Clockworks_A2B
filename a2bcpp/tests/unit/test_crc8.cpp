@@ -7,7 +7,7 @@
  * SPDX-License-Identifier: BSD-3-Clause
  */
 
-#include "crc8.h"
+#include "a2b/crc8.h"
 #include "test_harness.h"
 
 namespace a2b {

@@ -26,6 +26,14 @@ inline constexpr size_t kModuleInfoLen = 0x90;
  *         format: the number of TX groups, their records, the number of RX groups, theirs). */
 inline constexpr uint32_t kGroupTableOffset = 0x100;
 
+/** @brief ModuleInfo::targetChip of an image that doesn't say which transceiver it is for
+ *         (0x0000, as ADI's images have it; 0xFFFF, unprogrammed, reads as it too). */
+inline constexpr uint16_t kChipNotStated = 0x0000;
+
+/** @brief ModuleInfo::targetChip of a board whose transceiver is a plug-in module: the board
+ *         with the EEPROM doesn't decide the chip, so any chip takes the image. */
+inline constexpr uint16_t kChipExternal = 0x7FFF;
+
 /** @brief One group of a node's I2S/TDM channels, as connections name it. */
 struct ChannelGroup {
   uint32_t channels = 0;  ///< Bit n set: TDM channel n (0-31) is in the group.
@@ -83,14 +91,31 @@ struct ModuleInfo {
   uint16_t vendorId = 0;       ///< Module vendor ID (not the chip's).
   uint16_t productId = 0;      ///< Module product ID.
   uint8_t siliconVersion = 0;  ///< Silicon version the module was made for.
-  uint8_t powerConfig = 0;     ///< Power configuration, e.g. 4 for CFG4 (24 V).
-  bool localPower = false;     ///< The module has its own supply.
+  /** Power configuration, e.g. 4 for CFG4 (24 V): the image's (0x23 bits 7:4) as parsed.
+      Once the node is identified the stack sets its chip's own, the only one each supported
+      chip has: CFG-4 on the AD2437, CFG-0 on the AD2433 and the AD242x. */
+  uint8_t powerConfig = 0;
+  bool localPower = false;  ///< The module has its own supply.
+  /** The image's I2CCFG.DATARATE (0x7F bit 0): every device on the node's I2C port takes
+      400 kHz. NodeSetup switches the port to it before the peripheral scripts. */
+  bool fastI2c = false;
   /** Most power the module draws (0x24-0x25): mW in ADI's images and ADI's API's
       budget. The power budget counts it for a bus-powered module. */
   uint16_t maxPowerMw = 0;
-  uint16_t minPowerMw = 0;       ///< Least power it draws (0x26-0x27), in the same unit.
-  uint16_t maxCurrentMa = 0;     ///< Most current it draws (0x29-0x2A): mA in ADI's images.
+  uint16_t minPowerMw = 0;    ///< Least power it draws (0x26-0x27), in the same unit.
+  uint16_t maxCurrentMa = 0;  ///< Most current it draws (0x29-0x2A): mA in ADI's images.
+  /** The transceiver the image is for (header 0x07-0x08): its part number in hex, 0x2437
+      for the AD2437; #kChipExternal; or #kChipNotStated. A named chip must be the node's
+      (ImageFitsChip()). */
+  uint16_t targetChip = kChipNotStated;
+  /** The cable on the module's B port, in decimetres, as Network::CableLength() takes cables
+      (the image holds metres at 0x6C-0x6D; held to 65535 dm); 0: not given. It is the length
+      of the link to the next sub-node, for the response cycles. */
+  uint16_t bCableDm = 0;
   uint8_t peripheralBlocks = 0;  ///< Peripheral configuration blocks in the image.
+  /** What the module's B port is (0x28, a BPortType): it gives the link to the next
+      sub-node (SubNode::DownstreamLink(), LinkProfile::ForBPort()). */
+  uint8_t bPortType = 0;
   /** Bytes of the channel-group table at #kGroupTableOffset: from there to the end of the
       module-info block, less its CRC (0x20-0x21 give the block's size); 0 if the block ends
       before it. The stack reads the table when it sets the node up. */
@@ -165,6 +190,8 @@ class ModuleInfoSource {
 
 Result ParseModuleInfo(const uint8_t* image, size_t len,
                        ModuleInfo& info);  ///< Checks and parses a module-info image.
+bool ImageFitsChip(const ModuleInfo& info,
+                   uint8_t productId);  ///< The image's target chip allows the node's chip.
 Result ParseChannelGroups(const uint8_t* table, size_t len,
                           ChannelGroups& groups);  ///< Parses a channel-group table.
 

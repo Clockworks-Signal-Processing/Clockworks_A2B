@@ -26,15 +26,15 @@
  * - C (2): a CRC-8 of header bytes 0-1; none; a wait of the payload size, in ms.
  *
  * ADI's stack read the peripheral info block at 0x800 whatever the module-info
- * block's pointer to it said (it only logged a mismatch), and so does this port. Its
- * peripheral block count came from byte 0x7A, and so does this one. Each write goes to
+ * block's pointer to it said (it only logged a mismatch), and so does this stack. Its
+ * peripheral block count came from byte 0x7A, as here. Each write goes to
  * the unit's own address (ADI's stack did the same; the block's address field was
  * not used). Blocks for SPI peripherals are skipped (SPI is not supported yet).
  *
  * Differences from ADI's stack (each checked data ADI's stack took on trust):
  * the peripheral info block and each peripheral block must have their type and a valid
  * CRC-8; a unit longer than the buffer, or with an unknown type, stops the script. A type
- * B unit's CRC and a type C unit's CRC are checked, as before.
+ * B unit's CRC and a type C unit's CRC are checked, as ADI's stack checked them.
  *
  * Each write is one transfer however long it is (ADI's ADAU1701 program is 4090 bytes),
  * because a peripheral's sub-address step is not in the image, so a write can't be split
@@ -50,7 +50,7 @@
 
 #include "module_script.h"
 
-#include "crc8.h"
+#include "a2b/crc8.h"
 
 namespace a2b {
 namespace {

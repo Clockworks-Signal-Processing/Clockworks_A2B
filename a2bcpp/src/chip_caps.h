@@ -41,13 +41,18 @@ struct ChipCaps {
       SWCTL.CFG_DET_OV overrides it. */
   bool hasSwitchConfig;
   /** SWCTL.MODE while the chip's switch powers the next node, from the TRMs' discovery
-      flows: mode 1 (SWCTL 0x11) on AD243x, mode 0 (0x01) on AD242x. */
+      flows, as the MODE bits alone: 0x10 (mode 1, SWCTL 0x11 with ENSW) on AD243x, 0x00
+      (mode 0, SWCTL 0x01) on AD242x. */
   uint8_t switchMode;
   /** It may be a main node (the data sheets: not the AD2427). Every main node takes up to
       16 sub-nodes. */
   bool mainCapable;
   /** An I2S/TDM port (DTXn, DRXn). The AD2427 has none, only its PDM inputs. */
   bool hasI2s;
+  /** Its power configuration, the only one the chip has (the data sheets): 4 (CFG-4) on the
+      AD2437, 0 (CFG-0) on the AD2433, and 0 on the AD242x, which have none. A node's image
+      gives way to it (ModuleInfo::powerConfig). */
+  uint8_t powerConfig;
 };
 
 const ChipCaps* LookUpChipCaps(uint8_t vendorId, uint8_t productId);  ///< Table row, or nullptr.

@@ -64,7 +64,8 @@ A2B_TEST(EventsComeAtTheEndOfPollWhenTheBusIsBetweenSteps) {
       return;
     }
     A2B_CHECK_EQ(network.SubNodeCount(), static_cast<size_t>(event.node) + 1);
-    A2B_CHECK(network.SubNode(event.node) != nullptr && network.NodeObject(event.node) != nullptr);
+    A2B_CHECK(network.SubNodeInfoAt(event.node) != nullptr &&
+              network.NodeObject(event.node) != nullptr);
     uint8_t marker = 0;
     const uint8_t address[2] = {0x00, 0x00};
     reached = network.PeripheralWriteRead(event.node, PeripheralAddress::I2c(0x50), address, 2,

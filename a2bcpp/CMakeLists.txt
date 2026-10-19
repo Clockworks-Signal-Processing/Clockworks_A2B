@@ -1,5 +1,5 @@
 # a2bcpp: the C++ A2B PnP stack (design: a2bcpp/docs/decisions.md; what is left to do:
-# docs/cpp-stack/ROADMAP.md).
+# ROADMAP.md).
 # ClockWorks Signal Processing LLC
 #
 # Builds on its own for the host unit tests:
@@ -7,7 +7,8 @@
 #   cmake --build build/a2bcpp-<host>
 #   ctest --test-dir build/a2bcpp-<host> --output-on-failure
 # or with a2bcpp/tools/run_tests.ps1 (Windows, MSYS2) and run_tests.sh (Linux, WSL).
-# The platform builds will add it with add_subdirectory() once they use it.
+# The RP2040 examples' Pico SDK projects add it with add_subdirectory()
+# (examples/rp2040_example.cmake).
 
 cmake_minimum_required(VERSION 3.21)
 project(a2bcpp LANGUAGES CXX)
@@ -30,11 +31,16 @@ add_library(a2bcpp STATIC
     src/crc8.cpp
     src/discovery.cpp
     src/eeprom_source.cpp
+    src/image_source.cpp
     src/interrupt_poller.cpp
     src/link_profile.cpp
     src/module_info.cpp
     src/module_script.cpp
     src/network.cpp
+    src/network_chain.cpp
+    src/network_routing.cpp
+    src/network_startup.cpp
+    src/strings.cpp
     src/node_setup.cpp
     src/op_list.cpp
     src/register_image.cpp
@@ -60,11 +66,24 @@ target_link_libraries(a2bcpp PRIVATE a2bcpp_options)
 option(A2B_CPP_SS_PLUS "Build the SigmaStudio+ import library" ON)
 set(A2B_REPO_ROOT "${PROJECT_SOURCE_DIR}/..")
 set(A2B_SS_REFERENCE_HEADERS "${A2B_REPO_ROOT}/tools/SS+reference/adi")
-set(A2B_SS_PLUS_HEADERS
+set(A2B_SS_PLUS_HEADERS_DEFAULT
     ${A2B_SS_REFERENCE_HEADERS}
     ${A2B_REPO_ROOT}/adi/headers/linux
     ${A2B_REPO_ROOT}/adi/headers/stack
+)
+set(A2B_SS_PLUS_HEADERS ${A2B_SS_PLUS_HEADERS_DEFAULT}
     CACHE STRING "Include directories for ADI's adi_a2b_busconfig.h and its headers")
+# A cached value outlives a change to the default: a directory that isn't there never helps,
+# so a value naming one gives way to the default.
+foreach(dir IN LISTS A2B_SS_PLUS_HEADERS)
+  if(NOT IS_DIRECTORY "${dir}")
+    message(WARNING "A2B_SS_PLUS_HEADERS names ${dir}, which doesn't exist (an old build "
+                    "folder, or a wrong setting): using the default instead.")
+    set(A2B_SS_PLUS_HEADERS ${A2B_SS_PLUS_HEADERS_DEFAULT}
+        CACHE STRING "Include directories for ADI's adi_a2b_busconfig.h and its headers" FORCE)
+    break()
+  endif()
+endforeach()
 if(A2B_CPP_SS_PLUS)
   add_library(a2bcpp_ss_plus STATIC import/ss_plus/ss_plus_import.cpp)
   target_include_directories(a2bcpp_ss_plus
@@ -120,11 +139,11 @@ if(A2B_DESKTOP_HOST)
   endif()
 endif()
 
-# The example apps: the minimal example on Linux (examples/minimal; its RP2040 build is a
-# Pico SDK project of its own in examples/minimal/rp2040), the bench console on Linux
-# and, with the USBi's libusb link, Windows (examples/bench), and the fixed app's library
-# on the desktop hosts, for its tests (examples/fixed; its RP2040 build is in
-# examples/fixed/rp2040).
+# The example apps on the desktop hosts: the minimal example on Linux (examples/minimal), the
+# bench console on Linux and, with the USBi's libusb link, Windows (examples/bench), and the
+# fixed app's library, for its tests (examples/fixed). The Clockworks board profiles they
+# share are in examples/clockworks. Each example's RP2040 build is a Pico SDK project of its
+# own in examples/<example>/rp2040.
 option(A2B_CPP_EXAMPLES "Build the example apps (Linux, Windows)" ${PROJECT_IS_TOP_LEVEL})
 if(A2B_CPP_EXAMPLES AND A2B_CPP_SS_PLUS AND A2B_DESKTOP_HOST)
   include(examples/clockworks.cmake)

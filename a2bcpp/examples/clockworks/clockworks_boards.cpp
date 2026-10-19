@@ -26,6 +26,11 @@
  * by the stack's EepromModuleInfoSource, and the app only decides whether the nodes found
  * make a valid system (NetworkListener::OnNodeIdentified()) and what to connect.
  *
+ * **IDs.** A Clockworks image's module vendor ID is 0x0C54 ("CSP"), its product ID the
+ * board's number (AB0020: 0x0020). The AB0020 and AB0312 take a plug-in transceiver module
+ * (an AD2437, AD2433 or AD2428) and have their EEPROM on the base board, so their images'
+ * target chip is External; the AB0204's AD2427 is soldered down.
+ *
  * **The boards.** AB0020: an ADAU1761 codec on I2S TDM2 32-bit (RX 0 and TX 0 on channels
  * 0-1), its MCLK from the transceiver's CLKOUT2 (12.288 MHz). Its settings are the bench
  * project's sub-node (`tools/SS+reference/2x_AB0020_EVM_with_2437`): I2SGCFG 0xE0, I2SCFG
@@ -37,8 +42,10 @@
  * AB0312: no codec; its I2S on a header, programmed as the AB0020's (RX 0 and TX 0 on
  * channels 0-1). Its settings are its project's sub-node
  * (`tools/SS+reference/AB0310_AB0312_EVM_with_2437`), the same values as the AB0020's,
- * CLKOUT2 and IO7 included as the project has them. The project's links are RJ45 (its
- * CONTROL sets XCVRBINV), which the stack sets per link, not from the image.
+ * CLKOUT2 and IO7 included as the project has them. Its B port is ADI's RJ45 (the project's
+ * CONTROL sets XCVRBINV): with an AD2437 module the link after it is two-step, which the
+ * stack doesn't run yet (the chain ends there; the bench's `link N rj45` gives the
+ * single-step inverted link), and UTP with any other module (LinkProfile::ForBPort()).
  *
  * AB0204: an AD2427 with four MEMS PDM microphones, two on DRX0 and two on DRX1, clocked
  * from the BCLK pin. From the AD242x TRM ("PDM Clocking Options", "PDM
@@ -66,7 +73,8 @@
 #include <cctype>
 #include <cstring>
 
-#include "crc8.h"
+#include "a2b/crc8.h"
+#include "a2b/link_profile.h"
 
 namespace clockworks {
 namespace {
@@ -99,14 +107,14 @@ void PutHeader(std::vector<uint8_t>& out, uint8_t type, size_t size, uint8_t thi
  * Adds one I2C peripheral script to a module-info image, as ADI's images lay them out and
  * a2bcpp/src/module_script.cpp reads them: the block count (1) at 0x7A, the peripheral
  * info block at 0x800 (type 4: the block's address, a CRC-8), the peripheral block (type 5:
- * I2C, @p name, the unit count, a CRC-8), then a unit per action: a write with a CRC-8
- * (type B) or a wait (type C). The image grows to fit. ParseSigmaXml()'s limits keep each
- * unit in its 12-bit size.
+ * I2C, the codec's name and address, the groups it takes (all the board's), its A2B pins, the
+ * unit count, a CRC-8), then a unit per action: a write with a CRC-8 (type B) or a wait
+ * (type C). The image grows to fit. ParseSigmaXml()'s limits keep each unit in its 12-bit size.
  * @param image The image.
- * @param name The peripheral's name, up to 63 characters.
+ * @param profile The board: its codec and channel groups.
  * @param program The writes and waits.
  */
-void AddPeripheralScript(std::vector<uint8_t>& image, const char* name,
+void AddPeripheralScript(std::vector<uint8_t>& image, const ModuleProfile& profile,
                          const std::vector<SigmaAction>& program) {
   constexpr size_t kInfoAddr = 0x800;
   std::vector<uint8_t> out;
@@ -119,8 +127,24 @@ void AddPeripheralScript(std::vector<uint8_t>& image, const char* name,
   const size_t blockStart = out.size();
   PutHeader(out, 5, 80, 0x00);
   std::vector<uint8_t> payload(79, 0x00);  // Interface 0: I2C.
+  const char* name = profile.codecName;
   for (size_t i = 0; name[i] != '\0' && i < 63; ++i) {
     payload[1 + i] = static_cast<uint8_t>(name[i]);
+  }
+  payload[65] = profile.codecAddr;
+  const a2b::ChannelGroups& groups = profile.groups;
+  uint16_t txGroups = 0;  // The groups feeding it; low byte first, as the pins.
+  for (size_t i = 0; i < groups.txCount; ++i) {
+    txGroups = static_cast<uint16_t>(txGroups | (1U << (groups.tx[i].id & 0x0F)));
+  }
+  uint16_t rxGroups = 0;  // The groups it feeds.
+  for (size_t i = 0; i < groups.rxCount; ++i) {
+    rxGroups = static_cast<uint16_t>(rxGroups | (1U << (groups.rx[i].id & 0x0F)));
+  }
+  const uint16_t fields[] = {txGroups, rxGroups, profile.codecRxPins, profile.codecTxPins};
+  for (size_t i = 0; i < 4; ++i) {  // Payload 66-73.
+    payload[66 + 2 * i] = static_cast<uint8_t>(fields[i]);
+    payload[67 + 2 * i] = static_cast<uint8_t>(fields[i] >> 8);
   }
   payload[77] = static_cast<uint8_t>((program.size() >> 8) & 0x0F);  // Units, high byte first.
   payload[78] = static_cast<uint8_t>(program.size() & 0xFF);
@@ -148,7 +172,7 @@ void AddPeripheralScript(std::vector<uint8_t>& image, const char* name,
 /** The AB0020 as a sub-node: the bench SigmaStudio+ project's sub-node (file comment). */
 ModuleProfile Ab0020() {
   ModuleProfile board;
-  board.name = "ab0020";
+  board.name = "AB0020";
   board.description = "AB0020: ADAU1761 on I2S (RX 0, TX 0: channels 0-1), MCLK on CLKOUT2";
   board.settings.i2sgcfg = 0xE0;  // TDM2, 32-bit, SYNC inverted, early, 50% duty.
   board.settings.i2scfg = 0x11;   // DRX0 and DTX0, both on BCLK's rising edge.
@@ -161,17 +185,24 @@ ModuleProfile Ab0020() {
   (void)board.groups.AddTx(0, 0x3);
   board.codecName = "ADAU1761";
   board.codecAddr = 0x39;
+  board.codecRxPins = 0x21;  // One pin, SIO0: DRX0.
+  board.codecTxPins = 0x30;  // One pin, SIO4: DTX0.
   board.codecProgramXml = kAb0020SubNodeProgram;
   board.chips[0] = kAd2437;
   board.chips[1] = kAd2433;
   board.chips[2] = kAd2428;
+  board.moduleVendor = kClockworksModuleVendor;
+  board.moduleProduct = 0x0020;
+  board.targetChip = a2b::kChipExternal;
+  board.bPortType = static_cast<uint8_t>(a2b::BPortType::kUtp);
+  board.localPower = true;  // By default; it can be set for bus power.
   return board;
 }
 
 /** The AB0312 as a sub-node: its SigmaStudio+ project's sub-node (file comment). */
 ModuleProfile Ab0312() {
   ModuleProfile board;
-  board.name = "ab0312";
+  board.name = "AB0312";
   board.description = "AB0312: I2S on a header (RX 0, TX 0: channels 0-1), no codec";
   board.settings.i2sgcfg = 0xE0;  // TDM2, 32-bit, SYNC inverted, early, 50% duty.
   board.settings.i2scfg = 0x11;   // DRX0 and DTX0, both on BCLK's rising edge.
@@ -185,13 +216,18 @@ ModuleProfile Ab0312() {
   board.chips[0] = kAd2437;
   board.chips[1] = kAd2433;
   board.chips[2] = kAd2428;
+  board.moduleVendor = kClockworksModuleVendor;
+  board.moduleProduct = 0x0312;
+  board.targetChip = a2b::kChipExternal;
+  board.bPortType = static_cast<uint8_t>(a2b::BPortType::kRj45);
+  board.localPower = true;  // By default; it can be set for bus power.
   return board;
 }
 
 /** The AB0204 as a sub-node: four PDM microphones on an AD2427 (file comment). */
 ModuleProfile Ab0204() {
   ModuleProfile board;
-  board.name = "ab0204";
+  board.name = "AB0204";
   board.description = "AB0204: four PDM mics (RX 0: channels 0-3, RX 1: 0-1, RX 2: 2-3)";
   board.settings.pdmctl = 0x1F;  // PDM0EN, PDM0SLOTS, PDM1EN, PDM1SLOTS, HPFEN.
   // PDMCTL2 0: the clock on BCLK, 3.072 MHz from I2SGCFG's power-on TDM2 32-bit.
@@ -199,6 +235,10 @@ ModuleProfile Ab0204() {
   (void)board.groups.AddRx(1, 0x3);  // DRX0's pair.
   (void)board.groups.AddRx(2, 0xC);  // DRX1's pair.
   board.chips[0] = kAd2427;
+  board.moduleVendor = kClockworksModuleVendor;
+  board.moduleProduct = 0x0204;
+  board.targetChip = 0x2427;  // Soldered down; bus powered only (CFG-0), as every AD2427 board.
+  board.bPortType = static_cast<uint8_t>(a2b::BPortType::kUtp);
   return board;
 }
 
@@ -220,7 +260,7 @@ const std::vector<ModuleProfile>& Boards() {
  * @return The profile, or nullptr: the chip has no default.
  */
 const ModuleProfile* NoEepromDefault(uint8_t productId) {
-  return (productId == kAd2427) ? FindBoard("ab0204") : nullptr;
+  return (productId == kAd2427) ? FindBoard("AB0204") : nullptr;
 }
 
 /**
@@ -228,8 +268,9 @@ const ModuleProfile* NoEepromDefault(uint8_t productId) {
  * `ignoreEEPROM 1`, the fixed app's unknown nodes): the minimal example's settings (GPIO0-6
  * inputs, PINCFG 0), I2S on DRX0 and DTX0 as the Clockworks boards have it, so that RX 0
  * and TX 0 on channels 0-1 are on the port (the stack refuses channels a port doesn't give;
- * an image without I2S gave the bench its "no SYNC"), no codec, any chip. I2SGCFG 0xE0 and I2SCFG
- * 0x11 mean the same on the AD242x (TX0EN, RX0EN) and the AD243x (one pin each way).
+ * an image without I2S gave the bench its "no SYNC"), no codec, any chip, a UTP B port, module
+ * 00AD:0037 as the minimal example's. I2SGCFG 0xE0 and I2SCFG 0x11 mean the same on the AD242x
+ * (TX0EN, RX0EN) and the AD243x (one pin each way).
  * @return The profile, named "generic".
  */
 ModuleProfile GenericModule() {
@@ -255,7 +296,8 @@ const ModuleProfile* FindBoard(const std::string& name) {
     const std::string boardName = board.name;
     bool same = boardName.size() == name.size();
     for (size_t i = 0; same && i < name.size(); ++i) {
-      same = (std::tolower(static_cast<unsigned char>(name[i])) == boardName[i]);
+      same = (std::tolower(static_cast<unsigned char>(name[i])) ==
+              std::tolower(static_cast<unsigned char>(boardName[i])));
     }
     if (same) {
       return &board;
@@ -298,11 +340,13 @@ bool DefaultProgram(const ModuleProfile& profile, SigmaProgram& program, std::st
 }
 
 /**
- * Builds a board's module-info image for a node: a valid header for module 00AD:0037, the
- * power configuration the chip's data sheet gives it (CFG-4 for the AD2437; CFG-0 for the
- * AD2433, AD2431W-35W data sheet, Table 1; the AD242x have none), the board's settings, its
- * channel groups at 0x100 and the block's CRC, and its codec program as a peripheral
- * script. Layout: a2bcpp/src/module_info.cpp and module_script.cpp.
+ * Builds a board's module-info image for a node: a valid header with the board's module IDs
+ * and target chip, the B port type, the power configuration the chip's data sheet gives it (CFG-4
+ * for the AD2437; CFG-0 for the AD2433, AD2431W-35W data sheet, Table 1; the AD242x have none)
+ * and the board's local power bit, the board's settings, its channel groups at 0x100 and the
+ * block's CRC, and its codec program as a peripheral script. Both CRCs are computed, so the image
+ * is also sound to write to an EEPROM (the image tool, tools/a2b_eeprom, builds the full image
+ * with the vendor blocks). Layout: a2bcpp/src/module_info.cpp and module_script.cpp.
  * @param profile The board.
  * @param productId The node's PRODUCT.
  * @param program Its codec program; empty for none.
@@ -313,22 +357,30 @@ std::vector<uint8_t> MakeModuleImage(const ModuleProfile& profile, uint8_t produ
   const a2b::ChannelGroups& groups = profile.groups;
   const size_t tableLen = 2 + 37 * (groups.txCount + groups.rxCount);
   std::vector<uint8_t> image(a2b::kGroupTableOffset + tableLen + 1, 0x00);
-  const size_t blockSize = image.size() - 0x23;                 // The header's 3 bytes not counted.
-  image[0x00] = 0xAA;                                           // Marker.
-  image[0x01] = 0xAD;                                           // Module vendor ID, low byte first.
-  image[0x03] = 0x37;                                           // Module product ID.
-  image[0x05] = 0x10;                                           // Silicon version.
+  const size_t crcAt = image.size() - 1;                     // The block's CRC-8.
+  const size_t blockSize = image.size() - 0x23;              // The header's 3 bytes not counted.
+  image[0x00] = 0xAA;                                        // Marker.
+  image[0x01] = static_cast<uint8_t>(profile.moduleVendor);  // Module vendor ID, low first.
+  image[0x02] = static_cast<uint8_t>(profile.moduleVendor >> 8);
+  image[0x03] = static_cast<uint8_t>(profile.moduleProduct);  // Module product ID.
+  image[0x04] = static_cast<uint8_t>(profile.moduleProduct >> 8);
+  image[0x05] = 0x10;                                      // Silicon version.
+  image[0x07] = static_cast<uint8_t>(profile.targetChip);  // Target chip.
+  image[0x08] = static_cast<uint8_t>(profile.targetChip >> 8);
   image[0x0D] = 0x20;                                           // The module-info block is at 0x20.
-  image[0x1F] = 0x2E;                                           // CRC-8 of bytes 0x00-0x1E.
+  image[0x1F] = a2b::Crc8(image.data(), 0x1F);                  // CRC-8 of bytes 0x00-0x1E.
   image[0x20] = static_cast<uint8_t>(0x30 | (blockSize >> 8));  // Type 3, and its size.
   image[0x21] = static_cast<uint8_t>(blockSize);
-  image[0x23] = (productId == kAd2437) ? 0x40 : 0x00;  // Power configuration, no local power.
+  image[0x23] = static_cast<uint8_t>(((productId == kAd2437) ? 0x40 : 0x00) |  // Power config.
+                                     (profile.localPower ? 0x01 : 0x00));      // Local power.
+  image[0x28] = profile.bPortType;
   const ModuleSettings& s = profile.settings;
   image[0x80] = s.spicfg;
   image[0x81] = s.spickdiv;
   image[0x82] = s.spipincfg;
   image[0x83] = s.i2scfg;
   image[0x84] = s.i2sgcfg;
+  image[0x85] = s.i2srate;
   image[0x86] = s.pdmctl;
   image[0x87] = s.pdmctl2;
   image[0x88] = s.clk1cfg;
@@ -349,9 +401,66 @@ std::vector<uint8_t> MakeModuleImage(const ModuleProfile& profile, uint8_t produ
     PutGroup(image, at, groups.rx[i]);
   }
   if (profile.codecName != nullptr && !program.actions.empty()) {
-    AddPeripheralScript(image, profile.codecName, program.actions);
+    AddPeripheralScript(image, profile, program.actions);  // Sets 0x7A.
   }
-  return image;  // The block's CRC (its last byte) is not checked.
+  image[crcAt] = a2b::Crc8(&image[0x20], crcAt - 0x20);  // Over 0x20 to the byte before it.
+  return image;
+}
+
+/**
+ * Reads Clockworks' vendor section from a Supplier Information block's data (the 212 bytes
+ * from image offset 0x42B), as the image tool writes it
+ * (tools/a2b_eeprom/a2beeprom/vendor/clockworks.py). Numbers are low byte first, text NUL-padded:
+ *
+ * | Offset | Bytes | Field |
+ * |---|---|---|
+ * | 0 | 16 | ID, up to 15 characters and a NUL |
+ * | 16 | 1 | Number of features, 0-6 |
+ * | 17 | 6 x 32 | Features: UID (8), name (8), value 0 (4, signed), value 1 (4, signed), text (8) |
+ *
+ * @param vendorId The block's vendor ID; anything but kClockworksVendorId is not this section.
+ * @param data The block's data.
+ * @param len Its length; at least the section's 209 bytes.
+ * @param section Filled with the ID and the features listed.
+ * @return False if the vendor ID isn't Clockworks', the data is too short, or the count is
+ *         over kClockworksMaxFeatures.
+ */
+bool ParseClockworksSection(const std::string& vendorId, const uint8_t* data, size_t len,
+                            ClockworksSection& section) {
+  constexpr size_t kIdLen = 16;
+  constexpr size_t kFeatureLen = 32;
+  section = ClockworksSection();
+  if (vendorId != kClockworksVendorId || data == nullptr ||
+      len < kIdLen + 1 + kClockworksMaxFeatures * kFeatureLen ||
+      data[kIdLen] > kClockworksMaxFeatures) {
+    return false;
+  }
+  const auto text = [](const uint8_t* at, size_t size) {
+    std::string out;
+    for (size_t i = 0; i < size && at[i] != 0; ++i) {
+      out += static_cast<char>(at[i]);
+    }
+    return out;
+  };
+  const auto get = [](const uint8_t* at, size_t size) {
+    uint64_t value = 0;
+    for (size_t i = size; i > 0; --i) {
+      value = (value << 8) | at[i - 1];
+    }
+    return value;
+  };
+  section.id = text(data, kIdLen - 1);
+  for (size_t i = 0; i < data[kIdLen]; ++i) {
+    const uint8_t* at = data + kIdLen + 1 + i * kFeatureLen;
+    ClockworksFeature feature;
+    feature.uid = get(at, 8);
+    feature.name = text(at + 8, 8);
+    feature.value0 = static_cast<int32_t>(static_cast<uint32_t>(get(at + 16, 4)));
+    feature.value1 = static_cast<int32_t>(static_cast<uint32_t>(get(at + 20, 4)));
+    feature.text = text(at + 24, 8);
+    section.features.push_back(feature);
+  }
+  return true;
 }
 
 /**
@@ -375,6 +484,13 @@ size_t BoardModuleSource::GetModuleInfo(const a2b::SubNodeIdentity& node, uint8_
     return 0;
   }
   m_Using[node.position] = nullptr;
+  m_UsingImage[node.position] = !m_Images[node.position].empty();
+  if (m_UsingImage[node.position]) {
+    std::vector<uint8_t>& image = m_InUse[node.position];
+    image = m_Images[node.position];
+    m_ImageSource.SetImage(node.position, image.data(), image.size());
+    return m_ImageSource.GetModuleInfo(node, buf, bufLen);
+  }
   const ModuleProfile* profile = ImageFor(node);
   if (profile == nullptr) {
     const size_t len = m_Eeprom.GetModuleInfo(node, buf, bufLen);
@@ -408,6 +524,9 @@ size_t BoardModuleSource::GetModuleInfo(const a2b::SubNodeIdentity& node, uint8_
  */
 a2b::Result BoardModuleSource::ReadModuleInfo(const a2b::SubNodeIdentity& node, uint32_t offset,
                                               uint8_t* buf, size_t len) {
+  if (UsingImage(node.position)) {
+    return m_ImageSource.ReadModuleInfo(node, offset, buf, len);
+  }
   const ModuleProfile* profile = Using(node.position);
   if (profile == nullptr) {
     return m_Eeprom.ReadModuleInfo(node, offset, buf, len);
@@ -435,6 +554,46 @@ void BoardModuleSource::SetBoard(a2b::NodeAddr position, const ModuleProfile* pr
   }
   m_Boards[position] = profile;
   m_Programs[position] = (profile != nullptr) ? program : SigmaProgram();
+  SetImage(position, std::vector<uint8_t>());
+}
+
+/**
+ * Sets an image (a .dat file's bytes, from EEPROM address 0) for a position, for nodes
+ * identified from then on: it takes the place of the position's board, and of its EEPROM.
+ * A node identified earlier keeps reading the image it was identified with.
+ * @param position 0-15.
+ * @param image The image, copied; empty clears it (the board, if any, stays cleared).
+ */
+void BoardModuleSource::SetImage(a2b::NodeAddr position, const std::vector<uint8_t>& image) {
+  if (!a2b::IsSubNode(position)) {
+    return;
+  }
+  m_Images[position] = image;
+  if (!image.empty()) {
+    m_Boards[position] = nullptr;
+    m_Programs[position] = SigmaProgram();
+  }
+}
+
+/** True if an image is set at @p position (SetImage()). */
+bool BoardModuleSource::HasImage(a2b::NodeAddr position) const {
+  return a2b::IsSubNode(position) && !m_Images[position].empty();
+}
+
+/** True if the node at @p position took its module info from an image at its last
+    identification. */
+bool BoardModuleSource::UsingImage(a2b::NodeAddr position) const {
+  return a2b::IsSubNode(position) && m_UsingImage[position];
+}
+
+/**
+ * Where the node's EEPROM image was found, at its last identification from its EEPROM.
+ * @param position The node.
+ * @return The EEPROM's 7-bit address, or 0: none answered with the marker, or the EEPROM
+ *         wasn't read (a board, an image or the fallback gave the node its info).
+ */
+uint8_t BoardModuleSource::EepromAddr(a2b::NodeAddr position) const {
+  return m_Eeprom.EepromAddr(position);
 }
 
 /**

@@ -10,19 +10,33 @@ Clockworks generated text. No AI allowed until after "AI Section"
 
 A lot of the work here was done by Claude Code, including creation of the documents.  I may stick my fingers in from time to time, you can tell as that will be the stuff that's confusing or wrong.
 
-This is also very much a work in progress but easier to leave it public than try and sort out access.
+This is also very much a work in progress but even in its semi-incomplete state offers a fair amount of useful functionality.
 
-The apps and the library itself are meant to be examples, not production ready code.  It's unsupported as-is code. If you find a bug and figure out how to fix it let Clockworks know.  For now we're pretty clueless about how we might maintain this so that others can contribute to it.  
+The apps and the library itself are meant to be examples, not production ready code.  It's unsupported as-is code. If you find a bug and figure out how to fix it let Clockworks know.  We're pretty clueless about how we might maintain this so that others can contribute to it.  
 
-See `\docs\cpp-stack\ROADMAP.md` for current code status.
+See `ROADMAP.md` for current code status.
 
 # What is it?
 
-There are three types of software here.  The first is an A2B stack for controlling a network of ADI A2B devices: AD2427, AD2428, AD2433, and AD2437 at present.  It's generic C/C++ code intended for 32 bit (embedded ARM) and 64 bit (Windows, embedded Linux) use.  You normally would not change this unless you need some feature that's not supported.  We intentionally don't call this a driver as it's intended to be compiled directly into your application.
+There are three types of software here.  The first is an A^2^B stack for controlling a network of ADI A2B devices: AD2427, AD2428, AD2433, and AD2437 at present.  It's generic C/C++ code intended for 32 bit (embedded ARM) and 64 bit (Windows, embedded Linux) use.  You normally would not change this unless you need some feature that's not supported.  We intentionally don't call this a driver as it's intended to be compiled directly into your application.
 
 The second piece are some console programs that show how to use the stack and can also be useful during development and testing.  These might be the basis for your own host application.
 
 The last piece (not available yet) are utility programs, at the moment they generate the file(s) needed to program the per node EPPROM that's used as part of the discovery process to tell the main node what the hardware is. You normally would not change this unless you need some feature that's not supported.
+
+## Why should I use the Clockworks A^2^B software?
+
+The currently released Analog Devices (ADI) software for A^2^B only allows for fixed hardware configurations and is heavily dependent on using SigmaStudio+ (SS+) to set up the files used to describe the configuration.  There was a version of that ADI A^2^B software called the Plug-and-Play stack which instead discovered the network at run time.  Clockworks took that code and created a package with support for the code running on the same three hosts that  this package uses.  The actual A^2^B software was left unchanged. You can find that package at: https://github.com/Clockworks-Signal-Processing/PnP_A2B
+
+That PnP package used the concept of a config EEPROM to allow the host software to figure out what a discovered A^2^B node does and has for peripherals. In the PnP package that was not fully implemented and there were no separate utilities to set the fields.  ADI does have a doc to describe the fields.
+
+The ADI PnP package also had a host console program to serve as an example of using the stack as well as being useful to set up and run an A^2^B network not using SS+.
+
+The Clockworks A^2^B software borrows heavily from the ADI PnP one.  Mostly the Clockworks software was a chance to look at what was done, see what useful, and focus on some specific use cases and not try and solve all potential ones.
+
+One architectural change was to use C++ in an effort to keep the code simpler and easier to work with.
+
+The biggest change was taking an AI-first approach where instead of you the developer actually editing this software you let some LLM coding-specific tool do it.  The goal being that your coding tool can quickly figure out how to integrate this software into your host application.  
 
 # What hardware can I run this on?
 
@@ -32,29 +46,29 @@ For the RP2040 host the AB0310 board is assumed by the console programs.
 
 For the RPi Pi Zero (or any other RPi board intended to run Linux) it's assumed to connect to I2C1 and may optionally have a reset line, IRQ line, and SPI connections.
 
-## How can I make it do something on some A2B hardware?
+## How can I make it do something on some A^2^B hardware?
 
 First of course you need to get some supported hardware, or make modifications to support your own hardware.  If your hardware has the configuration  EEPROM per node then you may not need to make any actual stack changes.  If your main node has peripheral chips then you'll need to use Sigma Studio+ to export the main node configuration, this software does not look for an EEPROM on the main node.
 
 See `bench_console.md` for how to use the console program - also referred to as the 'bench' example.
 
-**NOTE: EEPROM support is not in the initial release.**
-
-Probably the most useful thing to read next is `quick_start.md`.
+Probably the most useful thing to read after this document (including the AI generated section below) is `quick_start.md`.  Don't get your hopes up based on the document being called *quick start.*  Understanding  A^2^B takes time. Using this package we hope it takes *less time* than the alternatives.
 
 
 
 ## How do I edit the code?
 
-It is assumed you will use some sort of AI tool.  To help with the process you should instruct your AI to read all *.md files in this repo to understand what the code does and the issues that you want to avoid when developing add-ons.
+It is assumed you will use some sort of AI tool.  To help with the process you should instruct your AI to read all *.md files in this repo to understand what the code does and the issues that you want to avoid when developing add-ons. The ADI datasheets are included as those need to be referenced.  You may need to refresh those directly from ADI.
 
 Particularly the `a2bcpp\docs\` directory should be reviewed.
 
 For full details see `a2bcpp\docs\cookbook.md`
 
+
+
 ------
 
-Written for Version 0.2.  11-Oct-2026.
+Written for Version 0.3.  19-Oct-2026.
 
 Copyright 2026 Clockworks Signal Processing LLC  https://clk.works
 
@@ -79,41 +93,66 @@ AD2428, AD2433 and AD2437), with example programs for three platforms:
 
 | Platform | Programs | Status |
 |---|---|---|
-| RP2040 (Raspberry Pi Pico SDK) | the fixed app (AB0310 and AB0312 bench, nothing typed) and the minimal example, in `a2bcpp/examples/fixed/rp2040` and `a2bcpp/examples/minimal/rp2040` | The fixed app **works**: tested on the AB0310 board with an AD2437 main node, an AB0312 and four AD2437 modules on RJ45 links. The minimal example builds but has not been run on its board. See [Building for RP2040](#building-for-rp2040). |
+| RP2040 (Raspberry Pi Pico SDK) | the fixed app (AB0310 and AB0312 bench, nothing typed), the bench console `a2b_bench` (typed commands on the UART console, no file commands) and the minimal example, in `a2bcpp/examples/fixed/rp2040`, `a2bcpp/examples/bench/rp2040` and `a2bcpp/examples/minimal/rp2040` | The fixed app and the bench console **work** on the AB0310 board (an AD2437 main node, AD2437 modules on RJ45 links, audio routed). The minimal example builds but has not been run on its board. See [Building for RP2040](#building-for-rp2040). |
 | Raspberry Pi Linux (64-bit) | the bench console `a2b_bench` and the minimal example, cross-built in Debian WSL | **Works.** Tested on a Pi Zero 2 W running 64-bit Raspberry Pi OS. See [a2bcpp/docs/setup_pi.md](a2bcpp/docs/setup_pi.md). |
 | Windows console (64-bit) | the bench console `a2b_bench.exe`, built with MSYS2 UCRT64 | **Works** through the ADI USBi adapter and libusb: AD2437 and AD2428 main nodes, mixed chains of the four chips. See [Windows](#windows-adi-usbi-adapter) and [a2bcpp/docs/setup_windows.md](a2bcpp/docs/setup_windows.md). |
 
-Not done yet: EEPROM provisioning (writing module-info images), two-step RJ45/XLR links, power
-diagnostics, SPI, dual buses and a C facade. See the [roadmap](docs/cpp-stack/ROADMAP.md).
+EEPROM provisioning works on the USBi and the Pi: the image tool, `tools/a2b_eeprom`, builds
+and reads module-info images (a GUI and a command line), and the bench console writes them to
+the sub-nodes' EEPROMs ([provisioning.md](a2bcpp/docs/provisioning.md)).
+
+Not included: two-step power-up on AD2437 links, power diagnostics, SPI, dual buses, spread
+spectrum, GPIO over distance and a C facade. The [roadmap](ROADMAP.md) lists
+them, what has been tested on hardware, the known issues and what still needs a test.
 
 ## Layout
 
 ```
 a2bcpp/           the C++ stack: include/ (public API), src/, sim/ (simulator), platforms/,
-                  import/ (SigmaStudio+), examples/, tests/, tools/, docs/
+                  import/ (SigmaStudio+), examples/ (minimal, fixed, bench, and clockworks:
+                  the Clockworks board profiles they share), tests/, tools/, docs/
 adi/              the ADI files the build still needs: stack headers, SigmaStudio+ exports,
                   module-info images (see docs/PROVENANCE.md)
-docs/             cpp-stack/ROADMAP.md (what is left to do), PROVENANCE.md, ADI_chips/ (data
-                  sheets and TRMs), ADI_PnP/ (ADI's PnP documents)
-tools/            vscode-a2b-menu/ (VS Code A2B menu extension); SS+reference/ (the
+docs/             PROVENANCE.md, ADI_chips/ (data sheets and TRMs), ADI_PnP/ (ADI's PnP
+                  documents)
+ROADMAP.md        what is not included, the known issues and what is not yet tested
+tools/            a2b_eeprom/ (the EEPROM image tool: builds and reads module-info images);
+                  vscode-a2b-menu/ (VS Code A2B menu extension); SS+reference/ (the
                   SigmaStudio+ projects and exports of the Clockworks boards)
 ```
 
 ## Documentation
 
-Start with [a2bcpp/docs/quick_start.md](a2bcpp/docs/quick_start.md). In `a2bcpp/docs/`:
+In `a2bcpp/docs/`, in a reading order:
 
-| Page | What it covers |
+| # | Page | What it covers |
+|---|---|---|
+| 1 | [quick_start.md](a2bcpp/docs/quick_start.md) | Bringing up a bus with the minimal example; building for each host |
+| 2 | [main_and_sub_node_programming.md](a2bcpp/docs/main_and_sub_node_programming.md) | Where the main node's and the sub-nodes' settings come from, in short |
+| 3 | [bench_console.md](a2bcpp/docs/bench_console.md) | The bench console: trying boards and chains by typed commands |
+| 4 | [hardware_notes.md](a2bcpp/docs/hardware_notes.md) | What the chips, boards and adapters taught us: read before changing the stack |
+| 5 | [architecture.md](a2bcpp/docs/architecture.md) | How the stack is built and runs |
+| 6 | [cookbook.md](a2bcpp/docs/cookbook.md) | Customising modules, links, routing and events |
+| 7 | [provisioning.md](a2bcpp/docs/provisioning.md) | The module-info image (EEPROM) format, the image tool and writing EEPROMs |
+| 8 | [main_node_config.md](a2bcpp/docs/main_node_config.md), [timing.md](a2bcpp/docs/timing.md), [porting.md](a2bcpp/docs/porting.md) | The main node's settings in full; every wait; a `Platform` for another host |
+| 9 | [decisions.md](a2bcpp/docs/decisions.md), [testing.md](a2bcpp/docs/testing.md), [ram.md](a2bcpp/docs/ram.md) | Requirements, rationale, policies and the designs not built; the tests and the simulator; RAM on the RP2040 |
+| - | [setup_pi.md](a2bcpp/docs/setup_pi.md), [setup_windows.md](a2bcpp/docs/setup_windows.md) | Setting up a PC for the Pi and for Windows |
+
+The API reference is Doxygen's (`cd a2bcpp && doxygen`; [testing.md](a2bcpp/docs/testing.md#doxygen)).
+
+### Words used here
+
+| Word | Meaning |
 |---|---|
-| [quick_start.md](a2bcpp/docs/quick_start.md) | Bringing up a bus with the minimal example |
-| [architecture.md](a2bcpp/docs/architecture.md) | How the stack is built and runs |
-| [decisions.md](a2bcpp/docs/decisions.md) | Requirements, rationale, design rules and policy decisions |
-| [hardware_notes.md](a2bcpp/docs/hardware_notes.md) | Lessons learned from the chips, boards and adapters |
-| [main_node_config.md](a2bcpp/docs/main_node_config.md), [main_and_sub_node_programming.md](a2bcpp/docs/main_and_sub_node_programming.md) | How the main node and the sub-nodes get their settings |
-| [cookbook.md](a2bcpp/docs/cookbook.md) | Customising modules, links, routing and events |
-| [bench_console.md](a2bcpp/docs/bench_console.md) | The bench console's commands |
-| [timing.md](a2bcpp/docs/timing.md), [ram.md](a2bcpp/docs/ram.md) | Every wait; RAM on the RP2040 |
-| [porting.md](a2bcpp/docs/porting.md), [testing.md](a2bcpp/docs/testing.md) | A `Platform` for another host; the tests and the simulator |
+| bench | A lab test set-up: A2B boards, modules and cables on a desk |
+| bench console | `a2b_bench`, the interactive test program for a bench ([guide](a2bcpp/docs/bench_console.md)) |
+| fixed app | The example that runs one fixed set-up (an AB0310 with an AB0312) with nothing typed |
+| `ref` board | The reference board of ADI's Pi and RP2040 apps: the bench console's built-in board from `adi/exports/rp2040` |
+| main node, sub-node | ADI's current names for the A2B master and slave nodes |
+| module info, image | A sub-node's settings, channel groups and peripheral programs, as its EEPROM holds them |
+| External (target chip) | An image for a base board whose A2B transceiver is a plug-in module: any supported chip takes it |
+| golden trace | An I2C trace captured from ADI's stack, which the C++ stack's traffic was checked against |
+| scenario N | A numbered simulator test case ([testing.md](a2bcpp/docs/testing.md#simulator-scenarios)) |
 
 `docs/PROVENANCE.md` says which files come from ADI. The applications and the library are
 examples, not production code.
@@ -127,7 +166,7 @@ Anything that differs from PC to PC stays out of the repository. On each PC you 
 3. In VS Code's **User** settings (File → Preferences → Settings → User, search for `a2b.`):
    - `a2b.piHost`, `a2b.piUser`: the Raspberry Pi this PC uses.
    - `a2b.msys2Root`: only if MSYS2 isn't in `C:\msys64`.
-   - `a2b.piBoard`, `a2b.windowsBoard`: only to start another board in the bench console (defaults `ref` and `ab0020`, set in `.vscode/settings.json`).
+   - `a2b.piBoard`, `a2b.windowsBoard`: only to start another board in the bench console (defaults `ref` and `AB0020`, set in `.vscode/settings.json`).
 4. For each target you'll use on this PC:
    - **RP2040:** the Raspberry Pi Pico VS Code extension ([Building for RP2040](#building-for-rp2040)).
    - **Raspberry Pi:** Debian in WSL with the cross-compiler and `gdb-multiarch`, and this
@@ -141,16 +180,22 @@ Anything that differs from PC to PC stays out of the repository. On each PC you 
 Requirements: Raspberry Pi Pico SDK 2.0.0 with toolchain 13_2_Rel1, as installed by the
 Raspberry Pi Pico VS Code extension under `~/.pico-sdk`.
 
-Two programs of the C++ stack, each a Pico SDK project of its own:
+Three programs of the C++ stack, each a Pico SDK project of its own:
 
 | Example | Folder | Program |
 |---|---|---|
 | fixed (AB0310 and AB0312 bench, nothing typed) | `a2bcpp/examples/fixed/rp2040` | `a2b_fixed.elf` |
+| bench console (the `A2B>` commands on the UART console, AB0310 wiring; no file commands) | `a2bcpp/examples/bench/rp2040` | `a2b_bench.elf` |
 | minimal (the least an app needs) | `a2bcpp/examples/minimal/rp2040` | `a2b_minimal.elf` |
 
+The bench console is the Pi's and Windows' `a2b_bench` without what needs a file system
+(`eeprom`, `i2cTrace`, boards and programs from files); the
+[bench console guide](a2bcpp/docs/bench_console.md#on-the-rp2040) has the details.
+
 - **VS Code:** open this folder with the Pico extension installed, then use the A2B menu's
-  **RP2040 fixed** and **RP2040 minimal** sections (or Terminal → Run Task, `RP2040 fixed: ...`
-  / `RP2040 minimal: ...`, and F5 on `RP2040 fixed: Debug`). Debug builds go in
+  **RP2040 fixed**, **RP2040 bench** and **RP2040 minimal** sections (or Terminal → Run Task,
+  `RP2040 fixed: ...` / `RP2040 bench: ...` / `RP2040 minimal: ...`, and F5 on
+  `RP2040 fixed: Debug` or `RP2040 bench: Debug`). Debug builds go in
   `build/a2b-<example>-rp2040`, Release builds in `build/a2b-<example>-rp2040-release`.
 - **Command line** (example `fixed`; Debug shown, add `-DCMAKE_BUILD_TYPE=Release` and another
   `-B` folder for Release):
@@ -225,7 +270,7 @@ This repository started from a basic port of ADI's PnP code 1.3.0 release, but c
 activity bar (the icon on the far left: a square chained to two circles). The panel has
 one section per target, each with the same four actions:
 
-| Action | RP2040 fixed / minimal | Raspberry Pi bench | Windows bench (USBi) |
+| Action | RP2040 fixed / bench / minimal | Raspberry Pi bench | Windows bench (USBi) |
 |---|---|---|---|
 | **Clean** | Deletes `build/a2b-<example>-rp2040` and `build/a2b-<example>-rp2040-release` | Deletes `~/a2b-cpp-build/a2bcpp-Debug`, `a2bcpp-Release` (in Debian) and `build/a2b-bench-pi/` | Deletes `build/a2b-bench-windows/` |
 | **Build** | Debug build in `build/a2b-<example>-rp2040` | Debug build, copied to `build/a2b-bench-pi/Debug/` | Debug build in `build/a2b-bench-windows/Debug/` |
@@ -236,6 +281,8 @@ The Pi and Windows entries run the bench console, `a2b_bench` (`a2bcpp/examples/
 starts the bus on the board set in `a2b.piBoard` / `a2b.windowsBoard` and then reads commands at
 the `A2B>` prompt ([bench console guide](a2bcpp/docs/bench_console.md)). The Pi section also has
 **Trace** (runs it with `--trace traces/boot.txt`) and **Get traces** (copies `~/traces` from the Pi).
+The RP2040 bench entry builds the same console for the Pico: it starts with the AB0310 board
+picked, and its `A2B>` prompt is on the Pico's UART console.
 
 The extension only runs existing tasks and launch configurations; everything it does is also
 available from **Terminal → Run Task** and **Run and Debug**. The details (Stop All, the settings,

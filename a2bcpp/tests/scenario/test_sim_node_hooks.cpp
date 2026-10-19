@@ -273,7 +273,7 @@ A2B_TEST(FactoryPicksTheClassByModule) {
   A2B_CHECK(bench.network.NodeObject(3) == nullptr);
   SubNode* node = bench.network.NodeObject(0);
   A2B_CHECK(node != nullptr && node->Position() == 0);
-  A2B_CHECK(node != nullptr && &node->Info() == bench.network.SubNode(0));
+  A2B_CHECK(node != nullptr && &node->Info() == bench.network.SubNodeInfoAt(0));
   if (node != nullptr && node->TypeTag() == kAmpTag) {
     AmpModule& amp = static_cast<AmpModule&>(*node);  // The app's use of the tag.
     A2B_CHECK_EQ(amp.Info().moduleInfo.productId, kAmpProduct);

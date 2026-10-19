@@ -48,12 +48,12 @@ says which parts.
 
 | Relation | What |
 |---|---|
-| **Follows the legacy behavior** (the order of register writes and the timings are matched to the legacy traces; the code is new) | Discovery (`src/discovery.cpp`, from ADI's `a2bplugin-master/src/discovery.c` and the PnP layer's `a2bpnp_local.c`), interrupt polling, node setup order, module-info and peripheral-script parsing (ADI's `a2bpnp_calc.c`), the peripheral write path, the CRC-8, muting, bus-drop detection and the audio-routing calls (`src/network.cpp`, `src/routing.cpp`) |
+| **Follows the legacy behavior** (the order of register writes and the timings are matched to the legacy traces; the code is new) | Discovery (`src/discovery.cpp`, from ADI's `a2bplugin-master/src/discovery.c` and the PnP layer's `a2bpnp_local.c`), interrupt polling, node setup order, module-info and peripheral-script parsing (ADI's `a2bpnp_calc.c`), the peripheral write path, the CRC-8, muting, bus-drop detection and the audio-routing calls (`src/network*.cpp`, `src/routing.cpp`) |
 | **Follows Clockworks' additions to the legacy stack** (not in ADI's release) | The connection calls by chip ID (`a2b_pnp_AddConByChipId`, `a2b_pnp_GetConnectionList`, `a2b_pnp_ImportConnections`) and the SWCTL handling around each discovery probe (`a2b_pnp_PrepareSwctlforBD`, `a2b_pnp_RestoreSwctlAftrBD`) |
 | **Re-derived from the data sheets and TRMs, not ported** | `src/routing_planner.cpp` (replaces `crossbarCalc`, `AutoCalcSlot` and the pass-list pruning in ADI's `a2bpnp_calc.c`), the response-cycle formula, the AD242x and mixed-chain routing |
 | **Fixed, not ported** | The module-info vendor check (the legacy code required vendor 0xAD), several routing bugs listed in [decisions.md](../a2bcpp/docs/decisions.md#bugs-fixed-not-ported) |
 | **Trimmed copies and ports of ADI files** | `src/detail/regdefs.h` (a trimmed C++ copy of ADI's `regdefs.h`: 252 lines of the 4,021), `platforms/usbi/` (the USBi link, ported from the `pal_i2c_usbi.c` of ADI's win32 PAL), `import/ss_plus/ss_plus_tables.inc` (generated from ADI's `adi_a2b_busconfig.h` by `tools/gen_ss_plus_tables.py`) |
-| **New, with no ADI counterpart** | The simulator (`sim/`), the test suites (`tests/`), the bench console, the fixed and minimal examples, the SigmaStudio+ and SigmaStudio XML loaders, the Linux and RP2040 platform layers |
+| **New, with no ADI counterpart** | The simulator (`sim/`), the test suites (`tests/`), the bench console (its RP2040 build and its EEPROM jobs included), the fixed and minimal examples, the Clockworks board profiles, the SigmaStudio+ and SigmaStudio XML loaders, the Linux and RP2040 platform layers, the EEPROM image tool (`tools/a2b_eeprom`) |
 
 ## SigmaStudio+ examples and ADI's headers
 
@@ -86,6 +86,10 @@ Where they are:
 | ADI's module-info images, used as test data | `adi/module_info/` |
 
 ## Common lines, by directory
+
+The comparison was made on the snapshot above, before the EEPROM provisioning, the RP2040
+bench console and the split of `src/network.cpp`; that later code is Clockworks' own as well,
+and is not counted here.
 
 Counts are code lines: comments and `#include` lines removed, then non-blank lines. A line
 is "common" when most of its tokens lie inside a 16-token run that also occurs in ADI's
@@ -133,7 +137,7 @@ comment words (0.09%) lie inside a 10-word run shared with ADI's comments, nearl
 - the Python, shell, PowerShell and CMake files, which ADI's release has no counterpart for.
 
 The SigmaStudio loaders (`import/ss_plus/ss_plus_file.cpp`, `ss_plus_import.cpp` and
-`examples/bench/sigma_xml.cpp`) are Clockworks code that reads those files, so they are
+`examples/clockworks/sigma_xml.cpp`) are Clockworks code that reads those files, so they are
 counted.
 
 **What the table doesn't measure.** It finds shared text, including text with renamed

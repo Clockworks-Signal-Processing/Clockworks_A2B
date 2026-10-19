@@ -27,5 +27,8 @@ cfg/connection.json
 # Python bytecode (a2bcpp/tools)
 __pycache__/
 
+.idea/
+venv/
+
 # SS+ crud
 Settings/

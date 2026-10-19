@@ -75,7 +75,7 @@ A2B_TEST(Scenario4UnplugMiddle) {
     A2B_CHECK(removed[i].removal == RemovalReason::kDropped);
   }
   A2B_CHECK_EQ(CountingNode::removed, 3);
-  A2B_CHECK(bench.network.SubNode(1) == nullptr && bench.network.NodeObject(1) == nullptr);
+  A2B_CHECK(bench.network.SubNodeInfoAt(1) == nullptr && bench.network.NodeObject(1) == nullptr);
   A2B_CHECK_EQ(bench.bus.Sub(0).Reg(reg::kSwctl) & reg::kSwctlEnsw, 0);
   A2B_CHECK(bench.bus.Sub(0).Reg(reg::kGpioien) == 0x7F);  // Sub-node 0 is untouched.
 }
@@ -140,7 +140,7 @@ A2B_TEST(RePlugIsFoundAgain) {
   A2B_CHECK_EQ(added.size(), 2);
   A2B_CHECK(added.size() == 2 && added[0].node == 1 && added[0].chipId[5] == 0x21 &&
             added[1].node == 2 && added[1].chipId[5] == 0x22);
-  const SubNodeInfo* node = bench.network.SubNode(2);
+  const SubNodeInfo* node = bench.network.SubNodeInfoAt(2);
   A2B_CHECK(node != nullptr && node->identity.chipId[5] == 0x22);
   A2B_CHECK_EQ(bench.bus.Sub(2).Reg(reg::kGpioien), 0x7F);  // Configured again.
 }
@@ -317,6 +317,41 @@ A2B_TEST(Scenario12FailedCheckReadIsRetried) {
   A2B_CHECK(bench.RunUntil(NetworkState::kRunning, 2000));
 }
 
+A2B_TEST(ResumeDuringStartUpWaitsOutSustain) {
+  // ResumeDiscovery() called while the bus starts: the start-up's waits are kept. A main node
+  // left running has SUSTAIN after its soft reset, and INV or MSTR inside it wedges it.
+  Bench bench;
+  bench.PlugChain(1);
+  bench.bus.StartRunning();
+  bench.network.PauseDiscovery();
+  A2B_CHECK(bench.network.Start() == Result::kOk);
+  for (int i = 0; i < 200 && !bench.bus.Wedged(); ++i) {
+    bench.Run(1);
+    bench.network.ResumeDiscovery();
+    bench.network.PauseDiscovery();
+  }
+  A2B_CHECK(!bench.bus.Wedged());
+  bench.network.ResumeDiscovery();
+  A2B_CHECK(bench.RunUntilCount(1, 2000));
+}
+
+A2B_TEST(ResumeAfterADropWaitsForTheSwitch) {
+  // A dropped node's position is probed again no sooner than 250 ms after its switch opened,
+  // even if discovery is paused and resumed in between.
+  Bench bench;
+  bench.PlugChain(2);
+  A2B_CHECK(bench.StartWith(2));
+  bench.network.PauseDiscovery();
+  bench.bus.Unplug(1);
+  A2B_CHECK(bench.RunUntilCount(1, 2000));
+  bench.bus.Plug(test::Ad2437(0x11));
+  bench.sim.ClearTrace();
+  bench.network.ResumeDiscovery();
+  bench.Run(5);
+  A2B_CHECK_EQ(test::Count(bench.Accesses(), kMainNode, true, reg::kDiscvry), 0);
+  A2B_CHECK(bench.RunUntilCount(2, 2000));
+}
+
 A2B_TEST(Scenario12FailedProbeIsAbandonedAndTriedAgain) {
   // A transfer of a probe fails: the probe is given up and tidied up, the chain checked,
   // and the next probe finds the node.
@@ -421,7 +456,7 @@ A2B_TEST(RejectNodeTakesItAndTheNodesAfterItOut) {
   bench.bus.Unplug(1);
   bench.PlugChain(1, 0x31);
   A2B_CHECK(bench.RunUntilCount(2, bench.board.timings.rejectedProbeMs + 200));
-  const SubNodeInfo* node = bench.network.SubNode(1);
+  const SubNodeInfo* node = bench.network.SubNodeInfoAt(1);
   A2B_CHECK(node != nullptr && node->identity.chipId[5] == 0x31);
 }
 
@@ -447,7 +482,7 @@ A2B_TEST(RejectNodeDuringAProbe) {
 
 A2B_TEST(RejectedNodeOnItsOwnSupplyIsNotProbedAgain) {
   // A Custom link: the rejected node keeps its power, so it stays discovered, and its
-  // position is not probed again until Start() (to be revisited with two-step links).
+  // position is not probed again until Start() (a known limit; see the roadmap).
   Bench bench;
   bench.PlugChain(1);
   sim::SubNodeSpec own = test::Ad2437(0x77);

@@ -55,7 +55,9 @@ class Discovery {
     uint8_t swctl = 0;        ///< SWCTL with ENSW clear: switch mode and CFG_DET_OV.
     uint8_t control = 0;      ///< CONTROL.XCVRBINV and SWBYP for the link (main's too).
     bool closeSwitch = true;  ///< ENSW powers the next node over the A2B pair.
-    bool twoStep = false;     ///< Two-step link (not supported yet): Network does not probe it.
+    /** Two-step (not supported yet) or a B port the stack can't run
+        (LinkProfile::Discovery::kUnsupported): Network does not probe it. */
+    bool noProbe = false;
     bool hasSwitchConfig = false;  ///< The chip has SWSTAT2 and SWCTL2.
     uint8_t powerConfig = 0;       ///< Expected power configuration, 0 (CFG-0) or 4 (CFG-4).
     uint8_t intmsk0 = 0;           ///< Sub-nodes: INTMSK0, from SubNode::InterruptMask().

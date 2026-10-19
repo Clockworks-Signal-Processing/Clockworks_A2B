@@ -11,21 +11,36 @@
  * | 0x00 | Marker 0xAA |
  * | 0x01-0x04 | Module vendor and product IDs, 16 bits each, low byte first |
  * | 0x05 | Silicon version |
+ * | 0x07-0x08 | Target chip, 16 bits, low byte first: 0x2437, 0x7FFF External, 0 not stated |
  * | 0x0D-0x10 | Address of the primary function block, 32 bits, low byte first: 0x20 |
  * | 0x1F | CRC-8 of bytes 0x00-0x1E |
  * | 0x20-0x21 | Module-info block: type (high nibble, 3) and size (12 bits) |
  * | 0x23 | Power configuration (high nibble) and local power (low nibble, not 0) |
  * | 0x24-0x27 | Most and least power the module draws, 16 bits each, low byte first |
+ * | 0x28 | B port type (below) |
  * | 0x29-0x2A | Most current it draws, 16 bits, low byte first |
+ * | 0x6C-0x6D | B-side cable length in metres, 16 bits, low byte first; 0: not given |
  * | 0x7A | Number of peripheral configuration blocks (their layout: module_script.cpp) |
+ * | 0x7F | I2CCFG: only DATARATE (bit 0) is taken (below) |
  * | 0x80-0x8F | Sub-node register settings (the table below); 0x85 is I2SRATE |
  * | 0x100- | Channel groups: TX groups, then RX groups (ParseChannelGroups()) |
  * | block end - 1 | The module-info block's CRC-8 (of 0x20 to the byte before it) |
  *
  * The power figures feed the power budget (BoardPolicy). Their unit isn't in
  * ADI's code; ADI's API's budget was in mW and mA, and ADI's XLR image gives
- * 5000, 500 and 200 (5 W, 0.5 W, 200 mA), so they are taken as mW and mA. The cable
- * type (0x28) is not used (decisions.md, "Dropped").
+ * 5000, 500 and 200 (5 W, 0.5 W, 200 mA), so they are taken as mW and mA.
+ *
+ * **The B port** (Clockworks' use of fields the specification leaves open; provisioning.md):
+ * - Its type (0x28) gives the link to the next sub-node (LinkProfile::ForBPort()): the
+ *   specification's 0 XLR, 1 RJ45 and 2 UTP, then 3 RJ45-CUSTOM, 4 RJ45-CUSTOM-INV and
+ *   5 CUSTOM. ADI's images number it differently (their "RJ45" image stores 2); the
+ *   specification's numbering is the one used.
+ * - Its cable length (0x6C) is in metres: ADI's images give 4, the TRMs' 4 m default.
+ *
+ * **The target chip** (0x07-0x08, a field the specification reserves): the transceiver the
+ * image's settings are for. A board with a plug-in transceiver module says External; ADI's
+ * images leave it 0 (not stated). A named chip that isn't the node's has the node
+ * rejected (Discovery, RejectReason::kWrongChip).
  *
  * **Channel groups** (ADI's "PnP Content (Module Information) Specification",
  * docs/ADI_PnP/A2B_PnP_EEPROM_ContentSpec.pdf, address 0x0100 on; ADI's
@@ -44,9 +59,15 @@
  * configuration is reported, not required to be CFG4.
  *
  * Register settings are kept as ADI's stack kept them: a value equal to the chip's
- * power-on value (0, or 0x01 for PINCFG) is not written. ADI's stack also left
- * I2CCFG (0x7F) of the image unused; so does this port (the stack sets I2CCFG.FRAMERATE
- * from the board's frame rate, NodeSetup).
+ * power-on value (0, or 0x01 for PINCFG) is not written.
+ *
+ * **I2CCFG** (0x7F), which ADI's stack left unused: only DATARATE is taken
+ * (ModuleInfo::fastI2c). The node's I2C port runs at 100 kHz from reset, so the start of the
+ * image and its groups are read at 100 kHz whatever the EEPROM; NodeSetup then writes
+ * DATARATE before the peripheral scripts, which run at 400 kHz. The other bits are not
+ * applied: EACK is the main node's, FRAMERATE follows the board's frame rate (NodeSetup),
+ * FMPLUS (AD243x) is out of scope, and DISI2C (AD243x) would cut the node off from its own
+ * EEPROM.
  *
  * **I2SRATE** (0x85): the module's own image says whether
  * its I2S/TDM port runs at 1x, 2x or 4x the superframe rate (48, 96 or 192 kHz at a 48 kHz
@@ -63,7 +84,7 @@
 
 #include "a2b/module_info.h"
 
-#include "crc8.h"
+#include "a2b/crc8.h"
 #include "detail/regdefs.h"
 
 namespace a2b {
@@ -78,12 +99,19 @@ constexpr size_t kPowerConfig = 0x23;        ///< Offset of the power configurat
 constexpr size_t kMaxPower = 0x24;           ///< Offset of the most power drawn.
 constexpr size_t kMinPower = 0x26;           ///< Offset of the least power drawn.
 constexpr size_t kMaxCurrent = 0x29;         ///< Offset of the most current drawn.
+constexpr size_t kTargetChip = 0x07;         ///< Offset of the target chip.
+constexpr size_t kBPortType = 0x28;          ///< Offset of the B port type.
+constexpr size_t kBCableLength = 0x6C;       ///< Offset of the B-side cable length.
 constexpr size_t kPeripheralBlocks = 0x7A;   ///< Offset of the peripheral block count.
+constexpr size_t kI2cCfg = 0x7F;             ///< Offset of the I2CCFG setting.
 constexpr size_t kBlockPayload = 0x23;       ///< First byte after the module-info block's header.
 constexpr size_t kGroupRecordLen = 37;       ///< A group's record: ID, name, channel bitmap.
 constexpr size_t kGroupBitmap = 33;          ///< Offset of the channel bitmap in a record.
 constexpr uint8_t kMaxImageGroups = 15;      ///< Most groups an image lists in each direction.
 constexpr size_t kI2sRate = 0x85;            ///< Offset of the I2S rate setting.
+
+constexpr uint16_t kChipUnprogrammed = 0xFFFF;  ///< An unprogrammed target chip: not stated.
+constexpr uint8_t kChipFamilyAd24 = 0x24;       ///< High byte of every AD24xx part number.
 
 /** One register setting in the image: its offset, its register, and the value not written. */
 struct RegField {
@@ -120,11 +148,25 @@ uint32_t Get32(const uint8_t* image, size_t offset) {
 }  // namespace
 
 /**
+ * Whether a node's transceiver may take an image: the image's target chip is the node's, or
+ * the image doesn't name one (External, or not stated).
+ * @param info The parsed image.
+ * @param productId The node's PRODUCT register (0x37 for the AD2437).
+ * @return True if the node takes the image.
+ */
+bool ImageFitsChip(const ModuleInfo& info, uint8_t productId) {
+  if (info.targetChip == kChipNotStated || info.targetChip == kChipExternal) {
+    return true;
+  }
+  return (info.targetChip >> 8) == kChipFamilyAd24 && (info.targetChip & 0xFF) == productId;
+}
+
+/**
  * Checks a module-info image and parses the parts the stack uses.
  * @param image The image, from offset 0.
  * @param len Its length; at least #kModuleInfoLen.
- * @param info Filled with the module's IDs, power settings and figures and register
- *        settings; left unchanged on failure.
+ * @param info Filled with the module's IDs, target chip, power settings and figures, B port
+ *        and register settings; left unchanged on failure.
  * @return Result::kOk; Result::kInvalidArgument if @p image is null or shorter than
  *         #kModuleInfoLen; Result::kInvalidData if the marker, header CRC, primary function
  *         address or module-info block type is wrong, or the I2S rate setting (0x85) is a
@@ -144,8 +186,8 @@ Result ParseModuleInfo(const uint8_t* image, size_t len, ModuleInfo& info) {
       (rate != 0 && rate != reg::kI2srateX2 && rate != reg::kI2srateX4)) {
     return Result::kInvalidData;
   }
-  // Every check is made: filled in place (a local ModuleInfo, with its channel groups,
-  // took 272 B of stack on the RP2040).
+  // Every check is made: filled in place (a local ModuleInfo, with its channel groups, would
+  // take 272 B of stack on the RP2040).
   ModuleInfo& parsed = info;
   parsed.groupTableLen = 0;
   parsed.groups.rxCount = 0;
@@ -154,8 +196,16 @@ Result ParseModuleInfo(const uint8_t* image, size_t len, ModuleInfo& info) {
   parsed.vendorId = Get16(image, 0x01);
   parsed.productId = Get16(image, 0x03);
   parsed.siliconVersion = image[0x05];
+  parsed.targetChip = Get16(image, kTargetChip);
+  if (parsed.targetChip == kChipUnprogrammed) {
+    parsed.targetChip = kChipNotStated;
+  }
+  parsed.bPortType = image[kBPortType];
+  const uint32_t cableDm = 10u * Get16(image, kBCableLength);  // The image's is in metres.
+  parsed.bCableDm = static_cast<uint16_t>((cableDm > 0xFFFF) ? 0xFFFF : cableDm);
   parsed.powerConfig = static_cast<uint8_t>(image[kPowerConfig] >> 4);
   parsed.localPower = (image[kPowerConfig] & 0x0F) != 0;
+  parsed.fastI2c = (image[kI2cCfg] & reg::kI2ccfgDatarate) != 0;
   parsed.maxPowerMw = Get16(image, kMaxPower);
   parsed.minPowerMw = Get16(image, kMinPower);
   parsed.maxCurrentMa = Get16(image, kMaxCurrent);

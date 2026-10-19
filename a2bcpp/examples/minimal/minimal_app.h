@@ -52,6 +52,7 @@ class MinimalApp : public a2b::NetworkListener {
   a2b::FixedOpList<64> m_HostScript;  ///< One Op per SigmaStudio+ config unit.
   Source m_Source;
   a2b::Network m_Network;
+  uint32_t m_UtpLinks = 0;  ///< Bit n: SetUtpLink() made the link into sub-node n UTP.
 };
 
 #endif  // A2BCPP_EXAMPLES_MINIMAL_MINIMAL_APP_H_

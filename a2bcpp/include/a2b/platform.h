@@ -19,10 +19,10 @@ namespace a2b {
 
 /** @brief Severity of a log message. */
 enum class LogLevel : uint8_t {
-  kError,
-  kWarning,
-  kInfo,
-  kDebug,
+  kError,    ///< The bus failed, or something the app must act on.
+  kWarning,  ///< A node dropped or was rejected, a transfer failed, a plan failed.
+  kInfo,     ///< What the bus did: a node found, the chain up, a plan written.
+  kDebug,    ///< Detail for debugging; the stack itself logs none.
 };
 
 /**

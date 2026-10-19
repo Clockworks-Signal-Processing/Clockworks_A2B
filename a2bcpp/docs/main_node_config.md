@@ -52,9 +52,10 @@ data it points to must outlive the bus.
 
 ## From a SigmaStudio+ export
 
-SigmaStudio+ writes the bus configuration as a C file (`adi_a2b_busconfig.c`, which this
-repository keeps in `adi/exports/` for the Pi and the AB0020 and in
-`tools/SS+reference/<project>/` for the Clockworks boards). It defines
+SigmaStudio+ writes the bus configuration as a C file (`adi_a2b_busconfig.c`). This
+repository keeps two older exports in `adi/exports/` (`rp2040/12_a2b_busconfig.c`, the Pi's
+and RP2040's reference board, and `windows/12_a2b_busconfig.c`) and the Clockworks boards'
+SigmaStudio+ 2.3.0 exports in `tools/SS+reference/<project>/`. It defines
 `sBusDescription`.
 Link that file into the app, then:
 
@@ -201,8 +202,8 @@ start-up doesn't depend on what a reset keeps: it writes every setting after the
 ADI's stack wrote SOFTRST | MSTR at once on AD242x main nodes. The stack uses the
 AD243x sequence on every chip, which costs an AD242x main node only the wait.
 
-An AD2428 main node has run on the bench ([bench console](bench_console.md)).
-TODO(test on hardware): an AD2433 main node.
+AD2437 and AD2428 main nodes have run on hardware; an AD2433 main node hasn't yet
+([roadmap](../../ROADMAP.md#what-needs-testing-on-hardware)).
 
 ## By hand
 
@@ -290,9 +291,9 @@ a2b::Network rearBus(platform, rear);
 (Two exports can't be linked into one program as they are, since each defines
 `sBusDescription`: rename one, or export both chains from one SigmaStudio+ project.)
 
-TODO(test on hardware): two buses have run on the simulator only (scenario 15); golden
-G12 needs a bench with two main nodes. AD2437 dual parallel buses, where the second bus
-follows the first, are a different thing: `BusPair`, not built yet.
+Two buses have run on the simulator only (scenario 15). AD2437 dual parallel buses, where
+the second bus follows the first, are a different thing: `BusPair`, not built
+([decisions](decisions.md#dual-buses-buspair)).
 
 ## How the host script runs
 

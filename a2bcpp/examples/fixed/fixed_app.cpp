@@ -5,7 +5,11 @@
  *
  * What it does, in order:
  * 1. Fill a BoardConfig from the SigmaStudio+ export (ImportSsPlus()), and give it the
- *    main node's channel groups, which an export hasn't got.
+ *    main node's channel groups, which an export hasn't got. Every link gets the export's
+ *    (its XCVRBINV; Network::SetLinkProfile()): the bench's links are all alike, RJ45 cables
+ *    run single-step. Without that, the link after each sub-node would be the one its
+ *    image's B port type gives, and an AB0312's RJ45 on an AD2437 is two-step, which the
+ *    stack doesn't run yet.
  * 2. Give the sub-nodes their module info from a clockworks::BoardModuleSource: the boards
  *    set by position (a board without an EEPROM, such as the AB0312), the fallback image for
  *    the others (as the bench console's `ignoreEEPROM 1`), or their EEPROMs; an AD2427 gets
@@ -26,93 +30,7 @@
 
 #include <cstdio>
 
-namespace {
-
-/** A name for a state, for the report. */
-const char* Name(a2b::NetworkState state) {
-  switch (state) {
-    case a2b::NetworkState::kStopped:
-      return "stopped";
-    case a2b::NetworkState::kStarting:
-      return "starting the main node";
-    case a2b::NetworkState::kConfiguring:
-      return "configuring the main node";
-    case a2b::NetworkState::kDiscovering:
-      return "bringing up the chain";
-    case a2b::NetworkState::kRunning:
-      return "running";
-    case a2b::NetworkState::kFailed:
-      return "failed";
-  }
-  return "?";
-}
-
-/** A name for a rejection reason, for the report. */
-const char* Name(a2b::RejectReason reason) {
-  switch (reason) {
-    case a2b::RejectReason::kNone:
-      return "none";
-    case a2b::RejectReason::kUnsupportedChip:
-      return "unsupported chip";
-    case a2b::RejectReason::kNoModuleInfo:
-      return "no module info (no EEPROM at 0x50-0x54, or a blank one)";
-    case a2b::RejectReason::kBadModuleInfo:
-      return "bad module info (marker, header CRC or block)";
-    case a2b::RejectReason::kConfigFailed:
-      return "configuration failed";
-    case a2b::RejectReason::kPeripheralFailed:
-      return "peripheral script failed";
-    case a2b::RejectReason::kPowerBudget:
-      return "over the power budget";
-    case a2b::RejectReason::kByApp:
-      return "by the app";
-  }
-  return "?";
-}
-
-/** A name for a removal reason, for the report. */
-const char* Name(a2b::RemovalReason reason) {
-  switch (reason) {
-    case a2b::RemovalReason::kDropped:
-      return "dropped (unplugged, or a node before it was)";
-    case a2b::RemovalReason::kRejected:
-      return "rejected by the app";
-    case a2b::RemovalReason::kRestart:
-      return "the bus starts again";
-    case a2b::RemovalReason::kStopped:
-      return "the bus stopped";
-  }
-  return "?";
-}
-
-/** A name for a routing error, for the report. */
-const char* Name(a2b::RoutingError error) {
-  switch (error) {
-    case a2b::RoutingError::kNone:
-      return "none";
-    case a2b::RoutingError::kNotSupported:
-      return "not supported";
-    case a2b::RoutingError::kNoSuchGroup:
-      return "a connection names a group its node hasn't got";
-    case a2b::RoutingError::kSameNode:
-      return "a connection's source and sink are the same node";
-    case a2b::RoutingError::kTooManySlots:
-      return "more than 32 slots on a link";
-    case a2b::RoutingError::kTooManyChannels:
-      return "a node would play more than 32 channels";
-    case a2b::RoutingError::kNoResponseCycles:
-      return "the slots don't fit the superframe (no response-cycle window)";
-    case a2b::RoutingError::kI2cError:
-      return "I2C error while writing it";
-    case a2b::RoutingError::kNoSuchChannel:
-      return "a connection uses a channel its node's I2S/TDM port doesn't give";
-    case a2b::RoutingError::kChannelOrder:
-      return "a node without a crossbar (AD242x) can't play its channels in that order";
-  }
-  return "?";
-}
-
-}  // namespace
+#include "a2b/strings.h"
 
 /**
  * Makes the app; nothing is sent until Setup().
@@ -143,6 +61,8 @@ a2b::Result FixedApp::Setup(const ADI_A2B_BCD& bcd, const FixedSetup& setup) {
   for (int position = 0; position < a2b::kMaxSubNodes; ++position) {
     m_Modules.SetBoard(static_cast<a2b::NodeAddr>(position), setup.boards[position],
                        SigmaProgram());
+    // Every link the export's: the bench's links are all alike (see the file comment).
+    (void)m_Network.SetLinkProfile(static_cast<a2b::NodeAddr>(position), m_Board.defaultLink);
   }
   m_Modules.SetFallback(setup.fallback);
   std::printf("Main node AD24%02X at 0x%02X, %u host script operation(s), links %s\n",
@@ -172,7 +92,7 @@ bool FixedApp::NodesPresent() const {
   for (size_t i = 0; i < m_Setup.connectionCount; ++i) {
     const FixedConnection& c = m_Setup.connections[i];
     for (const a2b::NodeAddr node : {c.source, c.sink}) {
-      if (node != a2b::kMainNode && m_Network.SubNode(node) == nullptr) {
+      if (node != a2b::kMainNode && m_Network.SubNodeInfoAt(node) == nullptr) {
         return false;
       }
     }
@@ -194,7 +114,7 @@ void FixedApp::Connect() {
   }
   const a2b::RoutingError error = m_Network.ApplyRouting();
   if (error != a2b::RoutingError::kNone) {
-    std::printf("can't route: %s\n", Name(error));
+    std::printf("can't route: %s\n", a2b::ToString(error));
   }
 }
 
@@ -215,10 +135,10 @@ void FixedApp::OnEvent(a2b::Network& network, const a2b::Event& event) {
       ReportNode(event.node);
       return;
     case a2b::EventType::kNodeRejected:
-      std::printf("  sub-node %u rejected: %s\n", node, Name(event.rejection));
+      std::printf("  sub-node %u rejected: %s\n", node, a2b::ToString(event.rejection));
       return;
     case a2b::EventType::kNodeRemoved:
-      std::printf("  sub-node %u removed: %s\n", node, Name(event.removal));
+      std::printf("  sub-node %u removed: %s\n", node, a2b::ToString(event.removal));
       return;
     case a2b::EventType::kInterrupt:
       std::printf("  interrupt from %s %d: type %u\n",
@@ -236,14 +156,14 @@ void FixedApp::OnEvent(a2b::Network& network, const a2b::Event& event) {
       return;
     }
     case a2b::EventType::kRoutingFailed:
-      std::printf("routing failed: %s\n", Name(event.routingError));
+      std::printf("routing failed: %s\n", a2b::ToString(event.routingError));
       return;
   }
 }
 
 /** Prints a new state, and what went wrong or how many sub-nodes are up. */
 void FixedApp::ReportState(a2b::NetworkState state) {
-  std::printf("bus: %s\n", Name(state));
+  std::printf("bus: %s\n", a2b::ToString(state));
   if (state == a2b::NetworkState::kFailed) {
     std::printf("  error %d\n", static_cast<int>(m_Network.Error()));
   }
@@ -254,7 +174,7 @@ void FixedApp::ReportState(a2b::NetworkState state) {
 
 /** Prints one sub-node's chip, chip ID, module, link and board. */
 void FixedApp::ReportNode(a2b::NodeAddr position) {
-  const a2b::SubNodeInfo* node = m_Network.SubNode(position);
+  const a2b::SubNodeInfo* node = m_Network.SubNodeInfoAt(position);
   if (node == nullptr) {
     return;
   }

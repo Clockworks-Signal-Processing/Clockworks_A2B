@@ -1,6 +1,6 @@
 /**
- * @file bench_files.cpp
- * @brief Files the bench console has built in as text, generated at build time
+ * @file clockworks_files.cpp
+ * @brief Files the Clockworks examples have built in as text, generated at build time
  *        (examples/clockworks.cmake) from tools/SS+reference: the Clockworks boards'
  *        codec programs, SigmaStudio's XML exports, read by ParseSigmaXml().
  *

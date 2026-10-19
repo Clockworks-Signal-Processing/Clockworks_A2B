@@ -7,8 +7,8 @@
  * 1 ms, like ADI's RP2040 PAL, which also
  * retried a failed transfer once; this platform leaves retries to the stack.
  *
- * The fixed app (examples/fixed) has run on the bench with this platform.
- * TODO(test on hardware): the reset line (SetResetPin()), and the minimal example.
+ * The fixed app and the bench console run on the AB0310 board with this platform and its
+ * reset line. TODO(test on hardware): the minimal example.
  *
  * Copyright 2026 by ClockWorks Signal Processing LLC
  * Licensed under the terms found in CLOCKWORKS_SOFTWARE_LICENSE.txt and included here by reference.

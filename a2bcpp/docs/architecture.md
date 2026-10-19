@@ -4,7 +4,7 @@ How the C++ stack is built and how it runs: the classes, the `Poll()` model, the
 machines, when things happen, the events, and several buses on one host. The
 [quick start](quick_start.md) shows how to use it; this page shows how it works inside,
 for anyone who customises, ports or debugs it. Two-step links, power diagnostics and dual
-buses are not built yet (see the [roadmap](../../docs/cpp-stack/ROADMAP.md)). The reasons behind
+buses are not built yet (see the [roadmap](../../ROADMAP.md)). The reasons behind
 the design are in [decisions.md](decisions.md); what the hardware taught us is in
 [hardware_notes.md](hardware_notes.md).
 
@@ -40,8 +40,9 @@ the design are in [decisions.md](decisions.md); what the hardware taught us is i
 | `ModuleInfoSource`, `EepromModuleInfoSource`, `ModuleInfo` | Where a sub-node's module info comes from, and what it holds |
 | `LinkProfile` | How a link is brought up |
 | `Connection`, `ChannelGroups`, `RoutingPlan`, `RoutingPolicy` (`a2b/routing.h`) | Audio routing: what the app connects, each node's groups, the plan written, the response cycles and each node's channel map (cookbook, "Routing") |
+| `ToString()` (`a2b/strings.h`), `Crc8()` (`a2b/crc8.h`) | The enums as text for a log or console; ADI's CRC-8, to build or check a module-info image |
 
-The rest is internal (`a2bcpp/src/`): `Transport`, `InterruptPoller`, `Discovery`,
+The rest is internal (`a2bcpp/src/`): `Network::Impl` (`network_impl.h`), `Transport`, `InterruptPoller`, `Discovery`,
 `NodeSetup`, `ModuleScript`, `ScriptRunner`, `ConnectionTable`, `RoutingPlanner`,
 `ChipCaps` (what each chip can do; the
 stack branches on it, never on product IDs) and `detail/regdefs.h` (the registers).
@@ -274,14 +275,14 @@ for (;;) {
   the shared I2C controller (the stack holds the lock for each whole register or
   peripheral access), make its other calls (`NowMs()`, `Log()`, the GPIO calls)
   thread-safe, and guard any app object two buses share.
-- **RAM.** Each `Network` is 15,368 bytes on the RP2040, so two are 30,736, with no
-  heap; one thread polling two buses needs 448 bytes of stack plus the I2C driver
-  (`-Og`) ([RAM on the RP2040](ram.md)).
+- **RAM.** Each `Network` is about 15 KB on the RP2040, with no heap; one thread polling
+  two buses needs 448 bytes of stack plus the I2C driver (`-Og`)
+  ([RAM on the RP2040](ram.md)).
 
 Simulator scenario 15 (`tests/scenario/test_sim_two_buses.cpp`) runs two buses on one
-host I2C bus. Two buses have not run on hardware yet (golden G12 needs a two-bus bench).
-AD2437 dual parallel buses, where the second bus follows the first, are not built yet
-(`BusPair`; see the roadmap).
+host I2C bus; two buses have not run on hardware yet. AD2437 dual parallel buses, where the
+second bus follows the first, are not built (`BusPair`;
+[decisions](decisions.md#dual-buses-buspair)).
 
 ## Memory
 
@@ -298,13 +299,17 @@ app's to place. [RAM on the RP2040](ram.md) has the figures.
 
 | File | What |
 |---|---|
-| `src/network.cpp` | `Network`: start-up, configuration, the probe loop, chain checks, drops, rejections, events, links |
+| `src/network_impl.h`, `src/network.cpp` | `Network` and its `Impl`: the public calls, `Poll()`, events (`network.cpp`'s file comment is the design of the whole) |
+| `src/network_startup.cpp` | Start-up, configuration, restarts |
+| `src/network_chain.cpp` | The probe loop, chain checks, drops, rejections, links, the sub-nodes' objects |
+| `src/network_routing.cpp` | Connections, routing plans, mutes, response cycles |
+| `src/strings.cpp` | The enums as text (`a2b/strings.h`) |
 | `src/discovery.cpp` | One probe, up to the node's identification |
 | `src/node_setup.cpp`, `src/module_script.cpp` | A found node's settings, peripheral scripts and operations |
 | `src/interrupt_poller.cpp` | Interrupt checks |
 | `src/transport.cpp` | Register and peripheral access, the caches, the lock |
 | `src/script_runner.cpp` | `OpList`s across polls |
-| `src/eeprom_source.cpp`, `src/module_info.cpp` | Module info from the EEPROM, and its parser |
+| `src/eeprom_source.cpp`, `src/image_source.cpp`, `src/module_info.cpp` | Module info from the EEPROM or from images in memory, and its parser |
 | `src/chip_caps.cpp` | The chips: features, switch modes, main-node capability |
 | `src/connection_table.cpp` | The app's connections, kept by chip ID |
 | `src/routing_planner.cpp` | A routing plan: each node's slots, slot masks, offsets and crossbars (AD243x), or TDM order (AD242x) |

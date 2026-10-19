@@ -1,6 +1,6 @@
 /**
  * @file test_sigma_xml.cpp
- * @brief The bench console's SigmaStudio XML reader (examples/bench/sigma_xml.cpp) on the
+ * @brief The bench console's SigmaStudio XML reader (examples/clockworks/sigma_xml.cpp) on the
  *        AB0020's two ADAU1761 programs (main node and sub-node), on SigmaStudio's other
  *        layout, and on bad input.
  *

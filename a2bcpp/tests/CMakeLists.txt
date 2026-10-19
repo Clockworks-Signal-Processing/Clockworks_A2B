@@ -24,6 +24,7 @@ a2b_add_unit_test(test_module_script)
 a2b_add_unit_test(test_response_cycles)
 a2b_add_unit_test(test_connection_table)
 a2b_add_unit_test(test_routing_planner)
+a2b_add_unit_test(test_image_source)
 # It builds its images with the simulator's helpers.
 target_link_libraries(test_module_script PRIVATE a2bcpp_sim)
 
@@ -110,6 +111,14 @@ if(A2B_CPP_SS_PLUS)
     target_include_directories(test_clockworks_boards PRIVATE unit)
     target_link_libraries(test_clockworks_boards PRIVATE a2b_bench_console a2bcpp_options)
     add_test(NAME test_clockworks_boards COMMAND test_clockworks_boards)
+    # Scenario 20: EEPROMs provisioned from the console, with the image tool's images.
+    add_executable(test_eeprom_provisioning example/test_eeprom_provisioning.cpp)
+    target_include_directories(test_eeprom_provisioning PRIVATE unit ${PROJECT_SOURCE_DIR}/src)
+    target_compile_definitions(test_eeprom_provisioning PRIVATE A2B_REPO_ROOT="${A2B_REPO_ROOT}"
+                               A2B_TEST_OUT_DIR="${CMAKE_CURRENT_BINARY_DIR}")
+    target_link_libraries(test_eeprom_provisioning PRIVATE a2b_bench_console a2bcpp_sim
+                                                   a2bcpp_options)
+    add_test(NAME test_eeprom_provisioning COMMAND test_eeprom_provisioning)
   endif()
 
   # The fixed app, run on the simulator with the export its RP2040 program has.

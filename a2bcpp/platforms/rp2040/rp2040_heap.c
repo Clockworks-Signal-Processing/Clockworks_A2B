@@ -1,6 +1,6 @@
 /*
- * The RP2040 fixed app's C helpers: the heap in use, from newlib's allocator, and a stub
- * for newlib's entropy hook. In C because newlib's <malloc.h> and its C++ <cstdlib>
+ * The RP2040 examples' C helpers: the heap in use (rp2040_heap.h), from newlib's allocator,
+ * and a stub for newlib's entropy hook. In C because newlib's <malloc.h> and its C++ <cstdlib>
  * declare the allocator with different exception specifications.
  *
  * Copyright 2026 by ClockWorks Signal Processing LLC
@@ -8,12 +8,14 @@
  * SPDX-License-Identifier: BSD-3-Clause
  */
 
+#include "rp2040_heap.h"
+
 #include <errno.h>
 #include <malloc.h>
 #include <stddef.h>
 
 /* The heap in use in bytes. */
-size_t FixedHeapInUse(void) { return (size_t)mallinfo().uordblks; }
+size_t Rp2040HeapInUse(void) { return (size_t)mallinfo().uordblks; }
 
 /*
  * No entropy source: -1 with errno ENOSYS. libstdc++'s prebuilt string code refers to

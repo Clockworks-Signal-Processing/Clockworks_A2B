@@ -105,6 +105,9 @@ int64_t DivideUp(int64_t a, int64_t b) { return (a >= 0) ? (a + b - 1) / b : -((
 /** @p a / @p b rounded down, for @p b > 0. */
 int64_t DivideDown(int64_t a, int64_t b) { return (a >= 0) ? a / b : -((-a + b - 1) / b); }
 
+/** @p value can be written to a RESPCYCS register (1-255). */
+bool Encodable(int64_t value) { return value >= 1 && value <= 255; }
+
 /** @p value held to 1-255, a RESPCYCS value. */
 uint8_t ToRespCycles(int64_t value) {
   if (value < 1) {
@@ -120,9 +123,11 @@ uint8_t ToRespCycles(int64_t value) {
  * comment).
  * @param input The chain: each sub-node's slots, the slot widths, RESPOFFS, the frame rate,
  *        each link's cable; or a main node's value to keep.
- * @return The main node's value and each sub-node's (held to 1-255), and the window. With
- *         RespCycleInput::mainRespCycles set, that main value is kept and ResponseCycles::fits
- *         is true. A chain with no sub-node fits, with the given main value.
+ * @return The main node's value and each sub-node's (held to 1-255), and the window.
+ *         ResponseCycles::fits is false if the window is empty or a value can't be encoded
+ *         (a sub-node's below 1: cables too long for the main node's value). With
+ *         RespCycleInput::mainRespCycles set, that main value is kept and only the sub-nodes'
+ *         values are checked. A chain with no sub-node fits, with the given main value.
  */
 ResponseCycles ComputeResponseCycles(const RespCycleInput& input) {
   ResponseCycles result;
@@ -169,8 +174,9 @@ ResponseCycles ComputeResponseCycles(const RespCycleInput& input) {
   if (input.mainRespCycles != 0) {
     result.fits = true;
   } else {
-    result.fits = (maxDn * kMilli <= minUpMilli);
-    result.main = ToRespCycles(DivideDown(maxDn * kMilli + minUpMilli + kMilli, 2 * kMilli));
+    const int64_t main = DivideDown(maxDn * kMilli + minUpMilli + kMilli, 2 * kMilli);
+    result.fits = (maxDn * kMilli <= minUpMilli) && Encodable(main);
+    result.main = ToRespCycles(main);
   }
 
   cableFromSub0 = 0;
@@ -182,7 +188,9 @@ ResponseCycles ComputeResponseCycles(const RespCycleInput& input) {
         (static_cast<int64_t>(result.main) * kBitsPerCycle + kSubOffsetBits) * kMilli -
         static_cast<int64_t>(n) * kNodeDelayMilliBits - 2 * cableMilliBits(cableFromSub0) -
         kSubOffsetBits * kMilli;
-    result.sub[n] = ToRespCycles(DivideDown(sub + 2 * kMilli, kBitsPerCycle * kMilli));
+    const int64_t value = DivideDown(sub + 2 * kMilli, kBitsPerCycle * kMilli);
+    result.fits = result.fits && Encodable(value);
+    result.sub[n] = ToRespCycles(value);
   }
   return result;
 }

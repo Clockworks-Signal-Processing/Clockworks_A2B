@@ -3,7 +3,8 @@
  * @brief Simulator scenario 6 (EEPROM invalid, bad CRC or absent; app-supplied source) and
  *        the sub-node peripheral scripts from module info: the default EEPROM source, its
  *        scan of 0x50-0x54, "ignore EEPROM" with an app source, ADI's RJ45 module image,
- *        and the module-info register writes of the boot4 golden's bench modules.
+ *        the sub-node's I2C rate (read at 100 kHz, then the image's I2CCFG.DATARATE), and the
+ *        module-info register writes of the boot4 golden's bench modules.
  *
  * Copyright 2026 by ClockWorks Signal Processing LLC
  * Licensed under the terms found in CLOCKWORKS_SOFTWARE_LICENSE.txt and included here by reference.
@@ -19,6 +20,7 @@
 #include "a2b/eeprom_source.h"
 #include "a2b/network.h"
 #include "detail/regdefs.h"
+#include "sim/eeprom.h"
 #include "sim/module_info.h"
 #include "sim/simulator.h"
 #include "sim_trace.h"
@@ -221,7 +223,7 @@ A2B_TEST(EepromIsTheDefaultSource) {
   bench.PlugWithEeprom(MakeImage());
   A2B_CHECK(bench.StartAndRun());
   A2B_CHECK_EQ(bench.network.SubNodeCount(), 1);
-  const SubNodeInfo* node = bench.network.SubNode(0);
+  const SubNodeInfo* node = bench.network.SubNodeInfoAt(0);
   A2B_CHECK(node != nullptr && node->moduleInfo.vendorId == 0x00AD);
   A2B_CHECK(node != nullptr && node->moduleInfo.powerConfig == 4);
   A2B_CHECK_EQ(bench.bus.Sub(0).Reg(reg::kGpioien), 0x7F);
@@ -242,7 +244,7 @@ A2B_TEST(EepromIsFoundAnywhereFrom0x50To0x54) {
   bench.PlugWithEeprom(MakeImage(0x0101), 0x53);
   A2B_CHECK(bench.StartAndRun());
   A2B_CHECK_EQ(bench.network.SubNodeCount(), 1);
-  const SubNodeInfo* node = bench.network.SubNode(0);
+  const SubNodeInfo* node = bench.network.SubNodeInfoAt(0);
   A2B_CHECK(node != nullptr && node->moduleInfo.productId == 0x0101);
   // 0x50-0x52 NAK (no device), then 0x53 answers.
   for (uint8_t addr = 0x50; addr <= 0x52; ++addr) {
@@ -349,7 +351,7 @@ A2B_TEST(Scenario6AppSourceIgnoresTheEeprom) {
   A2B_CHECK(bench.StartAndRun());
   A2B_CHECK_EQ(bench.network.SubNodeCount(), 1);
   A2B_CHECK_EQ(source.calls, 1);
-  const SubNodeInfo* node = bench.network.SubNode(0);
+  const SubNodeInfo* node = bench.network.SubNodeInfoAt(0);
   A2B_CHECK(node != nullptr && node->moduleInfo.productId == 0x0042);
   A2B_CHECK(Peripherals(bench.sim.Trace()).empty());  // Not one peripheral transfer.
 }
@@ -372,7 +374,7 @@ A2B_TEST(Scenario6BackToTheEeprom) {
   bench.network.SetModuleInfoSource(nullptr);
   A2B_CHECK(bench.StartAndRun());
   A2B_CHECK_EQ(source.calls, 0);
-  const SubNodeInfo* node = bench.network.SubNode(0);
+  const SubNodeInfo* node = bench.network.SubNodeInfoAt(0);
   A2B_CHECK(node != nullptr && node->moduleInfo.productId == 0x0077);
 }
 
@@ -481,7 +483,7 @@ A2B_TEST(AdiRj45ImageProgramsItsCodec) {
   bench.PlugWithEeprom(image).AttachDevice(kCodecAddr, codec);
   A2B_CHECK(bench.StartAndRun());
   A2B_CHECK_EQ(bench.network.SubNodeCount(), 1);
-  const SubNodeInfo* node = bench.network.SubNode(0);
+  const SubNodeInfo* node = bench.network.SubNodeInfoAt(0);
   A2B_CHECK(node != nullptr && node->moduleInfo.peripheralBlocks == 3);
   // Eight units on the ADAU1701: a 16 ms wait, then seven type B writes (the payload less
   // its CRC), each in one transfer; the other two blocks have none.
@@ -527,6 +529,309 @@ A2B_TEST(AppSourceWithOnlyTheStartSkipsTheScripts) {
   A2B_CHECK(codec.writes.empty());
   // Its register settings were written all the same (I2SGCFG 0xE0 in ADI's image).
   A2B_CHECK_EQ(bench.bus.Sub(0).Reg(reg::kI2sgcfg), 0xE0);
+}
+
+// The sub-node's I2C rate: the image is read at 100 kHz, then its I2CCFG.DATARATE is applied.
+
+/** A device that notes the sub-node's I2CCFG at each transfer, then passes it on. */
+class RateProbe : public sim::I2cDevice {
+ public:
+  RateProbe(const sim::Node& node, sim::I2cDevice& device) : m_Node(node), m_Device(device) {}
+
+  /** Notes I2CCFG, then writes. */
+  Result Write(const uint8_t* data, size_t len, uint32_t nowMs) override {
+    writes.push_back(m_Node.Reg(reg::kI2ccfg));
+    return m_Device.Write(data, len, nowMs);
+  }
+  /** Notes I2CCFG, then reads. */
+  Result Read(uint8_t* data, size_t len, uint32_t nowMs) override {
+    reads.push_back(m_Node.Reg(reg::kI2ccfg));
+    return m_Device.Read(data, len, nowMs);
+  }
+
+  std::vector<uint8_t> writes;  ///< I2CCFG at each write.
+  std::vector<uint8_t> reads;   ///< I2CCFG at each read.
+
+ private:
+  const sim::Node& m_Node;
+  sim::I2cDevice& m_Device;
+};
+
+/** What I2CCFG was at each EEPROM read and codec write, for an image's I2CCFG. */
+struct RateRun {
+  std::vector<uint8_t> eepromReads;
+  std::vector<uint8_t> codecWrites;
+  uint8_t final = 0xFF;  ///< I2CCFG once the node is found.
+  bool found = false;
+};
+
+/** Finds a node whose image has I2CCFG @p i2ccfg and a codec script, on a bus at @p frameRateHz. */
+RateRun RunWithI2ccfg(uint8_t i2ccfg, uint32_t frameRateHz = 48000) {
+  std::vector<uint8_t> image = ScriptImage();
+  image[0x7F] = i2ccfg;  // Outside the CRCs the stack checks.
+  Bench bench;
+  bench.board.routing.frameRateHz = frameRateHz;
+  sim::Node& node = bench.Plug();
+  sim::Eeprom eeprom;
+  eeprom.Load(image);
+  RateProbe eepromProbe(node, eeprom);
+  node.AttachDevice(0x50, eepromProbe);
+  Recorder codec;
+  RateProbe codecProbe(node, codec);
+  node.AttachDevice(kCodecAddr, codecProbe);
+  RateRun run;
+  run.found = bench.StartAndRun() && bench.network.SubNodeCount() == 1;
+  run.eepromReads = eepromProbe.reads;
+  run.codecWrites = codecProbe.writes;
+  run.final = bench.bus.Sub(0).Reg(reg::kI2ccfg);
+  return run;
+}
+
+A2B_TEST(ImageDatarateSpeedsUpTheScripts) {
+  const RateRun run = RunWithI2ccfg(reg::kI2ccfgDatarate);
+  A2B_CHECK(run.found);
+  // The marker and the start: at the reset rate, 100 kHz.
+  A2B_CHECK(run.eepromReads.size() >= 2);
+  if (run.eepromReads.size() >= 2) {
+    A2B_CHECK_EQ(run.eepromReads[0], 0);
+    A2B_CHECK_EQ(run.eepromReads[1], 0);
+  }
+  // Then the scripts' reads and the codec's writes: 400 kHz.
+  A2B_CHECK(run.eepromReads.back() == reg::kI2ccfgDatarate);
+  A2B_CHECK_EQ(run.codecWrites.size(), 3);
+  for (uint8_t i2ccfg : run.codecWrites) {
+    A2B_CHECK_EQ(i2ccfg, reg::kI2ccfgDatarate);
+  }
+  A2B_CHECK_EQ(run.final, reg::kI2ccfgDatarate);
+}
+
+A2B_TEST(ImageWithoutDatarateStaysAt100kHz) {
+  const RateRun run = RunWithI2ccfg(0x00);
+  A2B_CHECK(run.found);
+  A2B_CHECK_EQ(run.codecWrites.size(), 3);
+  for (uint8_t i2ccfg : run.eepromReads) {
+    A2B_CHECK_EQ(i2ccfg, 0);
+  }
+  for (uint8_t i2ccfg : run.codecWrites) {
+    A2B_CHECK_EQ(i2ccfg, 0);
+  }
+  A2B_CHECK_EQ(run.final, 0);
+}
+
+A2B_TEST(ImageI2ccfgGivesOnlyDatarate) {
+  // DISI2C, FMPLUS and EACK are not applied: DISI2C would cut the node off from its EEPROM.
+  RateRun run = RunWithI2ccfg(0x8B);
+  A2B_CHECK(run.found);
+  A2B_CHECK_EQ(run.final, reg::kI2ccfgDatarate);
+  // On a 44.1 kHz bus, FRAMERATE comes with it; the image's FRAMERATE alone gives nothing.
+  run = RunWithI2ccfg(reg::kI2ccfgDatarate, 44100);
+  A2B_CHECK(run.found);
+  A2B_CHECK_EQ(run.final, reg::kI2ccfgDatarate | reg::kI2ccfgFramerate);
+  run = RunWithI2ccfg(reg::kI2ccfgFramerate);
+  A2B_CHECK(run.found);
+  A2B_CHECK_EQ(run.final, 0);
+}
+
+// The B port, the target chip and the cable length (header 0x07, 0x28 and 0x6C).
+
+/** An image with a B port type, a B-side cable length and a target chip. */
+std::vector<uint8_t> PortImage(uint8_t bPortType, uint16_t cableM = 0,
+                               uint16_t targetChip = kChipNotStated, uint8_t powerConfig = 4) {
+  sim::ModuleInfoHeader header;
+  header.powerConfig = powerConfig;
+  header.bPortType = bPortType;
+  header.bCableM = cableM;
+  header.targetChip = targetChip;
+  sim::ModuleInfoRegs regs;
+  regs.gpioien = 0x7F;
+  regs.pincfg = 0x00;
+  return sim::MakeModuleInfoImage(header, regs);
+}
+
+/** Plugs in a node of chip @p product with @p image in its EEPROM; its A side inverted or not. */
+sim::Node& PlugChip(Bench& bench, uint8_t product, const std::vector<uint8_t>& image, bool inverted,
+                    uint8_t chipIdByte) {
+  sim::SubNodeSpec spec = Ad2437(chipIdByte);
+  if (product != 0x37) {
+    spec.chip.productId = product;
+    spec.chip.powerConfig = 0;
+    spec.chip.lowVoltageInput = false;
+  }
+  spec.link.bSideInverted = inverted;
+  sim::Node& node = bench.bus.Plug(spec);
+  node.AddEeprom(0x50).Load(image);
+  return node;
+}
+
+/** True if the stack logged a line with @p text. */
+bool Logged(const Bench& bench, const char* text) {
+  for (const std::string& line : bench.sim.LogLines()) {
+    if (line.find(text) != std::string::npos) {
+      return true;
+    }
+  }
+  return false;
+}
+
+A2B_TEST(ImageBPortGivesTheNextLink) {
+  {
+    // UTP: single-step, straight.
+    Bench bench;
+    PlugChip(bench, 0x37, PortImage(2), false, 1);
+    PlugChip(bench, 0x37, PortImage(2), false, 2);
+    A2B_CHECK(bench.StartAndRun());
+    bench.Run(600);
+    A2B_CHECK_EQ(bench.network.SubNodeCount(), 2);
+    A2B_CHECK_EQ(bench.bus.Sub(0).Reg(reg::kControl) & reg::kControlXcvrbinv, 0);
+  }
+  {
+    // ADI's RJ45 on an AD2437: two-step, which isn't run yet: not probed past it.
+    Bench bench;
+    PlugChip(bench, 0x37, PortImage(1), false, 1);
+    PlugChip(bench, 0x37, PortImage(2), true, 2);
+    A2B_CHECK(bench.StartAndRun());
+    bench.Run(1500);
+    A2B_CHECK_EQ(bench.network.SubNodeCount(), 1);
+    A2B_CHECK(Logged(bench, "link to sub-node 1 is two-step (unsupported); not probed"));
+  }
+  {
+    // The app's link wins over the image's: inverted, single-step.
+    Bench bench;
+    PlugChip(bench, 0x37, PortImage(1), false, 1);
+    PlugChip(bench, 0x37, PortImage(2), true, 2);
+    LinkProfile inverted = LinkProfile::Utp();
+    inverted.bSideInverted = true;
+    A2B_CHECK(bench.network.SetLinkProfile(1, inverted) == Result::kOk);
+    A2B_CHECK(bench.StartAndRun());
+    bench.Run(600);
+    A2B_CHECK_EQ(bench.network.SubNodeCount(), 2);
+    A2B_CHECK_EQ(bench.bus.Sub(0).Reg(reg::kControl) & reg::kControlXcvrbinv,
+                 reg::kControlXcvrbinv);
+  }
+  {
+    // RJ45 and XLR on an AD2428: UTP (two-step needs the AD2437's 24 V switch).
+    for (uint8_t type : {0, 1}) {
+      Bench bench;
+      PlugChip(bench, 0x28, PortImage(type, 0, kChipNotStated, 0), false, 1);
+      PlugChip(bench, 0x28, PortImage(2, 0, kChipNotStated, 0), false, 2);
+      A2B_CHECK(bench.StartAndRun());
+      bench.Run(600);
+      A2B_CHECK_EQ(bench.network.SubNodeCount(), 2);
+      A2B_CHECK_EQ(bench.bus.Sub(0).Reg(reg::kControl) & reg::kControlXcvrbinv, 0);
+    }
+  }
+}
+
+A2B_TEST(CustomBPortsAreNotProbedPast) {
+  // RJ45-CUSTOM, RJ45-CUSTOM-INV, CUSTOM and a reserved type: no handler yet.
+  for (uint8_t type : {3, 4, 5, 9}) {
+    Bench bench;
+    PlugChip(bench, 0x37, PortImage(type), false, 1);
+    PlugChip(bench, 0x37, PortImage(2), false, 2);
+    A2B_CHECK(bench.StartAndRun());
+    bench.Run(1500);
+    A2B_CHECK_EQ(bench.network.SubNodeCount(), 1);
+    A2B_CHECK(Logged(bench, "link to sub-node 1: Unsupported B port type; not probed"));
+  }
+}
+
+A2B_TEST(ImageForAnotherChipIsRejected) {
+  {
+    // An AB0204's image (its AD2427 soldered down) on an AD2437: rejected.
+    Bench bench;
+    PlugChip(bench, 0x37, PortImage(2, 0, 0x2427), false, 1);
+    A2B_CHECK(bench.network.Start() == Result::kOk);
+    bench.Run(1500);
+    A2B_CHECK_EQ(bench.network.SubNodeCount(), 0);
+    A2B_CHECK(bench.network.LastRejection() == RejectReason::kWrongChip);
+  }
+  for (uint16_t chip : {kChipExternal, static_cast<uint16_t>(0x2437), kChipNotStated}) {
+    Bench bench;
+    PlugChip(bench, 0x37, PortImage(2, 0, chip), false, 1);
+    A2B_CHECK(bench.StartAndRun());
+    A2B_CHECK_EQ(bench.network.SubNodeCount(), 1);
+  }
+}
+
+A2B_TEST(EachChipKeepsItsOwnPowerConfig) {
+  // A board with a plug-in module (External) whose image says CFG-4, as the AB0020's does.
+  // Each chip has one power configuration: the AD2428's (none) and the AD2433's is CFG-0,
+  // the AD2437's CFG-4. The probes behind the node check what it detected against it, so an
+  // AD2433 must not be overridden to CFG-4.
+  const std::vector<uint8_t> image = PortImage(2, 0, kChipExternal, 4);
+  const uint8_t products[] = {0x28, 0x33, 0x37};
+  const uint8_t expected[] = {0, 0, 4};
+  for (size_t i = 0; i < 3; ++i) {
+    Bench bench;
+    sim::Node& node = PlugChip(bench, products[i], image, false, 1);
+    A2B_CHECK(bench.StartAndRun());
+    bench.Run(1500);  // Probes behind it, each checking its power configuration.
+    const SubNodeInfo* info = bench.network.SubNodeInfoAt(0);
+    A2B_CHECK(info != nullptr);
+    if (info != nullptr) {
+      A2B_CHECK_EQ(info->moduleInfo.powerConfig, expected[i]);
+    }
+    A2B_CHECK_EQ(node.PowerConfig(), expected[i]);
+    A2B_CHECK_EQ(node.Reg(reg::kSwctl) & reg::kSwctlCfgDetOv, 0);
+    A2B_CHECK(!Logged(bench, "image's CFG isn't its chip's"));  // External: no log line.
+  }
+  // An image that names no plug-in module and disagrees with its chip is logged.
+  Bench bench;
+  PlugChip(bench, 0x28, PortImage(2, 0, kChipNotStated, 4), false, 1);
+  A2B_CHECK(bench.StartAndRun());
+  A2B_CHECK(Logged(bench, "a2b: sub-node 0: image's CFG isn't its chip's; chip's used"));
+  A2B_CHECK_EQ(bench.network.SubNodeInfoAt(0)->moduleInfo.powerConfig, 0);
+}
+
+A2B_TEST(Ad243xOnlyBitsAreClearedOnAnAd242x) {
+  // An External board's image with an HPF corner and a GPIO mode for an AD243x module.
+  sim::ModuleInfoHeader header;
+  header.powerConfig = 0;
+  header.bPortType = 2;
+  header.targetChip = kChipExternal;
+  sim::ModuleInfoRegs regs;
+  regs.pdmctl2 = 0x40;
+  regs.pincfg = 0x81;
+  const std::vector<uint8_t> image = sim::MakeModuleInfoImage(header, regs);
+  for (uint8_t product : {0x28, 0x37}) {
+    Bench bench;
+    PlugChip(bench, product, image, false, 1);
+    A2B_CHECK(bench.StartAndRun());
+    A2B_CHECK_EQ(bench.network.SubNodeCount(), 1);
+    const bool ad242x = (product == 0x28);
+    A2B_CHECK_EQ(bench.bus.Sub(0).Reg(reg::kPdmctl2), ad242x ? 0x00 : 0x40);
+    A2B_CHECK_EQ(bench.bus.Sub(0).Reg(reg::kPincfg), ad242x ? 0x01 : 0x81);
+  }
+}
+
+A2B_TEST(ImageCableLengthGoesIntoTheResponseCycles) {
+  // Sub-node 0's image gives the cable on its B side: the link to sub-node 1.
+  uint8_t discvry[2] = {};
+  const uint16_t metres[2] = {0, 20};
+  for (size_t i = 0; i < 2; ++i) {
+    Bench bench;
+    PlugChip(bench, 0x37, PortImage(2, metres[i]), false, 1);
+    PlugChip(bench, 0x37, PortImage(2), false, 2);
+    A2B_CHECK(bench.StartAndRun());
+    A2B_CHECK_EQ(bench.network.SubNodeCount(), 2);
+    A2B_CHECK_EQ(bench.network.CableLength(0), 40);  // The board's, into sub-node 0.
+    A2B_CHECK_EQ(bench.network.CableLength(1), i == 0 ? 40 : 200);
+    bench.Run(600);  // A probe behind sub-node 1, past both cables.
+    discvry[i] = bench.bus.Main().Reg(reg::kDiscvry);
+    if (i == 1) {
+      // The app's length wins; cleared, the image's again.
+      A2B_CHECK(bench.network.SetCableLength(1, 50) == Result::kOk);
+      A2B_CHECK_EQ(bench.network.CableLength(1), 50);
+      A2B_CHECK(bench.network.ClearCableLength(1) == Result::kOk);
+      A2B_CHECK_EQ(bench.network.CableLength(1), 200);
+    }
+  }
+  A2B_CHECK(discvry[0] != discvry[1]);
+  // Longer than the data sheets' 30 m: taken as it is (110 ft has run on an AD2428).
+  Bench bench;
+  PlugChip(bench, 0x37, PortImage(2, 34), false, 1);
+  A2B_CHECK(bench.StartAndRun());
+  A2B_CHECK_EQ(bench.network.CableLength(1), 340);
 }
 
 // The bench's modules, from the boot4 golden (ADI's stack, EEPROMs read).

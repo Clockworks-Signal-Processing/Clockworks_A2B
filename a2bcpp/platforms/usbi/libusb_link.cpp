@@ -26,7 +26,7 @@
  * to 16 ms.
  *
  * libusb is cross-platform, so this builds on Linux too. A USBi on a Linux host is
- * future work: it may need the USBi's firmware loaded and a udev rule.
+ * not supported (the roadmap): it may need the USBi's firmware loaded and a udev rule.
  *
  * C++ form by ClockWorks Signal Processing LLC.
  */

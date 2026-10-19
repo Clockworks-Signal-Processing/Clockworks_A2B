@@ -80,11 +80,12 @@ BoardConfig MakeBoard() {
   return board;
 }
 
-/** A chip that detects CFG-4, as the bench's AD2437 nodes do. */
+/** A chip that detects its own power configuration: CFG-4, as the bench's AD2437 nodes do,
+    except the AD2433, which has CFG-0 only (AD2431W-35W data sheet, Table 1). */
 sim::ChipSpec Chip(uint8_t productId = 0x37) {
   sim::ChipSpec chip;
   chip.productId = productId;
-  chip.powerConfig = sim::kPowerConfigHighPower;
+  chip.powerConfig = (productId == 0x33) ? 0 : sim::kPowerConfigHighPower;
   chip.lowVoltageInput = true;
   return chip;
 }
@@ -171,7 +172,7 @@ A2B_TEST(Scenario3ChainOfThree) {
   A2B_CHECK_EQ(bench.network.SubNodeCount(), 3);
   A2B_CHECK_EQ(bench.bus.DiscoveredCount(), 3);
   for (NodeAddr n = 0; n < 3; ++n) {
-    const SubNodeInfo* node = bench.network.SubNode(n);
+    const SubNodeInfo* node = bench.network.SubNodeInfoAt(n);
     A2B_CHECK(node != nullptr && node->identity.position == n);
     A2B_CHECK(node != nullptr && node->identity.chipId[5] == 0x10 + n);
     A2B_CHECK_EQ(bench.bus.Sub(n).Reg(reg::kGpioien), 0x7F);
@@ -180,7 +181,7 @@ A2B_TEST(Scenario3ChainOfThree) {
     A2B_CHECK_EQ(bench.bus.Sub(n).Reg(reg::kIntmsk0), reg::kIntmsk0Pwrerr);
     A2B_CHECK_EQ(bench.bus.Sub(n).Reg(reg::kIntmsk1), 0x00);
   }
-  A2B_CHECK(bench.network.SubNode(3) == nullptr);
+  A2B_CHECK(bench.network.SubNodeInfoAt(3) == nullptr);
   // The switches: the main node and the first two sub-nodes power the next node; the last
   // keeps its mode with ENSW clear.
   A2B_CHECK_EQ(bench.bus.Main().Reg(reg::kSwctl), 0x11);
@@ -241,6 +242,9 @@ A2B_TEST(UpstreamNodeIsSetUpInTheTrmOrderOnce) {
   BoardConfig board = MakeBoard();
   board.defaultLink.bSideInverted = true;
   Bench bench(board);
+  LinkProfile inverted = LinkProfile::Utp();
+  inverted.bSideInverted = true;
+  A2B_CHECK(bench.network.SetLinkProfile(1, inverted) == Result::kOk);  // Sub-node 0's B side.
   sim::SubNodeSpec spec = Ad(0x37);
   spec.link.bSideInverted = true;
   bench.bus.Plug(spec);
@@ -407,7 +411,7 @@ A2B_TEST(Scenario7SixteenSubNodes) {
   A2B_CHECK(bench.network.Start() == Result::kOk);
   A2B_CHECK(bench.RunUntil(NetworkState::kRunning, 5000));
   A2B_CHECK_EQ(bench.network.SubNodeCount(), 16);
-  const SubNodeInfo* last = bench.network.SubNode(15);
+  const SubNodeInfo* last = bench.network.SubNodeInfoAt(15);
   A2B_CHECK(last != nullptr && last->identity.chipId[5] == 15);
   const std::vector<Access> a = bench.Accesses();
   A2B_CHECK_EQ(Count(a, kMainNode, true, reg::kDiscvry), 16);
@@ -488,7 +492,7 @@ A2B_TEST(HotPlugAtTheEndOfTheChain) {
   bench.bus.Plug(Ad(0x37));
   A2B_CHECK(bench.RunUntilCount(3, 1000));  // Found by one idle probe, then at once.
   A2B_CHECK(bench.network.State() == NetworkState::kRunning);
-  const SubNodeInfo* node = bench.network.SubNode(1);
+  const SubNodeInfo* node = bench.network.SubNodeInfoAt(1);
   A2B_CHECK(node != nullptr && node->identity.productId == 0x28);
 }
 

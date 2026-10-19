@@ -35,9 +35,10 @@ struct BoardTimings {
   /** PLL lock time (tPLK): CONTROL.MSTR to the deadline for MSTR_RUNNING (SigmaStudio+
       nDiscoveryStartDelay; ADI's stack used 25 when it was 0). */
   uint32_t discoveryStartDelayMs = 25;
-  /** AD243x: soft reset to CONTROL.MSTR, which must cover SUSTAIN (1024 SYNC periods,
-      about 21.3 ms at 48 kHz), and the wait between discovery attempts (SigmaStudio+
-      nRediscWaitTime). The stack never waits less than 25. */
+  /** The main node's soft reset to its CONTROL.MSTR write, at every start and restart: it
+      must cover an AD243x's SUSTAIN (1024 SYNC periods, about 21.3 ms at 48 kHz), or the
+      main node wedges until power-cycled. The stack never waits less than 25. The name is
+      SigmaStudio+'s (nRediscWaitTime), which ImportSsPlus() copies. */
   uint32_t rediscoveryWaitMs = 250;
   /** DISCVRY to the deadline for DSCDONE. ADI's stack used 50, or 70 behind a
       medium- or high-power AD243x; the stack can't know the node in advance, so 70. */
@@ -81,7 +82,8 @@ class BoardHooks {
 struct BoardPolicy {
   /** Sub-nodes to accept before discovery stops, 1-16: the most the system design has.
       Once that many are in, no more probes are made until one leaves. The chips take 16;
-      the default is 15, as the 16th node has given trouble on hardware. */
+      the default is 15, as the 16th node has given trouble on hardware. Taken at
+      Network::Start(). */
   uint8_t maxSubNodes = 15;
   /** Power budget: the most the bus-powered sub-nodes may draw together, by their module
       info's maximum power (ModuleInfo::maxPowerMw); 0 for no limit. A node that would
@@ -90,10 +92,6 @@ struct BoardPolicy {
   /** Current budget, as #maxBusPowerMw for ModuleInfo::maxCurrentMa; 0 for no limit. */
   uint32_t maxBusCurrentMa = 0;
 };
-
-/** @brief The longest cable a link may be given, in decimetres: 30 m, the AD2437's longest
- *         link (its data sheet; the AD242x and AD2431W-35W data sheets give 15 m). */
-inline constexpr uint16_t kMaxCableDm = 300;
 
 /** @brief What the routing needs to know about the board: the main node's channel
  *         groups, the frame rate and the cables, and the app's routing policy. */
@@ -106,9 +104,10 @@ struct BoardRouting {
       stack always took 48 kHz. */
   uint32_t frameRateHz = 48000;
   /** Each link's cable length in decimetres, for the response cycles, unless
-      Network::SetCableLength() gives that link its own. The AD2431-35 TRM ("Response
+      Network::SetCableLength() gives that link its own or the upstream node's image gives
+      its B-side cable (ModuleInfo::bCableDm). The AD2431-35 TRM ("Response
       Cycles"): with the lengths unknown, the calculation for 4 m is adequate, as each node
-      adjusts its response time during discovery (-4 to +15 bit times). 1 to #kMaxCableDm. */
+      adjusts its response time during discovery (-4 to +15 bit times). From 1. */
   uint16_t cableDm = 40;
   /** What the stack mutes while it writes a routing plan. The
       NetworkListener's OnAudioMute() and OnAudioUnmute() are called in any mode. */
@@ -161,9 +160,11 @@ struct BoardConfig {
       there the peripherals the export doesn't mark for after discovery (bPostDiscCfg). */
   size_t hostOpsBeforeMainNode = 0;
 
-  /** The link to sub-node 0, and to every later sub-node, unless Network::SetLinkProfile()
-      sets one for its position or the upstream node's SubNode::DownstreamLink() gives
-      one. ImportSsPlus() takes XCVRBINV from the export's main-node CONTROL. */
+  /** The link to sub-node 0 (the main node's B side), unless Network::SetLinkProfile()
+      sets one for it. A later link is the upstream node's SubNode::DownstreamLink(), by
+      default the one its image's B port type gives; a node class may return this one
+      (SubNode::BoardLink()). ImportSsPlus() takes XCVRBINV from the export's main-node
+      CONTROL. */
   LinkProfile defaultLink;
 
   BoardTimings timings;         ///< Main-node and discovery timings.

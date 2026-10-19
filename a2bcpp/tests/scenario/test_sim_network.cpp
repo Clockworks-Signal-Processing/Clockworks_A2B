@@ -377,10 +377,10 @@ A2B_TEST(Scenario2SingleHotPlug) {
   A2B_CHECK(bench.RunUntilCount(1, 1000));
   A2B_CHECK(bench.network.State() == NetworkState::kRunning);
   A2B_CHECK(bench.network.LastRejection() == RejectReason::kNone);
-  const SubNodeInfo* node = bench.network.SubNode(0);
+  const SubNodeInfo* node = bench.network.SubNodeInfoAt(0);
   A2B_CHECK(node != nullptr);
-  A2B_CHECK(bench.network.SubNode(1) == nullptr);
-  A2B_CHECK(bench.network.SubNode(kMainNode) == nullptr);
+  A2B_CHECK(bench.network.SubNodeInfoAt(1) == nullptr);
+  A2B_CHECK(bench.network.SubNodeInfoAt(kMainNode) == nullptr);
   if (node != nullptr) {
     A2B_CHECK_EQ(node->identity.position, 0);
     A2B_CHECK_EQ(node->identity.vendorId, 0xAD);
@@ -473,7 +473,20 @@ A2B_TEST(InvertedLink) {
     A2B_CHECK(bench.RunUntil(NetworkState::kRunning, 1000));
     A2B_CHECK_EQ(bench.network.SubNodeCount(), 1);
     A2B_CHECK_EQ(bench.bus.Main().Reg(reg::kControl), reg::kControlMstr | reg::kControlXcvrbinv);
-    // The default link is used behind sub-node 0 too.
+    // Behind sub-node 0 its image's B port decides: UTP, not inverted.
+    A2B_CHECK_EQ(bench.bus.Sub(0).Reg(reg::kControl), 0x00);
+  }
+  {
+    // The app's link wins over the image's.
+    BoardConfig board = MakeBoard();
+    board.defaultLink.bSideInverted = true;
+    Bench bench(board);
+    LinkProfile inverted = LinkProfile::Utp();
+    inverted.bSideInverted = true;
+    A2B_CHECK(bench.network.SetLinkProfile(1, inverted) == Result::kOk);
+    bench.bus.Plug(spec);
+    A2B_CHECK(bench.network.Start() == Result::kOk);
+    A2B_CHECK(bench.RunUntil(NetworkState::kRunning, 1000));
     A2B_CHECK_EQ(bench.bus.Sub(0).Reg(reg::kControl), reg::kControlXcvrbinv);
   }
 }
@@ -641,6 +654,34 @@ A2B_TEST(StartChecksTheBoard) {
   A2B_CHECK(twoStep.Start() == Result::kNotSupported);  // Two-step is not supported yet.
   A2B_CHECK(twoStep.State() == NetworkState::kStopped);
   A2B_CHECK_EQ(sim.TransferCount(), 0);
+}
+
+A2B_TEST(BPortLinks) {
+  // The link a module's B port gives (its image's 0x28), by its chip: ADI's XLR and RJ45 are
+  // two-step on an AD2437 only, UTP on any other; 3-5 and reserved values have no handler.
+  const uint8_t chips[] = {0x37, 0x33, 0x28, 0x27};
+  for (uint8_t chip : chips) {
+    const bool ad2437 = (chip == 0x37);
+    const LinkProfile xlr = LinkProfile::ForBPort(0, chip);
+    const LinkProfile rj45 = LinkProfile::ForBPort(1, chip);
+    const LinkProfile utp = LinkProfile::ForBPort(2, chip);
+    A2B_CHECK((xlr.discovery == LinkProfile::Discovery::kTwoStep) == ad2437);
+    A2B_CHECK(!xlr.bSideInverted);
+    A2B_CHECK((rj45.discovery == LinkProfile::Discovery::kTwoStep) == ad2437);
+    A2B_CHECK_EQ(rj45.bSideInverted, ad2437);
+    A2B_CHECK(utp.discovery == LinkProfile::Discovery::kSingleStep && !utp.bSideInverted);
+    A2B_CHECK(utp.power == LinkProfile::Power::kOnA2bPair);
+    for (uint8_t type : {3, 4, 5, 6, 255}) {
+      A2B_CHECK(LinkProfile::ForBPort(type, chip).discovery ==
+                LinkProfile::Discovery::kUnsupported);
+    }
+  }
+  LinkProfile profile;
+  A2B_CHECK(CustomBPortLink(4, 0x37, profile) == Result::kNotSupported);  // A placeholder.
+  // The app can't set an unsupported link.
+  sim::Simulator sim;
+  Network network(sim, MakeBoard());
+  A2B_CHECK(network.SetLinkProfile(1, LinkProfile::ForBPort(3, 0x37)) == Result::kNotSupported);
 }
 
 A2B_TEST(LinkPresets) {

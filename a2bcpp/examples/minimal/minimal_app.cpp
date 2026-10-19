@@ -4,14 +4,17 @@
  *
  * What an app does, in order (the quick start, a2bcpp/docs/quick_start.md, walks
  * through it):
- * 1. Fill a BoardConfig from the SigmaStudio+ export (ImportSsPlus()).
+ * 1. Fill a BoardConfig from the SigmaStudio+ export (ImportSsPlus()), and give every link
+ *    the export's (its XCVRBINV; Network::SetLinkProfile()): the bench's links are all
+ *    alike, RJ45 cables run single-step. Without that, the link after each sub-node would
+ *    be the one its image's B port type gives (LinkProfile::ForBPort()).
  * 2. Make a Network for the bus with the Platform and the BoardConfig.
  * 3. Sub-nodes' module info comes from their EEPROMs by default: settings, power
  *    configuration and peripheral scripts. With ignoreEeprom (`--ignore-eeprom` on
  *    Linux), for blank modules, the app gives the images instead: this one gives every
  *    node the settings the bench's modules had in golden G13, GPIO0-6 as inputs and
- *    PINCFG 0, in power configuration CFG-4 (24 V), which the bench's AD2437 modules
- *    detect. A module info that disagrees with what the chip detects overrides it.
+ *    PINCFG 0, in power configuration CFG-4 (24 V). The stack uses each chip's own power
+ *    configuration (CFG-4 on an AD2437, CFG-0 on the others), whatever the image says.
  * 4. Listen: the app is the bus's NetworkListener, and prints each event (states, nodes
  *    added, rejected or removed, interrupts) as the bus gives them out at the end of a
  *    Poll().
@@ -29,12 +32,15 @@
 
 #include <cstdio>
 
+#include "a2b/strings.h"
+
 namespace {
 
 /**
  * Builds the module-info image the app gives every sub-node: a valid header (module
- * vendor 0x00AD, product 0x0037) and module-info block, power configuration CFG-4,
- * GPIOIEN 0x7F and PINCFG 0x00; everything else at its power-on value. Layout:
+ * vendor 0x00AD, product 0x0037) and module-info block, power configuration CFG-4, a UTP
+ * B port (the link to the next node single-step, not inverted), GPIOIEN 0x7F and PINCFG
+ * 0x00; everything else at its power-on value. Layout:
  * a2bcpp/src/module_info.cpp.
  */
 void MakeImage(uint8_t* image) {
@@ -50,65 +56,9 @@ void MakeImage(uint8_t* image) {
   image[0x20] = 0x30;  // Module-info block: type 3 ...
   image[0x21] = 0x6E;  // ... and its size.
   image[0x23] = 0x40;  // Power configuration 4 (CFG-4), no local power.
+  image[0x28] = 0x02;  // B port type: UTP.
   image[0x8B] = 0x7F;  // GPIOIEN: GPIO0-6 are inputs.
   image[0x8E] = 0x00;  // PINCFG: 0 (it powers on as 0x01).
-}
-
-/** A name for a state, for the report. */
-const char* Name(a2b::NetworkState state) {
-  switch (state) {
-    case a2b::NetworkState::kStopped:
-      return "stopped";
-    case a2b::NetworkState::kStarting:
-      return "starting the main node";
-    case a2b::NetworkState::kConfiguring:
-      return "configuring the main node";
-    case a2b::NetworkState::kDiscovering:
-      return "bringing up the chain";
-    case a2b::NetworkState::kRunning:
-      return "running";
-    case a2b::NetworkState::kFailed:
-      return "failed";
-  }
-  return "?";
-}
-
-/** A name for a rejection reason, for the report. */
-const char* Name(a2b::RejectReason reason) {
-  switch (reason) {
-    case a2b::RejectReason::kNone:
-      return "none";
-    case a2b::RejectReason::kUnsupportedChip:
-      return "unsupported chip";
-    case a2b::RejectReason::kNoModuleInfo:
-      return "no module info (no EEPROM at 0x50-0x54, or a blank one)";
-    case a2b::RejectReason::kBadModuleInfo:
-      return "bad module info (marker, header CRC or block)";
-    case a2b::RejectReason::kConfigFailed:
-      return "configuration failed";
-    case a2b::RejectReason::kPeripheralFailed:
-      return "peripheral script failed";
-    case a2b::RejectReason::kPowerBudget:
-      return "over the power budget";
-    case a2b::RejectReason::kByApp:
-      return "by the app";
-  }
-  return "?";
-}
-
-/** A name for a removal reason, for the report. */
-const char* Name(a2b::RemovalReason reason) {
-  switch (reason) {
-    case a2b::RemovalReason::kDropped:
-      return "dropped (unplugged, or a node before it was)";
-    case a2b::RemovalReason::kRejected:
-      return "rejected by the app";
-    case a2b::RemovalReason::kRestart:
-      return "the bus starts again";
-    case a2b::RemovalReason::kStopped:
-      return "the bus stopped";
-  }
-  return "?";
 }
 
 }  // namespace
@@ -130,13 +80,17 @@ MinimalApp::MinimalApp(a2b::Platform& platform, bool ignoreEeprom)
 /**
  * Makes the link into sub-node @p position a UTP link (LinkProfile::Utp(): single-step,
  * power on the A2B pair, B side not inverted), where the export's default link may be
- * inverted (an RJ45 cable, as on the bench). The other links keep the default. Call it
+ * inverted (an RJ45 cable, as on the bench). The other links get the export's. Call it
  * before Setup(); it applies from the first probe of that position.
  * @param position The sub-node the link leads to, 0-15.
  * @return Result::kOk, or Result::kInvalidArgument if @p position is not 0-15.
  */
 a2b::Result MinimalApp::SetUtpLink(a2b::NodeAddr position) {
-  return m_Network.SetLinkProfile(position, a2b::LinkProfile::Utp());
+  const a2b::Result result = m_Network.SetLinkProfile(position, a2b::LinkProfile::Utp());
+  if (result == a2b::Result::kOk) {
+    m_UtpLinks |= 1u << position;
+  }
+  return result;
 }
 
 /**
@@ -149,6 +103,11 @@ a2b::Result MinimalApp::Setup(const ADI_A2B_BCD& bcd) {
   if (result != a2b::Result::kOk) {
     std::printf("SigmaStudio+ import failed (%d)\n", static_cast<int>(result));
     return result;
+  }
+  for (int position = 0; position < a2b::kMaxSubNodes; ++position) {
+    if ((m_UtpLinks & (1u << position)) == 0) {
+      (void)m_Network.SetLinkProfile(static_cast<a2b::NodeAddr>(position), m_Board.defaultLink);
+    }
   }
   result = m_Network.Start();
   if (result != a2b::Result::kOk) {
@@ -178,10 +137,10 @@ void MinimalApp::OnEvent(a2b::Network& network, const a2b::Event& event) {
       return;
     case a2b::EventType::kNodeRejected:
       std::printf("  sub-node %u rejected (reason %d: %s)\n", node,
-                  static_cast<int>(event.rejection), Name(event.rejection));
+                  static_cast<int>(event.rejection), a2b::ToString(event.rejection));
       return;
     case a2b::EventType::kNodeRemoved:
-      std::printf("  sub-node %u removed (%s)\n", node, Name(event.removal));
+      std::printf("  sub-node %u removed (%s)\n", node, a2b::ToString(event.removal));
       return;
     case a2b::EventType::kInterrupt:
       std::printf("  interrupt from %s %d: type %u\n",
@@ -197,7 +156,7 @@ void MinimalApp::OnEvent(a2b::Network& network, const a2b::Event& event) {
 
 /** Prints a new state, and what went wrong or how many sub-nodes are up. */
 void MinimalApp::ReportState(a2b::NetworkState state) {
-  std::printf("bus 0: %s\n", Name(state));
+  std::printf("bus 0: %s\n", a2b::ToString(state));
   if (state == a2b::NetworkState::kFailed) {
     std::printf("  error %d\n", static_cast<int>(m_Network.Error()));
   }
@@ -208,7 +167,7 @@ void MinimalApp::ReportState(a2b::NetworkState state) {
 
 /** Prints one sub-node's chip, chip ID and module. */
 void MinimalApp::ReportNode(a2b::NodeAddr position) {
-  const a2b::SubNodeInfo* node = m_Network.SubNode(position);
+  const a2b::SubNodeInfo* node = m_Network.SubNodeInfoAt(position);
   if (node == nullptr) {
     return;
   }

@@ -15,21 +15,18 @@
 #include <cstdio>
 
 #include "a2b_build_stamp.h"
+#include "ab0310_wiring.h"
 #include "fixed_app.h"
 #include "pico/stdlib.h"
+#include "rp2040_heap.h"
 #include "rp2040_platform.h"
 
 extern "C" {
 /// tools/SS+reference/AB0310_AB0312_EVM_with_2437/adi_a2b_busconfig.c, linked in.
 extern ADI_A2B_BCD sBusDescription;
-size_t FixedHeapInUse(void);  ///< The heap in use (rp2040_heap.c).
 }
 
 namespace {
-
-constexpr unsigned kSdaPin = 16;   ///< The board's SDA.
-constexpr unsigned kSclPin = 17;   ///< The board's SCL.
-constexpr unsigned kResetPin = 2;  ///< The main node's RESETn.
 
 /// The main node's RX group 0 (its DRX0 pair) to the AB0312's TX group 0, and the AB0312's
 /// RX group 0 back to the main node's TX group 0.
@@ -45,18 +42,17 @@ int main() {
   stdio_init_all();
   std::printf("a2b_fixed built %s\n", A2B_BUILD_STAMP);
   std::printf("a2b fixed app: AB0310 main node, AB0312 at sub-node 0\n");
-  static a2b::Rp2040Platform platform(i2c0, kSdaPin, kSclPin);
-  platform.SetResetPin(kResetPin);
-  platform.Init();
+  static a2b::Rp2040Platform platform(i2c0, a2b::ab0310::kSdaPin, a2b::ab0310::kSclPin);
+  a2b::ab0310::SetUp(platform);
   static const clockworks::ModuleProfile kGeneric = clockworks::GenericModule();
   static FixedSetup setup;
-  setup.boards[0] = clockworks::FindBoard("ab0312");
+  setup.boards[0] = clockworks::FindBoard("AB0312");
   setup.fallback = &kGeneric;            // Every other sub-node, as the console's --ignore-eeprom.
   (void)setup.mainGroups.AddRx(0, 0x3);  // DRX0: TDM channels 0-1.
   (void)setup.mainGroups.AddTx(0, 0x3);  // DTX0: TDM channels 0-1.
   setup.connections = kConnections;
   setup.connectionCount = sizeof(kConnections) / sizeof(kConnections[0]);
-  setup.heapInUse = FixedHeapInUse;
+  setup.heapInUse = Rp2040HeapInUse;
   static FixedApp app(platform);
   if (app.Setup(sBusDescription, setup) != a2b::Result::kOk) {
     std::printf("Set-up failed\n");

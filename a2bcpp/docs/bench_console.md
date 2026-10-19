@@ -1,16 +1,26 @@
 # Bench console
 
-`a2b_bench` (`a2bcpp/examples/bench/`) drives one A2B bus with the C++ stack from typed
-commands, to try boards and chains on the bench: from Windows through the ADI USBi, or from
-Linux through the host's I2C (the Pi). The [minimal example](quick_start.md) shows the
-least an app needs; the console is for testing.
+A *bench* here is a lab test set-up: A2B boards, modules and cables on a desk. The bench
+console, `a2b_bench` (`a2bcpp/examples/bench/`), is the interactive program for trying one.
+It drives one A2B bus with the C++ stack from typed commands: from Windows through the ADI USBi, from
+Linux through the host's I2C (the Pi), or on an RP2040 with no PC beside the bus, through
+the Pico's own I2C (without the file commands; see "On the RP2040" below). The
+[minimal example](quick_start.md) shows the least an app needs; the console is for testing.
 
-It can pick a built-in board or load a SigmaStudio+ export at run time, start and stop the bus,
-show its status, set a link profile and a cable length per position, ignore the EEPROMs, give a
-position a Clockworks board's module info, trace the I2C to a file, read and write any node's
-registers and peripherals, pause and resume discovery, reject a node, connect and route channel
-groups, and mute. Not yet: GPIO over distance, and EEPROM writes (see the
-[roadmap](../../docs/cpp-stack/ROADMAP.md)).
+It can do the following:
+- pick a built-in board, or load a SigmaStudio+ export at run time;
+- start and stop the bus, and show its status;
+- set a link profile and a cable length per position;
+- ignore the EEPROMs, give a position a Clockworks board's module info, or give it an image
+  file;
+- read, write, verify and erase sub-nodes' module-info EEPROMs;
+- trace the I2C to a file;
+- read and write any node's registers and peripherals;
+- pause and resume discovery, and reject a node;
+- connect and route channel groups, and mute.
+
+Not included: GPIO over distance, and the other features in the
+[roadmap](../../ROADMAP.md)'s list.
 
 ## Build and run
 
@@ -41,7 +51,7 @@ not found (not plugged in, or not the WinUSB driver), or can't be opened (in use
 From VS Code, the A2B menu's "Windows bench (USBi)" section runs the build, the program
 (Release) and gdb (Debug); the build is `a2bcpp\tools\build_windows.ps1 Debug|Release`, into
 `build\a2b-bench-windows\<type>\examples\bench`, without the tests. The program starts the
-board set in `a2b.windowsBoard` (default `ab0020`) and its `start` command.
+board set in `a2b.windowsBoard` (default `AB0020`) and its `start` command.
 
 ### Linux (the Pi)
 
@@ -54,8 +64,42 @@ From VS Code, the A2B menu's "Raspberry Pi bench" section cross-builds it in Deb
 the Pi as `~/a2b_bench`, and runs it (`--board <a2b.piBoard> start`, default `ref`) or
 debugs it through `gdbserver`; the Pi's address and user are the User settings `a2b.piHost`
 and `a2b.piUser` ([setup_pi.md](setup_pi.md)). With libusb
-(`libusb-1.0-0-dev`) the Linux build also has `--usbi`; a USBi on a Linux host is future
-work (it may need its firmware loaded and a udev rule).
+(`libusb-1.0-0-dev`) the Linux build also has `--usbi`; a USBi on a Linux host is untried
+(it may need its firmware loaded and a udev rule).
+
+### On the RP2040
+
+`a2bcpp/examples/bench/rp2040` builds the console for a Raspberry Pi Pico as `a2b_bench.elf`
+(and `.uf2`), a Pico SDK project beside the fixed app's ([README](../../README.md#building-for-rp2040)).
+From VS Code, the A2B menu's "RP2040 bench" section builds it, loads it through the debug
+probe and runs it (Release) or debugs it (Debug).
+
+- **Wiring:** the AB0310 board's, as the fixed app's: i2c0 on GPIO16 (SDA) and GPIO17 (SCL) at
+  400 kHz, the main node's RESETn on GP2.
+- **Console:** uart0 on GP0/GP1 at 230400 baud, the Debug Probe's UART port. Type at the
+  `A2B>` prompt; backspace edits the line, and CR, LF or CR LF ends it.
+- **At start:** the build stamp (`a2b_bench built ...`), the wiring, then `board AB0310` as if
+  typed. Nothing else runs: `start` starts the bus. There are no command-line options; other
+  start-up commands would be compiled in (`kStartup` in `examples/bench/main_rp2040.cpp`).
+- **Not available**, as there is no file system: the `eeprom` commands, `i2cTrace`,
+  `board FILE`, `module N file FILE` and `module N BOARD FILE`. Typed, each prints one line
+  (`eeprom: not available on the RP2040 (no file system)`), and `help` doesn't list them.
+  Everything else is the same as on the Pi and Windows. The console is built with
+  `A2B_BENCH_FILES` 0; the host build compiles that variant too, so a change that breaks it
+  shows in `run_tests.sh`.
+- **`quit`** stops the bus (nothing more is sent) and the console keeps running: `start`
+  starts it again.
+- **`heap`**, the RP2040 console's own command (any case; `help` lists it last), prints the
+  heap in use ([ram.md](ram.md#the-bench-console-on-the-rp2040)).
+- **Typing ahead:** every character waiting is read on each pass, so a pasted block of
+  commands isn't cut short by a long poll; ESC sequences (arrow keys, Home, End) are ignored.
+
+One core does everything. A command runs between two polls (the stack is polled by one
+thread), the bus is polled every millisecond by absolute time, and the output waits in a
+buffer that goes to the UART as it has room, so a long listing (`help` is about 5 KB, some
+200 ms at 230400 baud) never holds up a poll. The stack's own log lines go through the same
+buffer. Nothing is lost while a command runs: there is no IRQ line, and the chips keep their
+interrupts until the stack reads them.
 
 ### Command line
 
@@ -83,7 +127,7 @@ a2b_bench.exe --board ref --trace boot.txt start
 After its build stamp the console prints its command line as it got it (`command line:
 ...`), and each option's command as it runs it (`A2B> board "ref"`). An option that takes
 a value (`--i2c`, `--board`, `--trace`) refuses a missing one or another option in its
-place: `--board --ignore-eeprom ab0020` stops with `--board needs a built-in board or an
+place: `--board --ignore-eeprom AB0020` stops with `--board needs a built-in board or an
 export's C file, not --ignore-eeprom` instead of loading a file of that name. On Windows,
 when the console has a window of its own that closes with it (VS Code's external console
 for "Windows bench: Debug"), an error at start-up waits for Enter so the message can be
@@ -97,23 +141,33 @@ Command names ignore case. `help` lists them.
 | Command | What it does |
 |---|---|
 | `board` | Lists the built-in boards, and the one picked |
-| `board NAME [CHAIN]` | Picks a built-in board; `ab0020` takes the export for the main node's chip at `start` (below) |
+| `board NAME [CHAIN]` | Picks a built-in board; `AB0020` takes the export for the main node's chip at `start` (below) |
 | `board FILE [CHAIN]` | Loads a SigmaStudio+ export's C file (below). Quote a path with spaces. CHAIN picks the main node in an export of several (default 0) |
 | `start` | Imports the board into a fresh `BoardConfig` and starts the bus; a bus already started is started again |
 | `stop` | Stops the bus: nothing more is sent (the chips keep running) |
 | `status` | The board; the bus state (and its error), main node, sub-nodes with their chip and version, chip ID, module, power configuration, link and channel groups; the last rejection; the links and cable lengths set; the boards set at positions (`module N BOARD`); where module info comes from; the interrupts shown; the trace |
 | `link` | Lists the links set with `link N` |
 | `link N utp` | The link into sub-node N (0-15) is UTP: the node before it powers it over the A2B pair, B side straight |
-| `link N rj45` | An RJ45 link: powered over the pair, B side inverted (XCVRBINV on the node before it). Single-step: two-step discovery is not built yet |
+| `link N rj45` | An RJ45 link: powered over the pair, B side inverted (XCVRBINV on the node before it). Single-step: the stack doesn't run two-step links |
 | `link N custom [inverted]` | The node has its own supply: the switch before it stays open, and SWBYP on that node turns its B side on without it. Needed for a node that draws no bias current (a galvanically isolated A side), which a closed switch never reaches; `inverted` for an RJ45 cable |
-| `link N default`, `link all default` | Back to the board's link |
+| `link N default`, `link all default` | Back to the link the node before it gives: its image's B port ([provisioning](provisioning.md)); into sub-node 0, the board's |
+| `link all board` | Every link not set with `link N` is the board's, whatever the images' B ports say (on an RJ45 bench, every link `rj45`). Links set with `link N` stay. Kept until `link all default`, which clears those too |
 | `cable` | Lists the cable lengths set with `cable N` |
-| `cable N METRES` | The cable into sub-node N (0-15) is METRES long (0.1-30, one decimal, e.g. `12.5`), for the response cycles: the next probe's DISCVRY and, on a routed bus, a new plan at once. The board's is 4 m, which the TRMs call adequate when the lengths are unknown |
-| `cable N default`, `cable all default` | Back to the board's 4 m |
+| `cable N METRES` | The cable into sub-node N (0-15) is METRES long (from 0.1, one decimal, e.g. `12.5`), for the response cycles: the next probe's DISCVRY and, on a routed bus, a new plan at once if the length in use changes. Without it, the node before it's image gives the length (its B-side cable, in metres), else the board's 4 m, which the TRMs call adequate when the lengths are unknown. Give the real length, before `start`: a longer one can stop discovery ([hardware notes](hardware_notes.md#routing-and-audio)) |
+| `cable N default`, `cable all default` | Back to the image's length, else the board's 4 m |
 | `ignoreEEPROM 1` / `0` | Sub-nodes get the console's module info / read their EEPROMs |
-| `module N BOARD [FILE]` | Sub-node N (0-15, or `all`) is a Clockworks BOARD (`ab0020`, `ab0312`): it gets the board's module info and codec program, if it has a codec (the board's built-in one, or FILE, SigmaStudio's XML), whether the EEPROMs are read or not. For nodes identified from then on (below) |
+| `module N BOARD [FILE]` | Sub-node N (0-15, or `all`) is a Clockworks BOARD (`AB0020`, `AB0312`): it gets the board's module info and codec program, if it has a codec (the board's built-in one, or FILE, SigmaStudio's XML), whether the EEPROMs are read or not. For nodes identified from then on (below) |
+| `module N file FILE` | Sub-node N (0-15, or `all`) gets its module info from FILE, an image (`.dat`) as the image tool builds it or `eeprom read` reads it, whether the EEPROMs are read or not. Checked as `eeprom write` checks it. For nodes identified from then on: try an image before writing it (below) |
 | `module N default`, `module all default` | Back to the EEPROM's or `ignoreEEPROM`'s module info |
-| `module` | Lists the boards set at sub-node positions, or the boards there are |
+| `module` | Lists the boards and image files set at sub-node positions, or the boards there are |
+| `eeprom` | The EEPROM settings, and the job running |
+| `eeprom config [addr A\|found] [size BYTES] [page BYTES] [cycle MS] [chunk BYTES]` | The sub-nodes' EEPROM. Defaults: the Clockworks boards' 24FC256 (32768 bytes, 64-byte pages), 6 ms after each write, 256 bytes per read. The address is the one the node's image was found at, else 0x50; `addr A` sets one, `addr found` goes back |
+| `eeprom read N FILE [LEN\|all]` | Reads sub-node N's EEPROM into FILE: to the end of its image (the whole EEPROM if there is no image), LEN bytes, or all of it |
+| `eeprom write N FILE` | Writes the image FILE to sub-node N's EEPROM: checked first, then only the pages that differ, read back, and the marker 0xAA last (below) |
+| `eeprom verify N FILE` | Compares sub-node N's EEPROM with FILE |
+| `eeprom info N` | Reads sub-node N's image and says what it holds, Clockworks' vendor section included |
+| `eeprom erase N` | Clears sub-node N's marker (0xFF at address 0): the node then has no module info, as with a blank EEPROM |
+| `eeprom abort` | Stops the job, at once, even while it runs; a write stopped leaves the node blank (below) |
 | `i2cTrace on FILE` | Writes every I2C transfer to FILE (overwritten) |
 | `i2cTrace off`, `i2cTrace status` | Stops and closes the trace / shows it |
 | `interrupts quiet`, `interrupts all` | Hides (the default) or shows the last sub-node's open-line interrupts, types 12 and 13 (PWRERR: cable disconnected, open circuit or wrong port; AD242x TRM, Table 5-1). Each probe behind the last node closes its switch, and with nothing plugged in there an AD242x reports its open B side; `status` counts them. The first one from a last node prints a hint, once until the chain changes: nothing is plugged in after it, or the node there draws no bias current (its own supply behind an isolated A side, as an AB0020 with an AD2437 behind an AD242x), which needs `link N custom`. Every other interrupt is printed |
@@ -128,7 +182,7 @@ Command names ignore case. `help` lists them.
 | `clearAllCon` | Removes every connection (as ADI's `clearAllCon`). What is routed stays until `applyRouting` |
 | `listCon` | Lists the connections: each end by chip ID and where its node is now, and what the pair carries: the channel count (`2 channels (stereo), 0-1 -> 0-1`), and any source channels not sent or sink channels not played |
 | `setRoute [append] S:G D:G...` | One audio stream (ADI's `addStream`, which called `a2b_pnp_SetAudioRt`): RX group G of node S to TX group G of each node D, all or nothing; replaces every connection unless `append`. Routed at `applyRouting` |
-| `importCon S:G D:G [S:G D:G...]` | Replaces every connection with these pairs, all or nothing. A node is `main` (or `m`), or a chip ID of 12 hex digits (`listCon` shows them), so modules that aren't in the bus yet can be named |
+| `importCon S:G D:G [S:G D:G...]` | Replaces every connection with these pairs, all or nothing (with no pairs, an empty list: every connection goes). A node is `main` (or `m`), or a chip ID of 12 hex digits (`listCon` shows them), so modules that aren't in the bus yet can be named |
 | `applyRouting` | Routes the connections, now and whenever the chain changes (as ADI's `applyRouting`); refused with the reason if they can't be routed |
 | `mute [on\|off]` | Mutes or unmutes the whole bus (ADI's API `a2b_pnp_MuteNetwork`, which has no console command: DATCTL's slot enables and NEWSTRCT); without an argument, says which. Written when the bus is between steps (a probe under way delays it); it holds through plans and restarts |
 | `muteMode [local\|global\|none]` | What the stack mutes while it writes a plan: the nodes that would play a wrong channel meanwhile (local, the default; AD243x nodes only, and the whole bus for a plan where an AD242x would), the whole bus (global; the AD242x too), or nothing. The setting lasts across `start`. `audio mute: ...` and `audio unmute` are printed around each plan |
@@ -139,7 +193,7 @@ Command names ignore case. `help` lists them.
 | `pause` | No new probes for sub-nodes; the nodes in the bus stay, and the chain is still checked for drops (as ADI's `pause`) |
 | `resume` | Probes again at the end of the chain (as ADI's `resume`) |
 | `reject N` | Takes sub-node N and every node after it out of the bus (their switch opened). The same node found there again is switched off again; another module is reviewed as usual. `status` shows "Last rejection: by the app" |
-| `quit` | Stops the bus and leaves |
+| `quit` | Stops the bus and leaves (on the RP2040 the console keeps running). Taken at once, even while an EEPROM job runs |
 
 The names follow ADI's console where it has the command (`start`, `ignoreEEPROM`,
 `i2cTrace`, `rdm`, `rds`, `wrm`, `wrs`, `addCon`, `clearAllCon`, `applyRouting`, `pause`,
@@ -156,30 +210,26 @@ Three boards are built in, the repository's exports:
 | Name | Export | Main node |
 |---|---|---|
 | `ref` | `adi/exports/rp2040/12_a2b_busconfig.c` (the Pi and RP2040 apps) | AD2437 at 0x68, links `rj45` (the export sets XCVRBINV), no host peripherals |
-| `ab0020` | `tools/SS+reference/2x_AB0020_EVM_with_2437/adi_a2b_busconfig.c` (the AB0020 bench project, SigmaStudio+ 2.3.0), or for an AD2428 module `tools/SS+reference/2x_AB0020_EVM_with_2428/adi_a2b_busconfig.c` | AD2437 or AD2428 at 0x68, I2S TDM2 32-bit, links `utp`; the ADAU1761 codec at 0x39, programmed at `start` before the main node (it gives the main node its SYNC and BCLK) |
-| `ab0310` | `tools/SS+reference/AB0310_AB0312_EVM_with_2437/adi_a2b_busconfig.c` (the AB0310 and AB0312 project, SigmaStudio+ 2.3.0) | AD2437 at 0x68, I2S TDM2 32-bit as the AB0020's, links `rj45` (the export sets XCVRBINV); SYNC (48 kHz) and BCLK from the board's own clock, so nothing is programmed on the host bus (the export's peripherals have no configuration) |
+| `AB0020` | `tools/SS+reference/2x_AB0020_EVM_with_2437/adi_a2b_busconfig.c` (the AB0020 bench project, SigmaStudio+ 2.3.0), or for an AD2428 module `tools/SS+reference/2x_AB0020_EVM_with_2428/adi_a2b_busconfig.c` | AD2437 or AD2428 at 0x68, I2S TDM2 32-bit, links `utp`; the ADAU1761 codec at 0x39, programmed at `start` before the main node (it gives the main node its SYNC and BCLK) |
+| `AB0310` | `tools/SS+reference/AB0310_AB0312_EVM_with_2437/adi_a2b_busconfig.c` (the AB0310 and AB0312 project, SigmaStudio+ 2.3.0) | AD2437 at 0x68, I2S TDM2 32-bit as the AB0020's, links `rj45` (the export sets XCVRBINV); SYNC (48 kHz) and BCLK from the board's own clock, so nothing is programmed on the host bus (the export's peripherals have no configuration) |
 
-The AB0020 is UTP on both ports, so every `ab0020` link is `utp`. It takes an AD2437 or an
-AD2428 module as its main node, with an export for each: at `start`, `ab0020` reads the
+The AB0020 is UTP on both ports, so every `AB0020` link is `utp`. It takes an AD2437 or an
+AD2428 module as its main node, with an export for each: at `start`, `AB0020` reads the
 main node's VENDOR and PRODUCT (0x02, 0x03, at 0x68) and imports the export for that chip
-(`Main node AD2428 found: board ab0020's export for it`). A chip it has no export for (an
+(`Main node AD2428 found: board AB0020's export for it`). A chip it has no export for (an
 AD2433) is refused before anything else is sent; load that module's export with `board
 FILE`. If the main node doesn't answer, the AD2437 export is used and the stack reports at
-`start`. A board from a file, or `ref` and `ab0310`, are used as they are: the stack checks
+`start`. A board from a file, or `ref` and `AB0310`, are used as they are: the stack checks
 the chip, and the console then says which one it found (`the main node is an AD2428, the
 board's export is for an AD2437`).
 
 **The reference folder.** `tools/SS+reference` holds the SigmaStudio+ projects whose
 exports the console compiles in, one folder per board and transceiver (an AB0020 with an
 AD2433 module needs its own export), and, in `tools/SS+reference/adi`, the one copy of
-ADI's generic headers they are all compiled with. ADI has no single header that compiles
-an SS+ 2.3.0 export, so `adi/adi_a2b_busconfig.h` is ADI's 2023 header with the fields of
-its older one and of SS+ 2.3.0 added (its note lists them). The SigmaStudio+ import
-(`ImportSsPlus()` and the loader below) is compiled with the same headers: a compiled export
-and the import must see the same structures. A project folder holds only what SS+ and
-SigmaStudio write for it: a copy of an ADI header there would be the one its export
-includes, so the build stops if it finds one. If a newer SS+ adds fields, `adi/` is
-updated once.
+ADI's generic headers they and the import are all compiled with (ADI's header merged for
+SigmaStudio+ 2.3.0; [main-node configuration](main_node_config.md), "Building"). A project
+folder holds only what SS+ and SigmaStudio write for it: a copy of an ADI header there would
+be the one its export includes, so the build stops if it finds one.
 
 Any other board is loaded from its export's C file (`adi_a2b_busconfig.c` as SigmaStudio+
 writes it) at run time, with no rebuild: `board C:\exports\ad2428_main\adi_a2b_busconfig.c`.
@@ -202,30 +252,34 @@ compiled forms), and `start` imports them with `ImportSsPlus()` as for a built-i
   configured from their EEPROMs (or, with `ignoreEEPROM 1`, the console's image).
 - The main node's chip comes from the export's `sAuthSettings.nProductID` (0x28, 0x33 or
   0x37); `start` reports `the main node is not the board's chip` if the chip on the bench
-  is another, and names the chip it found. The default link is `rj45` if the export's main-node CONTROL sets
-  XCVRBINV, `utp` if it doesn't; `link N ...` changes it per link.
+  is another, and names the chip it found. The board's link is `rj45` if the export's main-node CONTROL sets
+  XCVRBINV, `utp` if it doesn't. It is the main node's link, into sub-node 0. The link after
+  each sub-node is the one its image's B port gives (UTP for the console's own image);
+  `link N ...` changes it per link, and `link all board` makes every link the board's.
 - Each host peripheral is programmed before the main node or once it is configured, as
   the export marks it (SigmaStudio+'s choice per peripheral, `bPostDiscCfg`); `start`
   says how many operations run before the main node.
 
 ### Module info with the EEPROMs ignored
 
-With `ignoreEEPROM 1` every sub-node gets the minimal example's image (module 00AD:0037,
+With `ignoreEEPROM 1` every sub-node gets the minimal example's image (module 00AD:0037, a
+UTP B port,
 GPIO0-6 inputs, PINCFG 0, I2S on DRX0 and DTX0 as the Clockworks boards have it, I2SGCFG
 0xE0 and I2SCFG 0x11, no peripheral scripts, the console's channel groups) with the
-power configuration of its chip's data sheet: CFG-4 on an AD2437, CFG-0 on an AD2433; AD242x have no power
-configuration. A module whose hardware is strapped otherwise would have its configuration
-overridden, so read the EEPROMs on such modules. An AD2427 gets the AB0204's image instead
+power configuration of its chip: CFG-4 on an AD2437, CFG-0 on an AD2433; AD242x have no power
+configuration. (A node read from its EEPROM gets its chip's too, whatever the image says.) An
+AD2427 gets the AB0204's image instead
 (four PDM microphones, below): it has no I2S port for the generic image's groups.
 
 ### Clockworks boards as sub-nodes
 
 `module N BOARD` gives sub-node N a Clockworks board's module info, in place of its
-EEPROM's or `ignoreEEPROM`'s, until EEPROMs carry it (EEPROM provisioning is not built yet). The boards are profiles in
-`examples/bench/clockworks_boards.cpp`, which is also the worked example of supporting
+EEPROM's or `ignoreEEPROM`'s: for a board whose EEPROM is blank. Once the EEPROM is written
+(next section), the board needs none of this. The boards are profiles in
+`examples/clockworks/clockworks_boards.cpp`, which is also the worked example of supporting
 boards without EEPROMs in an app. Built in:
 
-- **`ab0020`**: the AB0020, with an AD2437, AD2433 or AD2428 module. Its transceiver's
+- **`AB0020`**: the AB0020, with an AD2437, AD2433 or AD2428 module. Its transceiver's
   settings are the bench SigmaStudio+ project's sub-node
   (`tools/SS+reference/2x_AB0020_EVM_with_2437`), and `test_clockworks_boards` checks them
   against that export:
@@ -243,15 +297,15 @@ boards without EEPROMs in an app. Built in:
     restart). The main node's program is another one (its serial port is the master); it
     comes from the board's export.
 
-- **`ab0312`**: the AB0312, the AB0310's sub-node board, with an AD2437, AD2433 or
+- **`AB0312`**: the AB0312, the AB0310's sub-node board, with an AD2437, AD2433 or
   AD2428 module. No codec: its I2S is on a header. Its settings are its project's
   sub-node (`tools/SS+reference/AB0310_AB0312_EVM_with_2437`), the same values as the
   AB0020's (I2SGCFG 0xE0, I2SCFG 0x11, IO7 high, PINCFG 0x01, CLK2CFG 0x81, SPICFG 0x02),
   with RX 0 and TX 0 on channels 0-1. `test_clockworks_boards` checks them against the
-  export. The project's RJ45 links come from the main board (`board ab0310`), not from
+  export. The project's RJ45 links come from the main board (`board AB0310`), not from
   the image.
 
-- **`ab0204`**: the AB0204 microphone board, an AD2427 with four MEMS PDM microphones,
+- **`AB0204`**: the AB0204 microphone board, an AD2427 with four MEMS PDM microphones,
   two on DRX0 and two on DRX1 (the AD2427 has no I2S/TDM port, only PDM; AD2426/27/28
   data sheet, Table 1). Its settings:
   - PDMCTL 0x1F: both PDM pins on, two microphones each, and the high-pass filter (1 Hz).
@@ -265,34 +319,90 @@ boards without EEPROMs in an app. Built in:
   **An AD2427 with no EEPROM image is taken to be an AB0204**: if no
   EEPROM answers with an image (none there, or a blank one), or the EEPROMs are ignored,
   the node gets this image, and the console says so after its groups:
-  `ab0204 (no EEPROM: the AD2427's default)`. An AD2427 whose EEPROM has an image is set
+  `AB0204 (no EEPROM: the AD2427's default)`. An AD2427 whose EEPROM has an image is set
   up from it. An EEPROM that answers but can't be read still has the node rejected, and
-  other chips with no EEPROM are rejected as before.
+  other chips with no EEPROM are rejected.
 
-`module N ab0020 FILE` runs FILE, SigmaStudio's XML export of another codec program, in
+`module N AB0020 FILE` runs FILE, SigmaStudio's XML export of another codec program, in
 place of the built-in one. The file is read when the command is given, and refused with
 the line that is wrong. Both of SigmaStudio's XML layouts are read: with `i2caddr` and
 `addr_width` on each write, or without them (the address is then the board's codec's). A
 `read` action is skipped, since a peripheral script only writes and waits. Each write may
 have up to 4094 bytes, and a wait up to 4095 ms.
 
-A board at a position whose transceiver it isn't made with (an AD2427 for an `ab0020`)
+A board at a position whose transceiver it isn't made with (an AD2427 for an `AB0020`)
 isn't given: that node reads its EEPROM, and the console says so. For the bench's first
 sub-node, with RJ45 links after sub-node 1:
 
 ```
-a2b_bench.exe --board ab0020 --ignore-eeprom "link 2 rj45" "link 3 rj45" "link 4 rj45" "module 0 ab0020" start
+a2b_bench.exe --board AB0020 --ignore-eeprom "link 2 rj45" "link 3 rj45" "link 4 rj45" "module 0 AB0020" start
 ```
 
 An AB0310 main node with an AB0312 at sub-node 0 and AD2437 modules after it, every link
-RJ45 (the board's default):
+RJ45, single-step (the board's link, everywhere). Without `link all board`, the AB0312's
+image (an RJ45 B port, two-step with its AD2437) ends the chain at it, and the console's
+image after it gives UTP:
 
 ```
-a2b_bench.exe --board ab0310 --ignore-eeprom "module 0 ab0312" start
+a2b_bench.exe --board AB0310 --ignore-eeprom "link all board" "module 0 AB0312" start
 ```
 
 The same set-up runs on the RP2040 with nothing typed, its connections included: the
 fixed app ([quick start](quick_start.md), RP2040).
+
+### EEPROMs
+
+A sub-node's module info normally comes from its EEPROM: a 24xx part with 16-bit addresses
+on the node's I2C port, at 0x50-0x54. The stack reads it when it finds the node.
+
+The image tool, `tools/a2b_eeprom` (its [README](../../tools/a2b_eeprom/README.md)), builds the
+image (`.dat`) from a module's settings and its peripherals' SigmaStudio programs. The
+`eeprom` commands move images to and from the EEPROMs. The format and the write procedure
+are in [provisioning.md](provisioning.md).
+
+**Provisioning blank boards.** On the Clockworks boards the EEPROM is on the base board
+(AB0020, AB0310, AB0312); the plug-in A2B module has none. A node with a blank EEPROM has no
+module info, so give every node the console's (`ignoreEEPROM 1`) and the right links
+(`link N ...`, or `link all board`), write each EEPROM, then start the bus again from the
+EEPROMs:
+
+```
+a2b_bench.exe --board AB0020 --ignore-eeprom start
+A2B> eeprom read 0 node0_before.dat
+A2B> eeprom write 0 tools/a2b_eeprom/examples/AB0020.dat
+A2B> eeprom write 1 my_module.dat
+A2B> ignoreEEPROM 0
+A2B> start
+```
+
+Read every EEPROM to a file before the first write; `eeprom write` puts one back.
+
+`eeprom write` refuses an image that names another transceiver than the node's (its target
+chip, header 0x07): the stack would reject the node with it. `module N file` notes it.
+
+**Trying an image first.** `module N file FILE` sets the node up from the file, without
+writing anything. Use it to check an image's settings and codec program on the bench before
+it goes into the EEPROM.
+
+**What `eeprom write` does:** it checks the file (nothing is sent if it fails), reads the
+EEPROM over the image's length, clears the marker if the image differs, writes each page that
+differs, reads everything back, and writes the marker last. A write stopped after the marker
+is cleared leaves the node blank, never a half image, and the console says so.
+[provisioning.md](provisioning.md#6-writing-an-eeprom) has the steps. An EEPROM that already
+holds the image is left as it is. The AB0020's 8.4 KB image takes about 1.5 s to write at a
+sub-node's 100 kHz, and as long again to check.
+
+**While a job runs.** The bus is polled between its transfers. `start`, `stop`, `board`,
+`reject` and the other `eeprom` commands are refused until it ends; any other line typed
+meanwhile waits for it, and the prompt comes back when it ends. `eeprom abort` and `quit` run
+at once.
+
+**After a write.** The stack reads a node's module info only when it finds the node: start
+the bus again (with `ignoreEEPROM 0`) for the new image to take effect.
+
+**Reads.** Reads go in 256-byte transfers, well inside the ADI USBi's 0.3 s for a transfer
+([porting](porting.md)). `eeprom read` follows the image's blocks to find its end. A file
+read with `all` (32 KB) can be written back as it is.
 
 ### Routing
 
@@ -327,7 +437,7 @@ routing applied: 2 connection(s) routed, main node RESPCYCS 0x78 (window 29-211)
 
 The main node's I2S input (DRX0, channels 0-1) is then on sub-node 0's DTX0, and sub-node
 0's DRX0 on the main node's DTX0. A sub-node needs its I2S port on and, to be heard, its
-codec programmed: for an AB0020, `module N ab0020` (above) does both. The console's
+codec programmed: for an AB0020, `module N AB0020` (above) does both. The console's
 plain module info (`ignoreEEPROM 1`) turns the port on (TDM2 on DRX0 and DTX0) but
 programs no codec. A connection whose channels a node's port doesn't give is refused
 ("a connection uses a channel its node's I2S/TDM port doesn't give"). Routing it anyway would
@@ -339,11 +449,11 @@ AB0204 at sub-node 1 (no EEPROM: the AB0204 default above):
 
 ```
 A2B> board "AB0020_AD2428_main.c"
-A2B> module 0 ab0020
+A2B> module 0 AB0020
 A2B> start
   sub-node 1: AD2427 ...
     rx G0 0-3, rx G1 0-1, rx G2 2-3
-    ab0204 (no EEPROM: the AD2427's default)
+    AB0204 (no EEPROM: the AD2427's default)
 A2B> addCon m:0 0:0
 A2B> addCon 1:1 m:0
 A2B> applyRouting
@@ -365,7 +475,7 @@ module, a crossbar node between the AD2428 main node and the AB0204:
 
 ```
 A2B> board "AB0020_AD2428_main.c"
-A2B> module 0 ab0020
+A2B> module 0 AB0020
 A2B> start
 A2B> addCon m:0 0:0
 A2B> addCon 1:1 m:0
@@ -375,7 +485,7 @@ A2B> routing
 
 The main node's pair is heard on sub-node 0's codec, and the microphones on the main
 AB0020's codec, passed up through the AD2437. `routing` shows the AD2437's RXMASK and
-TXXBAR and "no crossbar" for the main node and the AB0204. Turned round (`board ab0020`,
+TXXBAR and "no crossbar" for the main node and the AB0204. Turned round (`board AB0020`,
 the AD2437 main node, with the AD2428 module on the AB0020 at sub-node 0), the same
 commands route the pair to a TDM node under a crossbar main node, and the microphones
 through the AD2428. Nothing is set for a mixed chain: each node is routed by its own chip
@@ -408,18 +518,19 @@ with `local`, only the nodes named drop out; with `global`, all do, for about a
 millisecond a step.
 
 Each link's cable length goes into the response cycles: 4 m unless `cable N` gives the
-link its own (the stack does not measure cables yet). Shorter cables need nothing: the TRMs
+link its own (the stack doesn't measure cables). Shorter cables need nothing: the TRMs
 call the 4 m calculation adequate when the lengths are unknown, as each node adjusts its
 response time during discovery. Set the long ones, e.g. `cable 2 15`; `status` lists them.
 
 ### Links
 
-Each link takes, in order: the console's `link N`, then the board's default (`rj45` if
-the export's main-node CONTROL sets XCVRBINV, else `utp`; every `ab0020` link is `utp`).
-It applies from the next probe of that position, so a link can be fixed while the bus
-runs: a node behind a link of the wrong polarity is not found, and is found at the next
-probe once its link is right. Two-step links (RJ45 with the 24 V turned on after the
-EEPROM is read) are not built yet.
+Each link takes, in order: the console's `link N`; then, with `link all board`, the board's;
+then the B port of the node before it (its image's); and into sub-node 0, the board's (`rj45`
+if the export's main-node CONTROL sets XCVRBINV, else `utp`; every `AB0020` link is `utp`).
+The stack's order is in the [cookbook](cookbook.md#link-profiles). A link applies from the
+next probe of that position, so it can be fixed while the bus runs: a node behind a link of
+the wrong polarity is not found, and is found at the next probe once its link is right.
+Two-step links (RJ45 with the 24 V turned on after the EEPROM is read) are not supported.
 
 ### Registers
 
@@ -476,11 +587,11 @@ The AB0020 main board from Windows, with two sub-nodes and their EEPROMs ignored
 sub-nodes' identities shortened to `...`):
 
 ```
-> a2b_bench.exe --board ab0020 --trace ad2437.txt start --ignore-eeprom
+> a2b_bench.exe --board AB0020 --trace ad2437.txt start --ignore-eeprom
 ADI USBi open
 A2B bench console: help lists the commands
-A2B> board "ab0020"
-Board ab0020, chain 0
+A2B> board "AB0020"
+Board AB0020, chain 0
 A2B> i2cTrace on "ad2437.txt"
 Tracing I2C to ad2437.txt
 A2B> start
@@ -495,8 +606,9 @@ bus: bringing up the chain
 info: a2b: sub-node 0 found and configured
   sub-node 0: AD2437 version ..., chip ID ..., module 00AD:0037, CFG-4, 0 peripheral block(s), link utp (board)
     rx G0 0-1, tx G0 0-1
+    image for not stated; B port UTP, its cable not given
 info: a2b: sub-node 1 found and configured
-  sub-node 1: ...
+  sub-node 1: ..., link utp (sub-node 0's UTP port)
 bus: running
   2 sub-node(s)
 ```
@@ -519,25 +631,15 @@ routing and group commands (the audio checked through the simulator's slot model
 `module` (an AB0020's registers, groups and codec program write for write, again after a
 re-plug; an AD2427 at a marked position reading its EEPROM). `test_sigma_xml` reads the
 AB0020's two XML programs; `test_clockworks_boards` checks the board profiles against
-their SigmaStudio+ exports.
+their SigmaStudio+ exports. `test_eeprom_provisioning` (scenario 20) covers:
+- blank EEPROMs written with the image tool's images, verified, read back and described,
+  then the nodes found from them, the AB0020's codec programmed from its EEPROM;
+- a write stopped half way (the node blank);
+- a write-protected EEPROM, and a busy one (no write-cycle wait: its NAKs tried again);
+- `module N file`, and the refusals.
 
-Tried on hardware, from Windows over the USBi:
-- the AB0020 main board (AD2437, `--board ab0020`) with two sub-nodes, then with four
-  AD2437 sub-nodes, a UTP link into the first and RJ45 links between them
-  (`link 1 rj45` to `link 3 rj45`);
-- an AB0020 with an AD2428 main node, from its SigmaStudio+ 2.3.0 export
-  (`--board FILE`), with one and then two AD2428 sub-nodes over UTP, a node unplugged and
-  plugged back in;
-- the same with a bus-powered AD2427 sub-node as the first, a middle and the last
-  sub-node;
-- mixed chains: the AD2437-main AB0020 with AD2427 and AD2428 sub-nodes; the AD2428-main
-  AB0020 with an AD2428 sub-node, then an AD2437 on its own supply behind a galvanically
-  isolated A side (`link 1 custom`: over a UTP link the AD2428 reported INTTYPE 12 at each
-  probe and the AD2437 was never found; see `link N custom`).
-- routing on those benches: the connection, routing and `cable` commands on an AD2437 chain
-  (as expected); the AD2428-main AB0020 with an
-  AD2428 AB0020 at sub-node 0 and an AB0204 at sub-node 1, the microphones heard on the main
-  AB0020; and a mixed chain of an AD2428 main node, an AD2428 AB0020, an AB0204 and AD2437
-  AB0020s (`link 2 custom` for the AD2437 on its own supply), routed with the AB0204 unplugged
-  and plugged back in while routed (the audio came back with nothing typed). The local mute's
-  two silence assumptions are not checked on hardware ([hardware notes](hardware_notes.md#muting)).
+`test_eeprom_provisioning` also checks that `eeprom abort` and `quit` are taken while a job
+runs. The RP2040's variant is compiled on the host (`A2B_BENCH_FILES` 0), not run.
+
+What has run on hardware, from Windows, the Pi and the RP2040, is in the
+[roadmap](../../ROADMAP.md#tested-on-hardware), with what still needs a test.
