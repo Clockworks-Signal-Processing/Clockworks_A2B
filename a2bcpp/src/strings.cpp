@@ -104,6 +104,8 @@ const char* ToString(RejectReason reason) {
       return "by the app";
     case RejectReason::kWrongChip:
       return "its image is for another transceiver";
+    case RejectReason::kNoHighVoltage:
+      return "no 24 V on its link";
   }
   return "?";
 }

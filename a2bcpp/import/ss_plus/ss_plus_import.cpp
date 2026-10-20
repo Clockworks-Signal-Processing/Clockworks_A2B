@@ -36,9 +36,9 @@
  * - addresses, the main-node chip, its power settings and the two discovery timings.
  * - the default link: single-step, powered over the A2B pair (LinkProfile::Utp()'s
  *   settings), with its B side inverted only if the export's main-node CONTROL sets
- *   XCVRBINV, as an export for RJ45 links does (UTP links are straight; two-step RJ45
- *   discovery is not supported yet). The CONTROL value stays in the image too; the stack takes
- *   XCVRBINV from the link.
+ *   XCVRBINV, as an export for RJ45 links does (UTP links are straight; a two-step link is
+ *   the app's to ask for, LinkProfile::Rj45()). The CONTROL value stays in the image too; the
+ *   stack takes XCVRBINV from the link.
  *
  * Sub-node settings in the export are ignored: sub-nodes are configured from their own
  * EEPROM. So are the discovery mode, cable type and fault policies, which the new stack

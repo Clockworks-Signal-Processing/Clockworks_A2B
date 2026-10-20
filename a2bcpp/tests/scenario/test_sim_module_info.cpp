@@ -685,14 +685,16 @@ A2B_TEST(ImageBPortGivesTheNextLink) {
     A2B_CHECK_EQ(bench.bus.Sub(0).Reg(reg::kControl) & reg::kControlXcvrbinv, 0);
   }
   {
-    // ADI's RJ45 on an AD2437: two-step, which isn't run yet: not probed past it.
+    // ADI's RJ45 on an AD2437: two-step, inverted (test_sim_two_step has the sequence).
     Bench bench;
     PlugChip(bench, 0x37, PortImage(1), false, 1);
-    PlugChip(bench, 0x37, PortImage(2), true, 2);
+    PlugChip(bench, 0x37, PortImage(2), true, 2).Link().power = sim::LinkPower::kTwoStep;
     A2B_CHECK(bench.StartAndRun());
     bench.Run(1500);
-    A2B_CHECK_EQ(bench.network.SubNodeCount(), 1);
-    A2B_CHECK(Logged(bench, "link to sub-node 1 is two-step (unsupported); not probed"));
+    A2B_CHECK_EQ(bench.network.SubNodeCount(), 2);
+    A2B_CHECK(bench.bus.Sub(1).HighVoltage());
+    A2B_CHECK_EQ(bench.bus.Sub(0).Reg(reg::kControl) & reg::kControlXcvrbinv,
+                 reg::kControlXcvrbinv);
   }
   {
     // The app's link wins over the image's: inverted, single-step.

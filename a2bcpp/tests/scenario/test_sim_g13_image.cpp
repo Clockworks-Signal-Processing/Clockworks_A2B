@@ -122,7 +122,8 @@ constexpr Difference kIntendedDifferences[] = {
     {true, reg::kTxxbar0 + 12, reg::kTxxbar0 + 30,
      "TXXBAR12-30: channels outside its group point at location 31"},
     {true, reg::kVmtrVen, reg::kVmtrVen,
-     "0x02: ADI's AD2437 24 V check (two-step links are not supported yet)"},
+     "0x02: ADI's AD2437 24 V check, made on a UTP link (here only if the link asks), VMTR left "
+     "on"},
 };
 
 /** Registers whose value is state, not configuration: not compared. */

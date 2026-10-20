@@ -1,13 +1,14 @@
 /**
  * @file discovery.cpp
- * @brief Discovery: single-step discovery of the next position of a chain, up to the new
- *        node's identification.
+ * @brief Discovery: single-step or two-step discovery of the next position of a chain, up
+ *        to the new node's identification.
  *
- * Follows the single-step path of ADI's master plugin (a2bplugin-master/src/
- * discovery.c: a2b_dscvryPreMasterInit, a2b_dscvryPreSlaveInit, a2b_dscvryNodeDiscovered,
- * a2b_dscvryNodeComplete) and the PnP layer's handling of a new node
- * (a2bpnp_local.c), in the order of the TRMs' discovery flow ("Discovery Flow in Single
- * Wire Pair System"). Sub-node n is found through the B side of the node before it, its
+ * Follows ADI's master plugin (a2bplugin-master/src/discovery.c: a2b_dscvryPreMasterInit,
+ * a2b_dscvryPreSlaveInit, a2b_dscvryNodeDiscovered, a2b_dscvryNodeComplete, with their
+ * A2B_ENABLE_SUPPORT_TWO_STEP_DISCOVERY branches) and the PnP layer's handling of a new
+ * node (a2bpnp_local.c), in the order of the TRMs' discovery flows ("Discovery Flow in
+ * Single Wire Pair System"; the AD2437 TRM's Figures 7-2 and 7-3 for XLR/DMX and RJ45
+ * links). Sub-node n is found through the B side of the node before it, its
  * upstream node: the main node for sub-node 0, sub-node n - 1 after that.
  *
  * Each node's B side is a Link, which Network fills in: the switch settings from the
@@ -57,6 +58,33 @@
  *    a transceiver, name the node's (ImageFitsChip(); else RejectReason::kWrongChip). The
  *    probe ends with Outcome::kIdentified; Network makes the node's SubNode object and sets
  *    it up (NodeSetup), and fills in its Link.
+ * 5. The 24 V check, when the link asks for it (LinkProfile::checkHighVoltage) and the node
+ *    has a voltage monitor, once the node is at its final power: VMTR_VEN = 0x02 (VBUS),
+ *    then VMTR_VLTG1, which must be at least 4 V (0x20 at 125 mV a step; ADI's
+ *    A2B_24V_DISCONECT_THRESHOLD, the TRM's "VMTR_VLTG1 < 4V"). ADI read it straight after
+ *    the enable, and the bench's G13 trace shows the value there at once; a low reading is
+ *    read again for up to 10 ms before the node is rejected (RejectReason::kNoHighVoltage).
+ *    VMTR_VEN goes back to 0 (ADI's stack left it at 0x02).
+ *
+ * A two-step link (Link::twoStep: an RJ45 or XLR link from a node with the high-power
+ * switch) runs steps 1-4 twice:
+ * - First step, at 5 V: the upstream board's power-good is checked (the main node's
+ *   through Platform::PowerGood(), a sub-node's on GPIOIN after its GPIOIEN bit is set, as
+ *   a2b_dscvryPreSlaveInit reads IO7); while it is low nothing is probed
+ *   (Outcome::kNoPowerGood). The upstream node's CONTROL gets SWBYP with XCVRBINV, so the
+ *   B side runs without the switch: the node is powered by the 5 V on the data pair, and its
+ *   EEPROM can be read (TRM, "Power on the Bus"). Every CONTROL write of that node keeps
+ *   SWBYP (Link::Control()) until the second step.
+ * - Network then reviews the node. If its power configuration is CFG-4 (NeedsHighVoltage();
+ *   it is the chip's, ChipCaps::powerConfig), the second step: the upstream switch opened,
+ *   SWBYP cleared (the node loses its frames and is no longer discovered, though still on
+ *   5 V), then the probe again with ENSW, which now closes the 24 V switch. The node must
+ *   answer with the same IDs and chip ID (Reidentify()); its module info isn't read again.
+ *   No DSCDONE now means no 24 V: RejectReason::kNoHighVoltage. ADI's stack tested the
+ *   module info's power byte only on a fixed product (0x37) and rejected any other node
+ *   unless it was the last; here a node that isn't CFG-4 stays at 5 V with SWBYP
+ *   (FirstStepOnly()) and keeping it is the app's decision.
+ * A first step that finds nothing clears SWBYP again, as does a rejection.
  *
  * A rejected node, here, in its set-up or by the app (Reject()), has its power switched
  * off (the upstream node's ENSW cleared). A node on its own supply stays discovered but
@@ -71,9 +99,10 @@
  * switches before it back in their mode. Network then checks the chain.
  *
  * Not done, each an intended difference from ADI's trace (see a2bcpp/docs/timing.md and
- * the G13 test): the AD2437 24 V check with VMTR (with two-step links), ADI's Pi build's
- * response-cycle search (A2B_FEATURE_OPTIMAL_RESPCYCS; a RespCycles() policy could do it),
- * and ADI's reads of VENDOR on the main node and the upstream node before each probe.
+ * the G13 test): the 24 V check on single-step links unless they ask for it (ADI's stack
+ * made it on every AD2437 sub-node), ADI's Pi build's response-cycle search
+ * (A2B_FEATURE_OPTIMAL_RESPCYCS; a RespCycles() policy could do it), and ADI's reads of VENDOR on
+ * the main node and the upstream node before each probe.
  *
  * Copyright 2026 by ClockWorks Signal Processing LLC
  * Licensed under the terms found in CLOCKWORKS_SOFTWARE_LICENSE.txt and included here by reference.
@@ -88,13 +117,25 @@
 
 namespace a2b {
 
+namespace {
+
+/// The power configuration that two-step closes the 24 V switch for: CFG-4.
+constexpr uint8_t kPowerConfig4 = 4;
+/// VMTR_VEN with only input 1, VBUS, on.
+constexpr uint8_t kVmtrVenVbus = 0x02;
+/// VMTR_VLTG1: VBUS's measured voltage.
+constexpr uint16_t kVmtrVltgVbus = reg::kVmtrVltg0 + 3;
+
+}  // namespace
+
 /**
  * Makes an idle Discovery.
  * @param transport The bus; must outlive it.
  * @param poller For the last interrupt check before a probe is given up.
+ * @param platform For the main node's power-good; must outlive it.
  */
-Discovery::Discovery(Transport& transport, InterruptPoller& poller)
-    : m_Transport(transport), m_Poller(poller) {}
+Discovery::Discovery(Transport& transport, InterruptPoller& poller, Platform& platform)
+    : m_Transport(transport), m_Poller(poller), m_Platform(platform) {}
 
 /**
  * Starts a probe for the sub-node at @p position. Nothing is sent until the next Poll().
@@ -123,6 +164,7 @@ void Discovery::Begin(const Settings& settings, NodeAddr position, uint8_t respC
   m_RejectedChipId = rejectedChipId;
   m_Sent = false;
   m_Found = false;
+  m_SecondStep = false;
   m_Step = Step::kPrepare;
 }
 
@@ -145,9 +187,11 @@ Discovery::Outcome Discovery::Poll(uint32_t nowMs, const InterruptPoller::Interr
       return SendProbe(nowMs);
     case Step::kNewStruct:
       return TimeReached(nowMs, m_Deadline) ? SwitchOnAndProbe(nowMs) : Outcome::kBusy;
+    case Step::kCheckVoltage:
+      return CheckVoltage(nowMs);
     case Step::kWaitDscdone: {
       if (irq != nullptr && irq->type == reg::kInttypeDscdone) {
-        return Identify();
+        return m_SecondStep ? Reidentify(nowMs) : Identify(nowMs);
       }
       if (!TimeReached(nowMs, m_Deadline)) {
         return Outcome::kBusy;
@@ -159,13 +203,18 @@ Discovery::Outcome Discovery::Poll(uint32_t nowMs, const InterruptPoller::Interr
         return Outcome::kFailed;
       }
       if (found && last.type == reg::kInttypeDscdone) {
-        return Identify();
+        return m_SecondStep ? Reidentify(nowMs) : Identify(nowMs);
       }
       if (found) {  // Someone else's: Network reports it (TakeInterrupt()).
         m_Other = last;
         m_HasOther = true;
       }
-      return EndProbe();
+      const Outcome outcome = EndProbe();
+      if (m_SecondStep && outcome == Outcome::kNothing) {  // Found at 5 V, not at 24 V.
+        m_Rejection = RejectReason::kNoHighVoltage;
+        return Outcome::kRejected;
+      }
+      return outcome;
     }
   }
   return Outcome::kFailed;
@@ -218,6 +267,7 @@ void Discovery::Abandon() {
   m_Transport.ForgetNode(m_Position);
   const size_t upstream = static_cast<size_t>(m_Position);
   (void)SwitchOff(upstream);
+  (void)ClearBypass();
   if (!m_Found) {
     (void)WriteMain(reg::kControl, MainControl(reg::kControlEnddsc));
   }
@@ -226,24 +276,40 @@ void Discovery::Abandon() {
 
 /**
  * Step 1: the upstream node's interrupt masks and link polarity (sub-nodes only) and its
- * power-configuration check, once per node. Then the probe, at once or after the settle.
+ * power-configuration check, once per node. A two-step link's first step checks the
+ * upstream board's power-good and sets SWBYP every time. Then the probe, at once or after
+ * the settle.
  */
 Discovery::Outcome Discovery::Prepare(uint32_t nowMs) {
   Link& link = m_Links[m_Position];
-  if (link.prepared) {
+  const bool firstStep = link.twoStep && !m_SecondStep;
+  if (link.prepared && !firstStep) {
     return SendProbe(nowMs);
   }
-  const NodeAddr upstream = NodeOf(static_cast<size_t>(m_Position));
   Result result = Result::kOk;
+  if (firstStep) {
+    bool good = true;
+    if (link.checkPowerGood) {
+      result = PowerGood(good);
+    }
+    if (result != Result::kOk || !good) {
+      m_Step = Step::kIdle;
+      return (result != Result::kOk) ? Outcome::kFailed : Outcome::kNoPowerGood;
+    }
+    link.bypass = true;
+  }
+  const NodeAddr upstream = NodeOf(static_cast<size_t>(m_Position));
   if (upstream != kMainNode) {
-    const uint8_t masks[2] = {link.intmsk0, link.intmsk1};
-    result = m_Transport.WriteRegs(upstream, reg::kIntmsk0, masks, sizeof(masks));
+    if (!link.prepared) {
+      const uint8_t masks[2] = {link.intmsk0, link.intmsk1};
+      result = m_Transport.WriteRegs(upstream, reg::kIntmsk0, masks, sizeof(masks));
+    }
     if (result == Result::kOk) {
-      result = m_Transport.WriteReg(upstream, reg::kControl, link.control);
+      result = m_Transport.WriteReg(upstream, reg::kControl, link.Control());
     }
   }
   bool overridden = false;
-  if (result == Result::kOk && link.hasSwitchConfig) {
+  if (result == Result::kOk && link.hasSwitchConfig && !link.prepared) {
     result = CheckPowerConfig(static_cast<size_t>(m_Position), overridden);
   }
   if (result != Result::kOk) {
@@ -257,6 +323,32 @@ Discovery::Outcome Discovery::Prepare(uint32_t nowMs) {
     return Outcome::kBusy;
   }
   return SendProbe(nowMs);
+}
+
+/**
+ * Reads the power-good of the board before a two-step link: the main node's through the
+ * platform, a sub-node's on its power-good GPIO (its GPIOIEN bit set first, keeping the
+ * others).
+ * @param good Set to true if it is high.
+ */
+Result Discovery::PowerGood(bool& good) {
+  if (m_Position == 0) {
+    good = m_Platform.PowerGood(m_Settings.bus);
+    return Result::kOk;
+  }
+  const NodeAddr upstream = NodeOf(static_cast<size_t>(m_Position));
+  const uint8_t bit = static_cast<uint8_t>(1U << (m_Links[m_Position].powerGoodGpio & 7U));
+  uint8_t enabled = 0;
+  Result result = m_Transport.ReadReg(upstream, reg::kGpioien, enabled);
+  if (result == Result::kOk && (enabled & bit) == 0) {
+    result = m_Transport.WriteReg(upstream, reg::kGpioien, static_cast<uint8_t>(enabled | bit));
+  }
+  uint8_t levels = 0;
+  if (result == Result::kOk) {
+    result = m_Transport.ReadReg(upstream, reg::kGpioin, levels);
+  }
+  good = (levels & bit) != 0;
+  return result;
 }
 
 /**
@@ -347,6 +439,9 @@ Discovery::Outcome Discovery::EndProbe() {
   m_Step = Step::kIdle;
   Result result = SwitchOff(static_cast<size_t>(m_Position));
   if (result == Result::kOk) {
+    result = ClearBypass();
+  }
+  if (result == Result::kOk) {
     result = WriteMain(reg::kControl, MainControl(reg::kControlEnddsc));
   }
   if (result == Result::kOk) {
@@ -363,7 +458,7 @@ Discovery::Outcome Discovery::EndProbe() {
  * Step 4: reads the node's identity and module info. A node rejected here before (the
  * same chip ID) is switched off again at once.
  */
-Discovery::Outcome Discovery::Identify() {
+Discovery::Outcome Discovery::Identify(uint32_t nowMs) {
   m_Step = Step::kIdle;
   m_Found = true;
   const size_t upstream = static_cast<size_t>(m_Position);
@@ -411,7 +506,123 @@ Discovery::Outcome Discovery::Identify() {
   if (!ImageFitsChip(m_Node->moduleInfo, identity.productId)) {
     return Reject(RejectReason::kWrongChip);
   }
-  return Outcome::kIdentified;
+  return Identified(nowMs);
+}
+
+/**
+ * A two-step link's second step found a node: it must be the one the first step
+ * identified (its IDs and chip ID). Its module info is kept from the first step.
+ */
+Discovery::Outcome Discovery::Reidentify(uint32_t nowMs) {
+  m_Step = Step::kIdle;
+  m_Found = true;
+  const size_t upstream = static_cast<size_t>(m_Position);
+  const SubNodeIdentity& identity = m_Node->identity;
+  uint8_t ids[4] = {};
+  uint8_t chipId[sizeof(identity.chipId)] = {};
+  Result result = SwitchOn(upstream, true);
+  if (result == Result::kOk) {
+    result = m_Transport.ReadRegs(m_Position, reg::kVendor, ids, sizeof(ids));
+  }
+  if (result == Result::kOk) {
+    result = RestoreSwitches(upstream + 1);
+  }
+  if (result == Result::kOk) {
+    result = m_Transport.ReadRegs(m_Position, reg::kChipid0, chipId, sizeof(chipId));
+  }
+  if (result != Result::kOk || ids[0] != identity.vendorId || ids[1] != identity.productId ||
+      std::memcmp(chipId, identity.chipId, sizeof(chipId)) != 0) {
+    return Outcome::kFailed;  // Another node answered: the chain is checked and probed again.
+  }
+  return Identified(nowMs);
+}
+
+/**
+ * The node is identified at its final power: the 24 V check if the link asks for it and
+ * the node has a voltage monitor, else Outcome::kIdentified. A two-step link's first step
+ * isn't checked (the node is at 5 V).
+ */
+Discovery::Outcome Discovery::Identified(uint32_t nowMs) {
+  const Link& link = m_Links[m_Position];
+  if (!link.checkHighVoltage || !m_Caps->hasVoltageMonitor || (link.twoStep && !m_SecondStep)) {
+    return Outcome::kIdentified;
+  }
+  if (m_Transport.WriteReg(m_Position, reg::kVmtrVen, kVmtrVenVbus) != Result::kOk) {
+    return Outcome::kFailed;
+  }
+  m_Deadline = nowMs + kHighVoltageWindowMs;
+  return CheckVoltage(nowMs);
+}
+
+/**
+ * Step 5: reads the new node's VBUS (VMTR_VLTG1). Below 4 V it is read again at each poll
+ * until the window ends.
+ */
+Discovery::Outcome Discovery::CheckVoltage(uint32_t nowMs) {
+  m_Step = Step::kIdle;
+  uint8_t vbus = 0;
+  if (m_Transport.ReadReg(m_Position, kVmtrVltgVbus, vbus) != Result::kOk) {
+    return Outcome::kFailed;
+  }
+  if (vbus >= kHighVoltageMin) {
+    return FinishVoltage(true);
+  }
+  if (!TimeReached(nowMs, m_Deadline)) {
+    m_Step = Step::kCheckVoltage;
+    return Outcome::kBusy;
+  }
+  return FinishVoltage(false);
+}
+
+/**
+ * Ends the 24 V check: VMTR_VEN back to 0, then the node identified, or rejected for no
+ * 24 V.
+ * @param good VBUS was at least 4 V.
+ */
+Discovery::Outcome Discovery::FinishVoltage(bool good) {
+  if (m_Transport.WriteReg(m_Position, reg::kVmtrVen, 0) != Result::kOk) {
+    return Outcome::kFailed;
+  }
+  return good ? Outcome::kIdentified : Reject(RejectReason::kNoHighVoltage);
+}
+
+/**
+ * Tells whether the node a two-step link's first step identified gets the 24 V: its power
+ * configuration (the chip's) is CFG-4.
+ * @return True if Network is to start the second step (BeginHighVoltageStep()).
+ */
+bool Discovery::NeedsHighVoltage() const {
+  return FirstStepOnly() && m_Node->moduleInfo.powerConfig == kPowerConfig4;
+}
+
+/**
+ * Tells whether the probe ended with a two-step link's first step only: the node is on
+ * 5 V, with SWBYP on the upstream node.
+ * @return True after a two-step link's first step, before any second step.
+ */
+bool Discovery::FirstStepOnly() const { return m_Links[m_Position].twoStep && !m_SecondStep; }
+
+/**
+ * Starts a two-step link's second step, once Network has reviewed the node the first step
+ * identified: the upstream switch is opened and SWBYP cleared, so the node loses its frames;
+ * the next Poll() prepares the link again (XCVRBINV without SWBYP) and probes with ENSW,
+ * which closes the 24 V switch.
+ * @return Outcome::kBusy, or Outcome::kFailed if a write failed (Abandon() tidies up).
+ */
+Discovery::Outcome Discovery::BeginHighVoltageStep() {
+  m_SecondStep = true;
+  m_Found = false;
+  m_Transport.ForgetNode(m_Position);  // It starts again from reset.
+  Result result = SwitchOff(static_cast<size_t>(m_Position));
+  if (result == Result::kOk) {
+    result = ClearBypass();
+  }
+  if (result != Result::kOk) {
+    m_Step = Step::kIdle;
+    return Outcome::kFailed;
+  }
+  m_Step = Step::kPrepare;
+  return Outcome::kBusy;
 }
 
 /**
@@ -429,8 +640,26 @@ Discovery::Outcome Discovery::Reject(RejectReason reason) {
   if (m_Links[upstream].closeSwitch && SwitchOff(upstream) != Result::kOk) {
     return Outcome::kFailed;
   }
+  if (ClearBypass() != Result::kOk) {
+    return Outcome::kFailed;
+  }
   m_Sent = false;
   return Outcome::kRejected;
+}
+
+/**
+ * Clears SWBYP on the upstream node of a two-step link, if it is set: its CONTROL keeps
+ * the link's XCVRBINV (and on the main node its settings). Nothing is sent otherwise.
+ */
+Result Discovery::ClearBypass() {
+  Link& link = m_Links[m_Position];
+  if (!link.bypass) {
+    return Result::kOk;
+  }
+  link.bypass = false;
+  const NodeAddr upstream = NodeOf(static_cast<size_t>(m_Position));
+  return (upstream == kMainNode) ? WriteMain(reg::kControl, MainControl(0))
+                                 : m_Transport.WriteReg(upstream, reg::kControl, link.Control());
 }
 
 /**
@@ -477,7 +706,7 @@ Result Discovery::WriteMain(uint16_t reg, uint8_t value) {
 
 /** The main node's CONTROL: its settings, its link's XCVRBINV, and @p command. */
 uint8_t Discovery::MainControl(uint8_t command) const {
-  return static_cast<uint8_t>(m_Settings.mainControl | m_Links[0].control | command);
+  return static_cast<uint8_t>(m_Settings.mainControl | m_Links[0].Control() | command);
 }
 
 }  // namespace a2b

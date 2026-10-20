@@ -70,6 +70,7 @@ class FixedApp : public a2b::NetworkListener {
   a2b::FixedOpList<64> m_HostScript;  ///< One Op per SigmaStudio+ config unit.
   a2b::Network m_Network;
   clockworks::BoardModuleSource m_Modules;  ///< The boards' images, else the EEPROMs.
+  a2b::NodeFactory m_Factory;               ///< Every sub-node a clockworks::BoardNode.
   FixedSetup m_Setup;
   bool m_Connected = false;  ///< The connections are in the Network (by chip ID).
 };

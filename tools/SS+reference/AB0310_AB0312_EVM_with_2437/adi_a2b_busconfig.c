@@ -5,7 +5,7 @@ and its licensors.
 ******************************************************************************
 * @file: adi_a2b_busconfig.c
 * @brief: This file contains A2B Schematic information
-* @date: Monday, 05 October 2026-20:51:11
+* @date: Monday, 19 October 2026-23:19:59
 * BCF Version - 1.0.0
 * A2BDLL- 2.0.1.0
 * SigmaStudio+ version- 2.3.0
@@ -452,7 +452,7 @@ static ADI_A2B_MASTER_NCD sMasterNode0=
 			.bGPIO6PinUsage	= A2B_GPIO_6_DISABLE ,	/*SPI(S)*/
 
 			/*! GPIO 7 Pin multiplexing */
-			.bGPIO7PinUsage	= A2B_GPIO_7_OUTPUT ,
+			.bGPIO7PinUsage	= A2B_GPIO_7_INPUT ,
 
 		},
 		.sPinIntConfig =
@@ -530,7 +530,7 @@ static ADI_A2B_MASTER_NCD sMasterNode0=
 			.bGPIO6Val = A2B_LOW ,
 
 			/*! Data value for GPIO 7 output pin  */
-			.bGPIO7Val = A2B_HIGH ,
+			.bGPIO7Val = A2B_LOW ,
 
 		},
 
@@ -1381,7 +1381,7 @@ static ADI_A2B_SLAVE_NCD sChain0_SlaveNode0=
 			.bGPIO6PinUsage	= A2B_GPIO_6_DISABLE ,	/*A2B_DISABLED*/
 
 			/*! GPIO 7 Pin multiplexing */
-			.bGPIO7PinUsage	= A2B_GPIO_7_OUTPUT ,
+			.bGPIO7PinUsage	= A2B_GPIO_7_INPUT ,
 		},
 		.sPinIntConfig =
 		{
@@ -1458,7 +1458,7 @@ static ADI_A2B_SLAVE_NCD sChain0_SlaveNode0=
 			.bGPIO6Val = A2B_LOW ,
 
 			/*! Data value for GPIO 7 output pin  */
-			.bGPIO7Val = A2B_HIGH ,
+			.bGPIO7Val = A2B_LOW ,
 
 		},
 

@@ -8,7 +8,7 @@ the [bench console guide](bench_console.md).
 
 Reference board: a Pi Zero 2 W running Raspberry Pi OS **trixie (Debian 13), 64-bit**. Any
 64-bit Pi (3, 4, 5, Zero 2 W, CM3/4) running 64-bit Pi OS works. The hardware is described
-in the repository [README](../../README.md).
+in the repository [README](../../README.md#what-hardware-can-i-run-this-on).
 
 ## One-time setup on the PC
 

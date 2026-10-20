@@ -159,6 +159,7 @@ class BenchConsole : public a2b::NetworkListener {
       console's groups (`group image`). */
   clockworks::ModuleProfile m_Plain;
   clockworks::BoardModuleSource m_Modules;  ///< Each node's module info (`module N`).
+  a2b::NodeFactory m_Factory;               ///< Every sub-node a clockworks::BoardNode.
 #if A2B_BENCH_FILES
   a2b::SsPlusFile m_File;  ///< A board loaded from a file.
 #endif

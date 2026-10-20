@@ -73,10 +73,12 @@ void PlugWithEeprom(sim::Bus& bus, const sim::ChipSpec& chip) {
 }
 
 /** Plugs in a sub-node without an EEPROM. */
-void PlugBlank(sim::Bus& bus, const sim::ChipSpec& chip, bool inverted) {
+void PlugBlank(sim::Bus& bus, const sim::ChipSpec& chip, bool inverted,
+               sim::LinkPower power = sim::LinkPower::kOnPair) {
   sim::SubNodeSpec spec;
   spec.chip = chip;
   spec.link.bSideInverted = inverted;
+  spec.link.power = power;
   bus.Plug(spec);
 }
 
@@ -147,7 +149,7 @@ A2B_TEST(HelpBoardsAndRefusals) {
   A2B_CHECK(Has(Run(console, "start"), "No board"));
   A2B_CHECK(Has(Run(console, "frobnicate"), "Unknown command 'frobnicate'"));
   A2B_CHECK(Has(Run(console, "link 16 utp"), "N: 0-15"));
-  A2B_CHECK(Has(Run(console, "link 3 xlr"), "N: 0-15"));
+  A2B_CHECK(Has(Run(console, "link 3 xlr single"), "N: 0-15"));
   A2B_CHECK(Has(Run(console, "ignoreEEPROM 2"), "ignoreEEPROM 1|0"));
   A2B_CHECK(Has(Run(console, "board /no/such/export.c"), "Can't load /no/such/export.c"));
   A2B_CHECK(Has(Run(console, "status"), "Bus: stopped"));
@@ -172,12 +174,12 @@ A2B_TEST(BuiltInBoardBringsUpTheChain) {
   A2B_CHECK(Has(events, "bus: running"));
   A2B_CHECK(Has(events,
                 "sub-node 1: AD2437 version 0x21, chip ID 000000000002, module "
-                "00AD:0037, CFG-4, 0 peripheral block(s), link rj45 (board)\n"));
+                "00AD:0037, CFG-4, 0 peripheral block(s), link rj45 single (board)\n"));
   A2B_CHECK(Has(events, "    image for not stated; B port UTP, its cable not given\n"));
   const std::string status = Run(console, "status");
   A2B_CHECK(Has(status, "Bus: running, main node AD2437 at 0x68, 2 sub-node(s)"));
   A2B_CHECK(Has(status, "Module info: the EEPROMs"));
-  A2B_CHECK(Has(status, "Links: rj45 by default"));
+  A2B_CHECK(Has(status, "Links: rj45 single by default"));
   A2B_CHECK(Has(Run(console, "stop"), "Bus stopped"));
   A2B_CHECK(console.Bus().State() == NetworkState::kStopped);
 }
@@ -246,7 +248,7 @@ A2B_TEST(AbBoardLinksAreUtp) {
   A2B_CHECK(Has(Run(console, "status"), "Links: utp by default"));
   // The reference board keeps its export's inversion.
   Run(console, "board ref");
-  A2B_CHECK(Has(Run(console, "start"), "links rj45 by default"));
+  A2B_CHECK(Has(Run(console, "start"), "links rj45 single by default"));
 }
 
 A2B_TEST(ConnectionsFromTheConsole) {
@@ -455,8 +457,8 @@ A2B_TEST(Ab0310WithAnAb0312AndUnknownNodes) {
   sim::Bus& bus = sim.AddBus(0x68, 0x69, Ad2437());
   bus.StartRunning();
   PlugBlank(bus, Chip(0x37, 1), true);
-  PlugBlank(bus, Chip(0x37, 2), true);
-  PlugBlank(bus, Chip(0x37, 3), true);
+  PlugBlank(bus, Chip(0x37, 2), true, sim::LinkPower::kTwoStep);
+  PlugBlank(bus, Chip(0x37, 3), true, sim::LinkPower::kTwoStep);
   BenchConsole console(sim);
   A2B_CHECK(Has(Run(console, "board"), "AB0310"));
   Run(console, "board AB0310");
@@ -465,22 +467,20 @@ A2B_TEST(Ab0310WithAnAb0312AndUnknownNodes) {
   A2B_CHECK(Has(Run(console, "module 0 AB0312 file.xml"), "module N|all AB0020|AB0312"));
   A2B_CHECK(Has(Run(console, "module 0 AB0312"), "Sub-node 0: AB0312"));
   A2B_CHECK(Has(Run(console, "start"),
-                "0 host script operation(s) (0 before the main node), links rj45 by default"));
-  // The AB0312's B port is ADI's RJ45: on an AD2437, two-step, which isn't run yet.
+                "0 host script operation(s) (0 before the main node), links rj45 single by "
+                "default"));
+  // The AB0312's B port is ADI's RJ45: on an AD2437, two-step. The console's image for the
+  // node after it gives UTP, not inverted, so nothing answers over the RJ45 cable after it.
   std::string events = RunFor(sim, console, 3000);
-  A2B_CHECK_EQ(console.Bus().SubNodeCount(), 1);
+  A2B_CHECK_EQ(console.Bus().SubNodeCount(), 2);
   A2B_CHECK(Has(events, "    image for External; B port RJ45, its cable not given\n"));
-  bool logged = false;
-  for (const std::string& line : sim.LogLines()) {
-    logged = logged || Has(line, "link to sub-node 1 is two-step (unsupported); not probed");
-  }
-  A2B_CHECK(logged);
+  A2B_CHECK(bus.Sub(1).HighVoltage());
   // Every link the board's (RJ45, single-step).
   Run(console, "link all board");
   Run(console, "start");
   events = RunFor(sim, console, 3000);
   A2B_CHECK_EQ(console.Bus().SubNodeCount(), 3);
-  A2B_CHECK(Has(events, "link rj45 (board)\n"));
+  A2B_CHECK(Has(events, "link rj45 single (board)\n"));
   A2B_CHECK(!Has(events, "link utp"));
   A2B_CHECK(Has(events, "    AB0312\n"));
   A2B_CHECK(Has(Run(console, "status"), "Boards: sub-node 0 AB0312"));
@@ -883,9 +883,14 @@ A2B_TEST(LinkProfilesPerPosition) {
   A2B_CHECK(Has(Run(console, "link"), "link 1 utp"));
   A2B_CHECK(Has(Run(console, "status"), "into 1 utp"));
   A2B_CHECK(Has(Run(console, "link 4 custom inverted"), "Link into sub-node 4: custom inverted"));
-  A2B_CHECK(Has(Run(console, "link 5 rj45"), "Link into sub-node 5: rj45"));
-  A2B_CHECK(Has(Run(console, "link 5 utp inverted"), "link N utp|rj45|custom|default"));
-  A2B_CHECK(Has(Run(console, "link 5 inverted"), "link N utp|rj45|custom|default"));
+  A2B_CHECK(Has(Run(console, "link 5 rj45"), "Link into sub-node 5: rj45\n"));
+  A2B_CHECK(Has(Run(console, "link 5 rj45 single"), "Link into sub-node 5: rj45 single\n"));
+  A2B_CHECK(Has(Run(console, "link 5 xlr"), "Link into sub-node 5: xlr\n"));
+  A2B_CHECK(Has(Run(console, "link 5 utp two-step"), "Link into sub-node 5: utp two-step\n"));
+  A2B_CHECK(Has(Run(console, "link 5 utp vmtr"), "Link into sub-node 5: utp vmtr\n"));
+  A2B_CHECK(Has(Run(console, "link 5 utp inverted"), "link N utp [two-step|vmtr]|rj45 [single]"));
+  A2B_CHECK(Has(Run(console, "link 5 rj45 two-step"), "link N utp [two-step|vmtr]|rj45"));
+  A2B_CHECK(Has(Run(console, "link 5 inverted"), "link N utp [two-step|vmtr]|rj45 [single]"));
   A2B_CHECK(Has(Run(console, "link 4 default"), "Link into sub-node 4: the board's"));
   A2B_CHECK(Has(Run(console, "link 0 default"), "Link into sub-node 0: the board's"));
   A2B_CHECK(Has(Run(console, "link all default"), "Every link: into sub-node 0 the board's"));

@@ -34,6 +34,9 @@ notes](hardware_notes.md#sustain-after-a-soft-reset).
 | A node found and configured to the probe for the next position | none: the next poll | - | The TRMs' flows discover the chain node after node. ADI's PnP layer probed again only after routing, at its 500 ms period | none |
 | A probe that found nothing to the next probe, at the end of the chain | `probeIntervalMs` (500) | Period | ADI's idle probe period (goldens: DISCVRY every 500 ms) | none |
 | A failed probe or set-up to the next probe | `probeIntervalMs` (500) | Period | New: ADI's stack stopped on a failed transfer | none |
+| Two-step: the node found at 5 V and reviewed to the switch opened and SWBYP cleared, then the 24 V switch closed and DISCVRY again | none: the same poll, then the next | - | ADI's `a2b_dscvryNodeDiscovered` goes straight on to the second step (AD2437 TRM, Figures 7-2 and 7-3, no wait between the steps) | none |
+| A VBUS reading (VMTR_VLTG1) under 4 V to the node's rejection | read again at each poll for 10 ms | Timeout | ADI read it once, straight after VMTR_VEN, and the bench's G13 trace has the value there; the window is a margin | none |
+| A two-step link's power-good low to the next try | `probeIntervalMs` (500) | Period | ADI's stack ended discovery | none |
 
 The overridden configuration and the wait happen at most once per node and start-up: the check
 is made before a node's first probe (the main node's, then each sub-node's as it becomes the
@@ -169,7 +172,6 @@ ADI's stack has these waits; the C++ stack gets them with the feature:
 | Wait | ADI's value | Feature |
 |---|---|---|
 | Power-diagnostic settles | 100 or 250 ms | power diagnostics |
-| Two-step: 5 V discovery, then 24 V; VMTR check | `discovery.c` | two-step links |
 
 Not ported: the high-power switch mode-4 open-detect timer. ADI's PnP build compiles it out
 (`#ifndef A2B_FEATURE_PNP` in `a2b_onDiscTimeout`); only its reads of SWSTAT2 and SWCTL after a

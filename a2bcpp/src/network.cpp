@@ -100,11 +100,15 @@
  * applies to the next probe: the upstream node's link is then set up again (masks,
  * XCVRBINV, the power-configuration check). A link whose node is in the bus keeps its
  * settings until the node is found again. The profile gives XCVRBINV and whether the
- * upstream node's switch powers the next node (LinkProfile::Power::kOnA2bPair). Two-step
- * links are not supported yet: SetLinkProfile() refuses them, and a link whose
- * DownstreamLink() asks for one is not probed (the chain ends there, with a log line); so is
- * a link from a B port the stack can't run yet (Discovery::kUnsupported, "Unsupported B
- * port type", CustomBPortLink()).
+ * upstream node's switch powers the next node (LinkProfile::Power::kOnA2bPair). A two-step
+ * link (RJ45 and XLR from an AD2437; any link the app asks it for) finds the node at 5 V with
+ * SWBYP, reviews it, and only then closes the 24 V switch and finds it again, with the 24 V
+ * checked by the node's VMTR (Discovery); from a node without the high-power switch it runs
+ * single-step (logged). A node whose power configuration isn't CFG-4 stays at 5 V. A failed
+ * 24 V check rejects the node (RejectReason::kNoHighVoltage) without keeping its chip ID, so
+ * its position is probed from the first step again every rejectedProbeMs. A link from a B
+ * port the stack can't run yet (Discovery::kUnsupported, "Unsupported B port type",
+ * CustomBPortLink()) is not probed (the chain ends there, with a log line).
  *
  * **Routing** (ADI's a2b_pnp_AddConByChipId and friends, a2b_pnp_ApplyRouting).
  * The app's connections (a source node's RX channel group to a sink node's TX group) are
@@ -255,7 +259,7 @@ Network::~Network() { m_Impl->~Impl(); }
  * they are.
  * @return Result::kOk; Result::kInvalidArgument if the BoardConfig names no supported main
  *         node chip (the AD2427 is not main-node capable) or its maxSubNodes is not 1-16;
- *         Result::kNotSupported if its default link is two-step (not supported yet).
+ *         Result::kNotSupported if its default link is Discovery::kUnsupported.
  */
 Result Network::Start() { return m_Impl->Start(); }
 
@@ -308,11 +312,10 @@ void Network::SetListener(NetworkListener* listener) { m_Impl->SetListener(liste
  * node is in the bus keeps its settings until the node is found again. It outlasts
  * Start().
  * @param position The sub-node the link leads to, 0-15.
- * @param profile The link: its XCVRBINV and power source (the two-step fields are not supported
- * yet).
+ * @param profile The link: single-step or two-step (run single-step if the node before it has
+ *        no 24 V switch), its XCVRBINV, power source and checks.
  * @return Result::kOk; Result::kInvalidArgument if @p position is not 0-15;
- *         Result::kNotSupported if @p profile is two-step (not supported yet) or
- *         Discovery::kUnsupported.
+ *         Result::kNotSupported if @p profile is Discovery::kUnsupported.
  */
 Result Network::SetLinkProfile(NodeAddr position, const LinkProfile& profile) {
   return m_Impl->SetLinkProfile(position, profile);
@@ -775,7 +778,7 @@ Network::Impl::Impl(Network& owner, Platform& platform, const BoardConfig& board
       m_Transport(platform, board.mainAddr, board.busAddr),
       m_Runner(m_Transport),
       m_Poller(platform, m_Transport, board.busIndex, board.timings.interruptPollMs),
-      m_Discovery(m_Transport, m_Poller),
+      m_Discovery(m_Transport, m_Poller, platform),
       m_Setup(platform, m_Transport, m_Runner, m_PeripheralBuf, sizeof(m_PeripheralBuf)),
       m_Eeprom(owner) {}
 
@@ -793,9 +796,8 @@ Result Network::Impl::Start() {
       m_Board.policy.maxSubNodes > kMaxSubNodes) {
     return Result::kInvalidArgument;
   }
-  const LinkProfile& link = m_Board.defaultLink;
-  if (link.discovery != LinkProfile::Discovery::kSingleStep) {
-    return Result::kNotSupported;  // Two-step discovery is not supported yet.
+  if (m_Board.defaultLink.discovery == LinkProfile::Discovery::kUnsupported) {
+    return Result::kNotSupported;
   }
   CancelProbe();
   m_Runner.Stop();
@@ -858,8 +860,8 @@ Result Network::Impl::SetLinkProfile(NodeAddr position, const LinkProfile& profi
   if (!IsSubNode(position)) {
     return Result::kInvalidArgument;
   }
-  if (profile.discovery != LinkProfile::Discovery::kSingleStep) {
-    return Result::kNotSupported;  // Two-step discovery is not supported yet.
+  if (profile.discovery == LinkProfile::Discovery::kUnsupported) {
+    return Result::kNotSupported;
   }
   m_LinkProfile[position] = profile;
   m_HasLinkProfile[position] = true;

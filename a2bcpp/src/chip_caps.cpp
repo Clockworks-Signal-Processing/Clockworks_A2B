@@ -30,6 +30,11 @@
  * external PMOS on the high side; CFG-4 uses NMOS on both sides). The AD242x data sheet and
  * TRM have no power configurations: CFG-0.
  *
+ * The high-power switch: the AD2437's CFG-4 drives an NMOS on the high side of an XLR or
+ * CAT (RJ45) cable's power wires (AD2437 TRM, "Power Configurations"), which two-step
+ * discovery closes once the node found at 5 V checks out (TRM Figures 7-2 and 7-3). The
+ * AD2433's CFG-0 and the AD242x have no such configuration.
+ *
  * I2S/TDM: the same Table 1 gives the AD2427 none ("I2S/TDM support: No"; its pin list:
  * "for the AD2426 and AD2427, the DRX0 function is not supported", and likewise DRX1), only
  * its four PDM microphone inputs on DRX0/DRX1, clocked from BCLK or PDMCLK/IO7. The AD2428,
@@ -50,15 +55,15 @@ namespace {
 // ADI's stack programs it (PLLCTL) on AD243x main nodes.
 constexpr ChipCaps kChipTable[] = {
     // product, name, family, SPI, xbar, MSINV, spread, VMTR, page 1, switch config,
-    // switch mode, main-node capable, I2S/TDM, power configuration
+    // switch mode, main-node capable, I2S/TDM, power configuration, high-power switch
     {0x27, "AD2427", ChipFamily::kAd242x, false, false, false, true, false, false, false, 0x00,
-     false, false, 0},
+     false, false, 0, false},
     {0x28, "AD2428", ChipFamily::kAd242x, false, false, false, true, false, false, false, 0x00,
-     true, true, 0},
+     true, true, 0, false},
     {0x33, "AD2433", ChipFamily::kAd243x, true, true, true, true, true, true, true, 0x10, true,
-     true, 0},
+     true, 0, false},
     {0x37, "AD2437", ChipFamily::kAd243x, true, true, true, true, true, true, true, 0x10, true,
-     true, 4},
+     true, 4, true},
 };
 
 }  // namespace

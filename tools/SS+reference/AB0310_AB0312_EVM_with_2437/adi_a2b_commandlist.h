@@ -5,7 +5,7 @@ and its licensors.
 ******************************************************************************
 * @brief: This file contains I2C/SPI command sequence to be followed for 
 *         discovery and configuration of A2B nodes for an A2B schematic
-* @date: Monday, 05 October 2026-20:51:12
+* @date: Monday, 19 October 2026-23:20:00
 * I2C/SPI Command File Version - 1.0.0
 * A2B DLL- 2.0.1.0
 * SigmaStudio+ version- 2.3.0

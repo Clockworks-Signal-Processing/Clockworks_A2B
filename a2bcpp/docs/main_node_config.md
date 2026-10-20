@@ -233,8 +233,10 @@ board.defaultLink = a2b::LinkProfile::Utp();
 board.defaultLink.bSideInverted = true;
 ```
 
-Two-step links (`LinkProfile::Rj45()`, `Xlr()`) are not built yet: until then
-`Network::Start()` refuses them with `Result::kNotSupported`.
+A two-step default link (`LinkProfile::Rj45()`, `Xlr()`) runs two-step from an AD2437
+main node, with its power-good read through `Platform::PowerGood()`, and single-step from
+an AD2428 or AD2433 ([cookbook](cookbook.md#link-profiles)). An export's link is always
+single-step.
 
 **Hooks.** To change the image at each start-up (for example from a setting the app
 reads at run time), derive from `a2b::BoardHooks`:

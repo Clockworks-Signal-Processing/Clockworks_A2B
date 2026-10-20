@@ -62,6 +62,17 @@
  * - Power-good: the main node's input (Platform::PowerGood()) and each node's GPIO
  *   inputs (GPIOIN, gated by GPIOIEN; GPIO7 carries PG by default). VMTR readings on
  *   AD243x nodes (VLTGn, gated by VMTR_VEN).
+ * - Two-step links (LinkPower::kTwoStep; the AD2437 TRM, "Power on the Bus" and Figures 7-2
+ *   and 7-3): an RJ45 cable carries 5 V on the data pair, which powers the next node and its
+ *   EEPROM while the upstream board's power-good is high (the main node's input, a sub-node's
+ *   GPIO7 input), and the 24 V on the other pairs once the upstream switch closes (ENSW
+ *   without SWBYP, with the upstream node's downstream supply on). Frames reach the node with
+ *   SWBYP, or with the switch closed; clearing both drops it out of the bus (it loses its
+ *   frames), though it stays powered and answers the next DISCVRY. Its VMTR input 1 (VBUS)
+ *   reads the 24 V only while the 24 V reaches it, else 0. A removed downstream supply leaves
+ *   such a node on its 5 V. Node::HighVoltageCount() counts the times the 24 V came on.
+ * - The order of XCVRBINV and ENSW (the TRMs' discovery flows): a CONTROL write that changes
+ *   XCVRBINV on a node whose ENSW is set is counted (Bus::OrderErrors()).
  * - EEPROMs and other I2C devices behind sub-nodes and on the host bus.
  * - Faults: failed transfers, a sub-node unplugged or reset, a node's downstream supply
  *   removed, PG and VMTR values, the
@@ -112,9 +123,9 @@
  * Time moves only when the test calls Simulator::Advance(); nothing happens inside a
  * transfer. Bus index n in the Platform calls is the n-th bus added.
  *
- * Not modelled yet: two-step discovery's switch bypass and 24 V check; power faults other
- * than a removed downstream supply; SPI. The drop model is from the TRMs, checked against
- * the bench's cable pulls (goldens G4 and G5 were not captured).
+ * Not modelled yet: power faults other than a removed downstream supply (a two-step link's
+ * line faults among them); a power-good GPIO other than GPIO7; SPI. The drop model is from the
+ * TRMs, checked against the bench's cable pulls (goldens G4 and G5 were not captured).
  *
  * Copyright 2026 by ClockWorks Signal Processing LLC
  * Licensed under the terms found in CLOCKWORKS_SOFTWARE_LICENSE.txt and included here by reference.
@@ -254,7 +265,8 @@ uint8_t Node::Reg(uint16_t reg) const {
     const int input = VmtrInputOf(low);
     if (input >= 0) {
       const bool enabled = ((m_Regs[1][LowByte(reg::kVmtrVen)] >> input) & 1) != 0;
-      return enabled ? m_Vmtr[input] : 0;
+      const bool noVbus = (input == 1 && m_Link.power == LinkPower::kTwoStep && !m_HighVoltage);
+      return (enabled && !noVbus) ? m_Vmtr[input] : 0;
     }
   }
   return m_Regs[page][low];
@@ -518,6 +530,7 @@ void Bus::SetDownstreamSupply(size_t position, bool on) {
   if (cut) {
     DropFrom(next, true);
   }
+  CheckPower();  // A two-step node after it keeps its 5 V; its VBUS follows.
 }
 
 /**
@@ -706,7 +719,9 @@ Result Bus::BusAccess(const uint8_t* writeData, size_t writeLen, uint8_t* readDa
     return (readLen > 0) ? device->Read(readData, readLen, now) : Result::kOk;
   }
   if (writeLen > 0) {
+    const uint8_t controlBefore = node.m_Regs[0][reg::kControl];
     node.WriteBurst(writeData, writeLen);
+    CheckOrder(node, controlBefore);
     CheckPower();
   }
   if (readLen > 0) {
@@ -811,10 +826,12 @@ void Bus::WriteControl(uint8_t value) {
     }
   }
   uint8_t& control = m_Main->m_Regs[0][reg::kControl];
+  const uint8_t before = control;
   const bool wasMstr = (control & reg::kControlMstr) != 0;
   constexpr uint8_t kSelfClearing =
       reg::kControlSoftrst | reg::kControlNewstrct | reg::kControlEnddsc;
   control = static_cast<uint8_t>(value & ~kSelfClearing);
+  CheckOrder(*m_Main, before);
   CheckPower();  // SWBYP opens the switch.
   if (m_Running || m_Wedged) {
     return;  // The PLL is locked, or the node is unusable until power-cycled.
@@ -902,8 +919,11 @@ bool Bus::CanDiscover() const {
   const bool bypass = (upstream.m_Regs[0][reg::kControl] & reg::kControlSwbyp) != 0;
   const bool switchOn = SwitchClosed(upstream);
   const bool onPair = (link.power == LinkPower::kOnPair);
-  const bool powered = onPair ? switchOn && upstream.m_DownstreamSupply : node.m_LocalPower;
-  const bool frames = bypass || (switchOn && (onPair || !link.isolated));
+  const bool twoStep = (link.power == LinkPower::kTwoStep);
+  const bool powered = twoStep  ? Powered(m_Discovered)
+                       : onPair ? switchOn && upstream.m_DownstreamSupply
+                                : node.m_LocalPower;
+  const bool frames = bypass || (switchOn && (onPair || twoStep || !link.isolated));
   const bool inverted = (upstream.m_Regs[0][reg::kControl] & reg::kControlXcvrbinv) != 0;
   return powered && frames && inverted == link.bSideInverted && m_DiscoveryAddressed &&
          m_DiscoveryValue >= link.minRespCycles && m_DiscoveryValue <= link.maxRespCycles;
@@ -924,20 +944,72 @@ bool Bus::SwitchClosed(const Node& node) {
  */
 bool Bus::Powered(size_t position) const {
   const Node& node = *m_Subs[position];
-  if (node.m_Link.power != LinkPower::kOnPair) {
-    return node.m_LocalPower;
-  }
   const Node& upstream = (position == 0) ? *m_Main : *m_Subs[position - 1];
-  return SwitchClosed(upstream) && upstream.m_DownstreamSupply;
+  const bool highVoltage = SwitchClosed(upstream) && upstream.m_DownstreamSupply;
+  switch (node.m_Link.power) {
+    case LinkPower::kOnPair:
+      return highVoltage;
+    case LinkPower::kTwoStep:
+      return highVoltage || FiveVolts(position);
+    default:
+      return node.m_LocalPower;
+  }
 }
 
-/** Drops the first discovered sub-node that has lost power, with the nodes after it. */
+/**
+ * True if the board before the two-step link into sub-node @p position puts its 5 V on the
+ * data pair: its power-good is high (the main node's input, a sub-node's GPIO7 input).
+ */
+bool Bus::FiveVolts(size_t position) const {
+  constexpr uint8_t kPowerGoodPin = 0x80;  // GPIO7.
+  return (position == 0) ? m_PowerGood : (m_Subs[position - 1]->m_GpioInputs & kPowerGoodPin) != 0;
+}
+
+/**
+ * True if frames reach the sub-node at @p position over a two-step link: the upstream node
+ * has SWBYP set or its switch closed.
+ */
+bool Bus::Frames(size_t position) const {
+  const Node& upstream = (position == 0) ? *m_Main : *m_Subs[position - 1];
+  return (upstream.m_Regs[0][reg::kControl] & reg::kControlSwbyp) != 0 || SwitchClosed(upstream);
+}
+
+/**
+ * Drops the first discovered sub-node that has lost power, or on a two-step link its
+ * frames, with the nodes after it; then notes which two-step nodes the 24 V reaches.
+ */
 void Bus::CheckPower() {
   for (size_t i = 0; i < m_Discovered; ++i) {
-    if (!Powered(i)) {
+    const bool twoStep = (m_Subs[i]->m_Link.power == LinkPower::kTwoStep);
+    if (!Powered(i) || (twoStep && !Frames(i))) {
       DropFrom(i, false);
-      return;
+      break;
     }
+  }
+  for (size_t i = 0; i < m_Subs.size(); ++i) {
+    Node& node = *m_Subs[i];
+    if (node.m_Link.power != LinkPower::kTwoStep) {
+      continue;
+    }
+    const Node& upstream = (i == 0) ? *m_Main : *m_Subs[i - 1];
+    const bool on = SwitchClosed(upstream) && upstream.m_DownstreamSupply;
+    if (on && !node.m_HighVoltage) {
+      ++node.m_HighVoltageCount;
+    }
+    node.m_HighVoltage = on;
+  }
+}
+
+/**
+ * Counts a CONTROL write that changed XCVRBINV on @p node while its SWCTL.ENSW was set
+ * (OrderErrors()).
+ * @param controlBefore The node's CONTROL before the write.
+ */
+void Bus::CheckOrder(const Node& node, uint8_t controlBefore) {
+  const uint8_t changed = static_cast<uint8_t>(controlBefore ^ node.m_Regs[0][reg::kControl]);
+  if ((changed & reg::kControlXcvrbinv) != 0 &&
+      (node.m_Regs[0][reg::kSwctl] & reg::kSwctlEnsw) != 0) {
+    ++m_OrderErrors;
   }
 }
 

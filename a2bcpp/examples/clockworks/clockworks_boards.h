@@ -23,6 +23,8 @@
 #include "a2b/image_source.h"
 #include "a2b/module_info.h"
 #include "a2b/network.h"
+#include "a2b/register_image.h"
+#include "a2b/sub_node.h"
 #include "sigma_xml.h"
 
 namespace clockworks {
@@ -157,6 +159,16 @@ class BoardModuleSource : public a2b::ModuleInfoSource {
   const ModuleProfile* m_Fallback = nullptr;              ///< For every other node.
   const ModuleProfile* m_Using[a2b::kMaxSubNodes] = {};   ///< What each node's image is.
 };
+
+/// A sub-node on a Clockworks base board: IO7 an input (the AB0310's and AB0312's
+/// power-good) unless its module info names the AB0020, whose IO7 drives its LED.
+class BoardNode : public a2b::SubNode {
+ public:
+  using SubNode::SubNode;
+  void TweakRegisters(a2b::RegisterImage& image) override;
+};
+
+void UseBoardNodes(a2b::NodeFactory& factory);  ///< Makes every sub-node a BoardNode.
 
 }  // namespace clockworks
 

@@ -3,8 +3,8 @@
 How the C++ stack is built and how it runs: the classes, the `Poll()` model, the state
 machines, when things happen, the events, and several buses on one host. The
 [quick start](quick_start.md) shows how to use it; this page shows how it works inside,
-for anyone who customises, ports or debugs it. Two-step links, power diagnostics and dual
-buses are not built yet (see the [roadmap](../../ROADMAP.md)). The reasons behind
+for anyone who customises, ports or debugs it. Power diagnostics and dual buses are not
+built yet (see the [roadmap](../../ROADMAP.md)). The reasons behind
 the design are in [decisions.md](decisions.md); what the hardware taught us is in
 [hardware_notes.md](hardware_notes.md).
 
@@ -144,6 +144,26 @@ Between probes the `Network` is idle; a probe is one `Discovery`, then one `Node
          --> in the bus: kNodeAdded, and the next position is probed at once
 ```
 
+A **two-step link** (RJ45 or XLR from an AD2437; Discovery's file comment has the
+details) runs the probe twice around the review:
+
+```
+ Prepare: power-good (main: Platform::PowerGood(); a sub-node: its power-good GPIO, 7)
+          low --> nothing probed, logged once; tried again in 500 ms
+          upstream CONTROL with SWBYP (and XCVRBINV) --> Probe at 5 V --> DSCDONE
+ --> Identify, module info --> review
+ --> not CFG-4: kept at 5 V (SWBYP stays) --> NodeSetup
+ --> CFG-4: switch opened, SWBYP cleared --> Prepare --> Probe (ENSW: 24 V) --> DSCDONE
+          none: rejected, no 24 V
+ --> same IDs and chip ID? (no: failed probe, chain check)
+ --> VBUS (VMTR_VLTG1) >= 4 V, read again for up to 10 ms (no: rejected, no 24 V)
+ --> NodeSetup --> in the bus
+```
+
+The 24 V check (the last step) also runs on a single-step link that asks for it
+(`LinkProfile::checkHighVoltage`). A node rejected for no 24 V isn't remembered by its chip
+ID, so its position is probed again from the first step every `rejectedProbeMs`.
+
 A node that fails a check, the review or its set-up is switched off and becomes the
 **rejected node**: the chain ends before it, and its position is probed every
 `rejectedProbeMs` (2 s). The same chip ID there is switched off again straight after
@@ -276,7 +296,7 @@ for (;;) {
   peripheral access), make its other calls (`NowMs()`, `Log()`, the GPIO calls)
   thread-safe, and guard any app object two buses share.
 - **RAM.** Each `Network` is about 15 KB on the RP2040, with no heap; one thread polling
-  two buses needs 448 bytes of stack plus the I2C driver (`-Og`)
+  two buses needs 456 bytes of stack plus the I2C driver (`-Og`)
   ([RAM on the RP2040](ram.md)).
 
 Simulator scenario 15 (`tests/scenario/test_sim_two_buses.cpp`) runs two buses on one

@@ -81,8 +81,10 @@ A2B_TEST(Ab0310BenchRoutesItself) {
   A2B_CHECK_EQ(bus.Sub(0).Reg(0x42), 0x11);
   A2B_CHECK_EQ(bus.Sub(0).Reg(0x5A), 0x81);
   A2B_CHECK_EQ(bus.Sub(0).Reg(0xB0), 0x02);
-  A2B_CHECK_EQ(bus.Sub(1).Reg(0x42), 0x11);  // I2S on DTX0 and DRX0.
-  A2B_CHECK_EQ(bus.Sub(1).Reg(0x4E), 0x7F);  // GPIOIEN: GPIO0-6 inputs.
+  A2B_CHECK_EQ(bus.Sub(1).Reg(0x42), 0x11);         // I2S on DTX0 and DRX0.
+  A2B_CHECK_EQ(bus.Sub(1).Reg(0x4E), 0xFF);         // GPIOIEN: GPIO0-7 inputs.
+  A2B_CHECK_EQ(bus.Sub(0).Reg(0x4D) & 0x80, 0);     // The AB0312's IO7 an input ...
+  A2B_CHECK_EQ(bus.Sub(0).Reg(0x4E) & 0x80, 0x80);  // ... its power-good.
   const sim::AudioTrace audio = bus.TraceAudio();
   A2B_CHECK(audio.error.empty() && audio.sub.size() == 3);
   if (audio.sub.size() == 3) {

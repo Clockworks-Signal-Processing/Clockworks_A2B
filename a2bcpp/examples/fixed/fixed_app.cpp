@@ -8,8 +8,7 @@
  *    main node's channel groups, which an export hasn't got. Every link gets the export's
  *    (its XCVRBINV; Network::SetLinkProfile()): the bench's links are all alike, RJ45 cables
  *    run single-step. Without that, the link after each sub-node would be the one its
- *    image's B port type gives, and an AB0312's RJ45 on an AD2437 is two-step, which the
- *    stack doesn't run yet.
+ *    image's B port type gives: an AB0312's RJ45 on an AD2437 is two-step.
  * 2. Give the sub-nodes their module info from a clockworks::BoardModuleSource: the boards
  *    set by position (a board without an EEPROM, such as the AB0312), the fallback image for
  *    the others (as the bench console's `ignoreEEPROM 1`), or their EEPROMs; an AD2427 gets
@@ -40,6 +39,8 @@ FixedApp::FixedApp(a2b::Platform& platform)
     : m_Platform(platform), m_Network(platform, m_Board), m_Modules(m_Network) {
   m_Network.SetListener(this);
   m_Network.SetModuleInfoSource(&m_Modules);
+  clockworks::UseBoardNodes(m_Factory);  // IO7 an input but on an AB0020.
+  m_Network.SetNodeFactory(&m_Factory);
 }
 
 /**

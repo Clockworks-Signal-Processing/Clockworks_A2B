@@ -68,7 +68,7 @@ For full details see `a2bcpp\docs\cookbook.md`
 
 ------
 
-Written for Version 0.3.  19-Oct-2026.
+Written for Version 0.4.  19-Oct-2026.
 
 Copyright 2026 Clockworks Signal Processing LLC  https://clk.works
 
@@ -101,8 +101,8 @@ EEPROM provisioning works on the USBi and the Pi: the image tool, `tools/a2b_eep
 and reads module-info images (a GUI and a command line), and the bench console writes them to
 the sub-nodes' EEPROMs ([provisioning.md](a2bcpp/docs/provisioning.md)).
 
-Not included: two-step power-up on AD2437 links, power diagnostics, SPI, dual buses, spread
-spectrum, GPIO over distance and a C facade. The [roadmap](ROADMAP.md) lists
+Not included: power diagnostics, SPI, dual buses, spread spectrum, GPIO over distance and a
+C facade. The [roadmap](ROADMAP.md) lists
 them, what has been tested on hardware, the known issues and what still needs a test.
 
 ## Layout
@@ -130,7 +130,7 @@ In `a2bcpp/docs/`, in a reading order:
 | 1 | [quick_start.md](a2bcpp/docs/quick_start.md) | Bringing up a bus with the minimal example; building for each host |
 | 2 | [main_and_sub_node_programming.md](a2bcpp/docs/main_and_sub_node_programming.md) | Where the main node's and the sub-nodes' settings come from, in short |
 | 3 | [bench_console.md](a2bcpp/docs/bench_console.md) | The bench console: trying boards and chains by typed commands |
-| 4 | [hardware_notes.md](a2bcpp/docs/hardware_notes.md) | What the chips, boards and adapters taught us: read before changing the stack |
+| 4 | [hardware_notes.md](a2bcpp/docs/hardware_notes.md), [boards.md](a2bcpp/docs/boards.md) | What the chips, boards and adapters taught us: read before changing the stack; which Clockworks boards and modules go together, and the link each runs |
 | 5 | [architecture.md](a2bcpp/docs/architecture.md) | How the stack is built and runs |
 | 6 | [cookbook.md](a2bcpp/docs/cookbook.md) | Customising modules, links, routing and events |
 | 7 | [provisioning.md](a2bcpp/docs/provisioning.md) | The module-info image (EEPROM) format, the image tool and writing EEPROMs |
@@ -251,8 +251,10 @@ The polarity is a per-link setting, the `bSideInverted` field of a `LinkProfile`
 link takes its value from the SigmaStudio+ export (`BoardConfig::defaultLink`: inverted if the
 export's main-node CONTROL sets XCVRBINV). Every other link takes, in order, the app's
 `Network::SetLinkProfile(n, profile)`, the upstream node's `SubNode::DownstreamLink()`, then the
-board default. In the bench console, `link N utp`, `link N rj45` and `link N custom [inverted]`
-set it per position. The presets are `Utp` and `Custom` (straight) and `Rj45` (inverted); see
+board default. In the bench console, `link N utp`, `link N rj45 [single]`, `link N xlr` and
+`link N custom [inverted]` set it per position. The presets are `Utp`, `Xlr` and `Custom`
+(straight) and `Rj45` (inverted); `Rj45` and `Xlr` are two-step from an AD2437: the node is
+found at 5 V and gets its 24 V only after the review. See
 [cookbook.md](a2bcpp/docs/cookbook.md#link-profiles) and
 [hardware_notes.md](a2bcpp/docs/hardware_notes.md#xcvrbinv-and-the-order-of-writes).
 

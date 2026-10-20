@@ -148,10 +148,14 @@ Command names ignore case. `help` lists them.
 | `status` | The board; the bus state (and its error), main node, sub-nodes with their chip and version, chip ID, module, power configuration, link and channel groups; the last rejection; the links and cable lengths set; the boards set at positions (`module N BOARD`); where module info comes from; the interrupts shown; the trace |
 | `link` | Lists the links set with `link N` |
 | `link N utp` | The link into sub-node N (0-15) is UTP: the node before it powers it over the A2B pair, B side straight |
-| `link N rj45` | An RJ45 link: powered over the pair, B side inverted (XCVRBINV on the node before it). Single-step: the stack doesn't run two-step links |
+| `link N rj45` | An RJ45 link: powered over the pair, B side inverted (XCVRBINV on the node before it), two-step from an AD2437: the node is found at 5 V (SWBYP on the node before it), its module info read, then the 24 V switch closed, the node found again and its VBUS checked (at least 4 V, else it is rejected: "no 24 V on its link"). The power-good of the board before it is checked first (a sub-node's GPIO7). From any other chip, single-step |
+| `link N rj45 single` | The RJ45 link single-step, without the power-good and 24 V checks, as an export's inverted link |
+| `link N xlr` | An XLR link: as `rj45`, B side straight |
+| `link N utp two-step` | A UTP link run two-step, without the power-good and 24 V checks |
+| `link N utp vmtr` | A UTP link, single-step, with the 24 V check (an AD243x node's VMTR) |
 | `link N custom [inverted]` | The node has its own supply: the switch before it stays open, and SWBYP on that node turns its B side on without it. Needed for a node that draws no bias current (a galvanically isolated A side), which a closed switch never reaches; `inverted` for an RJ45 cable |
 | `link N default`, `link all default` | Back to the link the node before it gives: its image's B port ([provisioning](provisioning.md)); into sub-node 0, the board's |
-| `link all board` | Every link not set with `link N` is the board's, whatever the images' B ports say (on an RJ45 bench, every link `rj45`). Links set with `link N` stay. Kept until `link all default`, which clears those too |
+| `link all board` | Every link not set with `link N` is the board's, whatever the images' B ports say (on an RJ45 bench, every link `rj45 single`). Links set with `link N` stay. Kept until `link all default`, which clears those too |
 | `cable` | Lists the cable lengths set with `cable N` |
 | `cable N METRES` | The cable into sub-node N (0-15) is METRES long (from 0.1, one decimal, e.g. `12.5`), for the response cycles: the next probe's DISCVRY and, on a routed bus, a new plan at once if the length in use changes. Without it, the node before it's image gives the length (its B-side cable, in metres), else the board's 4 m, which the TRMs call adequate when the lengths are unknown. Give the real length, before `start`: a longer one can stop discovery ([hardware notes](hardware_notes.md#routing-and-audio)) |
 | `cable N default`, `cable all default` | Back to the image's length, else the board's 4 m |
@@ -209,9 +213,9 @@ Three boards are built in, the repository's exports:
 
 | Name | Export | Main node |
 |---|---|---|
-| `ref` | `adi/exports/rp2040/12_a2b_busconfig.c` (the Pi and RP2040 apps) | AD2437 at 0x68, links `rj45` (the export sets XCVRBINV), no host peripherals |
+| `ref` | `adi/exports/rp2040/12_a2b_busconfig.c` (the Pi and RP2040 apps) | AD2437 at 0x68, links `rj45 single` (the export sets XCVRBINV), no host peripherals |
 | `AB0020` | `tools/SS+reference/2x_AB0020_EVM_with_2437/adi_a2b_busconfig.c` (the AB0020 bench project, SigmaStudio+ 2.3.0), or for an AD2428 module `tools/SS+reference/2x_AB0020_EVM_with_2428/adi_a2b_busconfig.c` | AD2437 or AD2428 at 0x68, I2S TDM2 32-bit, links `utp`; the ADAU1761 codec at 0x39, programmed at `start` before the main node (it gives the main node its SYNC and BCLK) |
-| `AB0310` | `tools/SS+reference/AB0310_AB0312_EVM_with_2437/adi_a2b_busconfig.c` (the AB0310 and AB0312 project, SigmaStudio+ 2.3.0) | AD2437 at 0x68, I2S TDM2 32-bit as the AB0020's, links `rj45` (the export sets XCVRBINV); SYNC (48 kHz) and BCLK from the board's own clock, so nothing is programmed on the host bus (the export's peripherals have no configuration) |
+| `AB0310` | `tools/SS+reference/AB0310_AB0312_EVM_with_2437/adi_a2b_busconfig.c` (the AB0310 and AB0312 project, SigmaStudio+ 2.3.0) | AD2437 at 0x68, I2S TDM2 32-bit as the AB0020's, links `rj45 single` (the export sets XCVRBINV); SYNC (48 kHz) and BCLK from the board's own clock, so nothing is programmed on the host bus (the export's peripherals have no configuration) |
 
 The AB0020 is UTP on both ports, so every `AB0020` link is `utp`. It takes an AD2437 or an
 AD2428 module as its main node, with an export for each: at `start`, `AB0020` reads the
@@ -252,7 +256,7 @@ compiled forms), and `start` imports them with `ImportSsPlus()` as for a built-i
   configured from their EEPROMs (or, with `ignoreEEPROM 1`, the console's image).
 - The main node's chip comes from the export's `sAuthSettings.nProductID` (0x28, 0x33 or
   0x37); `start` reports `the main node is not the board's chip` if the chip on the bench
-  is another, and names the chip it found. The board's link is `rj45` if the export's main-node CONTROL sets
+  is another, and names the chip it found. The board's link is `rj45 single` if the export's main-node CONTROL sets
   XCVRBINV, `utp` if it doesn't. It is the main node's link, into sub-node 0. The link after
   each sub-node is the one its image's B port gives (UTP for the console's own image);
   `link N ...` changes it per link, and `link all board` makes every link the board's.
@@ -264,7 +268,7 @@ compiled forms), and `start` imports them with `ImportSsPlus()` as for a built-i
 
 With `ignoreEEPROM 1` every sub-node gets the minimal example's image (module 00AD:0037, a
 UTP B port,
-GPIO0-6 inputs, PINCFG 0, I2S on DRX0 and DTX0 as the Clockworks boards have it, I2SGCFG
+GPIO0-7 inputs, PINCFG 0, I2S on DRX0 and DTX0 as the Clockworks boards have it, I2SGCFG
 0xE0 and I2SCFG 0x11, no peripheral scripts, the console's channel groups) with the
 power configuration of its chip: CFG-4 on an AD2437, CFG-0 on an AD2433; AD242x have no power
 configuration. (A node read from its EEPROM gets its chip's too, whatever the image says.) An
@@ -285,7 +289,7 @@ boards without EEPROMs in an app. Built in:
   against that export:
   - I2SGCFG 0xE0: TDM2 (I2S) 32-bit, SYNC inverted, early and 50% duty.
   - I2SCFG 0x11: DRX0 and DTX0, both on BCLK's rising edge.
-  - GPIODAT and GPIOOEN 0x80: IO7 driven high.
+  - GPIODAT and GPIOOEN 0x80: IO7 driven high, the board's LED.
   - PINCFG 0x01.
   - CLK2CFG 0x81: CLKOUT2 on the ADR2 pin, the codec's 12.288 MHz MCLK.
   - SPICFG 0x02: SPI off. SPI powers on enabled, and with it on CLKOUT2 never reaches
@@ -298,12 +302,15 @@ boards without EEPROMs in an app. Built in:
     comes from the board's export.
 
 - **`AB0312`**: the AB0312, the AB0310's sub-node board, with an AD2437, AD2433 or
-  AD2428 module. No codec: its I2S is on a header. Its settings are its project's
-  sub-node (`tools/SS+reference/AB0310_AB0312_EVM_with_2437`), the same values as the
-  AB0020's (I2SGCFG 0xE0, I2SCFG 0x11, IO7 high, PINCFG 0x01, CLK2CFG 0x81, SPICFG 0x02),
-  with RX 0 and TX 0 on channels 0-1. `test_clockworks_boards` checks them against the
-  export. The project's RJ45 links come from the main board (`board AB0310`), not from
-  the image.
+  AD2428 module ([boards](boards.md)). No codec: its I2S is on a header. Its settings are
+  its project's sub-node (`tools/SS+reference/AB0310_AB0312_EVM_with_2437`), the same
+  values as the AB0020's (I2SGCFG 0xE0, I2SCFG 0x11, PINCFG 0x01, CLK2CFG 0x81, SPICFG
+  0x02), with RX 0 and TX 0 on channels 0-1, but IO7 an input (GPIOIEN 0x80): the board's
+  power-good. `test_clockworks_boards` checks them against the export. The
+  project's RJ45 links come from the main board (`board AB0310`), not from the image.
+
+Every sub-node the console makes is a `clockworks::BoardNode`: IO7 is made an input on
+every node whose module info doesn't name the AB0020, whatever its image says.
 
 - **`AB0204`**: the AB0204 microphone board, an AD2427 with four MEMS PDM microphones,
   two on DRX0 and two on DRX1 (the AD2427 has no I2S/TDM port, only PDM; AD2426/27/28
@@ -335,16 +342,22 @@ isn't given: that node reads its EEPROM, and the console says so. For the bench'
 sub-node, with RJ45 links after sub-node 1:
 
 ```
-a2b_bench.exe --board AB0020 --ignore-eeprom "link 2 rj45" "link 3 rj45" "link 4 rj45" "module 0 AB0020" start
+a2b_bench.exe --board AB0020 --ignore-eeprom "link 2 rj45 single" "link 3 rj45 single" "link 4 rj45 single" "module 0 AB0020" start
 ```
 
 An AB0310 main node with an AB0312 at sub-node 0 and AD2437 modules after it, every link
-RJ45, single-step (the board's link, everywhere). Without `link all board`, the AB0312's
-image (an RJ45 B port, two-step with its AD2437) ends the chain at it, and the console's
-image after it gives UTP:
+RJ45, single-step (the board's link, everywhere). Without `link all board`, the link after
+the AB0312 is two-step (its image's RJ45 B port, with its AD2437), and the console's image
+after it gives UTP:
 
 ```
 a2b_bench.exe --board AB0310 --ignore-eeprom "link all board" "module 0 AB0312" start
+```
+
+The same bench with every link two-step (the link after the AB0312 from its image):
+
+```
+a2b_bench.exe --board AB0310 --ignore-eeprom "link 0 rj45" "link 2 rj45" "link 3 rj45" "module 0 AB0312" start
 ```
 
 The same set-up runs on the RP2040 with nothing typed, its connections included: the
@@ -525,12 +538,21 @@ response time during discovery. Set the long ones, e.g. `cable 2 15`; `status` l
 ### Links
 
 Each link takes, in order: the console's `link N`; then, with `link all board`, the board's;
-then the B port of the node before it (its image's); and into sub-node 0, the board's (`rj45`
-if the export's main-node CONTROL sets XCVRBINV, else `utp`; every `AB0020` link is `utp`).
+then the B port of the node before it (its image's); and into sub-node 0, the board's (`rj45
+single` if the export's main-node CONTROL sets XCVRBINV, else `utp`; every `AB0020` link is
+`utp`).
 The stack's order is in the [cookbook](cookbook.md#link-profiles). A link applies from the
 next probe of that position, so it can be fixed while the bus runs: a node behind a link of
 the wrong polarity is not found, and is found at the next probe once its link is right.
-Two-step links (RJ45 with the 24 V turned on after the EEPROM is read) are not supported.
+
+A two-step link (`rj45`, `xlr`, `utp two-step`, or an image's RJ45 or XLR B port on an
+AD2437) turns the 24 V on only after the node is found at 5 V and kept by the review. The
+log says when a board's power-good is low ("no power-good on the link to sub-node N"),
+when a node isn't CFG-4 and stays at 5 V (not expected: only AD2437 nodes sit behind an
+RJ45 link, [boards](boards.md)),
+and when a link asked two-step runs single-step because the chip before it has no 24 V
+switch. A node whose VBUS stays under 4 V is rejected ("no 24 V on its link") and probed
+again every 2 s, from its first step. `status` names each link by its `link` form.
 
 ### Registers
 

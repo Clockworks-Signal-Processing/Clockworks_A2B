@@ -102,7 +102,7 @@ Each finding has a level:
   - a group's channel on a pin its peripheral isn't on.
 - **Note:** worth knowing. Examples:
   - fields the stack stores but doesn't use (slot sizes);
-  - an XLR or RJ45 B port: two-step on an AD2437, not run yet, UTP on other chips;
+  - an XLR or RJ45 B port: two-step on an AD2437, UTP on other chips;
   - with a plug-in module (External), each AD243x-only setting: the stack leaves it out on an
     AD242x module; and that the stack uses each chip's own power configuration (CFG4 on an
     AD2437, CFG0 on an AD2433 or AD242x), not the image's;

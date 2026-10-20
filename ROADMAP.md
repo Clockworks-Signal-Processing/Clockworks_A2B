@@ -12,7 +12,7 @@ hardware taught us: [hardware notes](a2bcpp/docs/hardware_notes.md).
 | Main node | Start-up from a SigmaStudio+ export (compiled in or loaded at run time), host scripts before or after the transceiver, restarts |
 | Chains | Blind discovery, hot-plug, drops and re-plug, rejections and the node review, the power budget, up to 16 sub-nodes (15 by default) |
 | Sub-nodes | Module info from the EEPROM or from images in memory, peripheral scripts, 400 kHz I2C when the image asks, `NodeFactory` and the `SubNode` hooks |
-| Links | Single-step UTP, RJ45 (B side inverted) and Custom (own supply, SWBYP) links, per position; the link from an image's B port; cable lengths per link |
+| Links | Single-step UTP, RJ45 (B side inverted) and Custom (own supply, SWBYP) links, per position; two-step RJ45 and XLR links from an AD2437 (found at 5 V with SWBYP, the 24 V turned on after the review for a CFG-4 node, VBUS checked with VMTR), also on a UTP link that asks; the link from an image's B port; cable lengths per link |
 | Audio | Routing on AD243x crossbars and AD242x TDM order, mixed chains, the routing mutes and `MuteNetwork()`, bandwidth, 44.1/48/96/192 kHz |
 | Access | Raw register access, peripheral read/write/write-read on I2C |
 | Several buses | One `Network` per bus on one host |
@@ -26,21 +26,51 @@ hardware taught us: [hardware notes](a2bcpp/docs/hardware_notes.md).
 | Host | Configurations |
 |---|---|
 | Raspberry Pi (Linux, i2c-dev) | AD2437 main node (`ref`): a chain of four from their EEPROMs; hot-plug at the end; a node's 24 V removed and restored; a chain of six with UTP and RJ45 links and cables pulled at three places. Mixed chain behind the AD2437 (AB0020/AD2428, AB0204/AD2427, two AB0020/AD2437, one on its own supply with `link 2 custom`): EEPROMs read, written, verified and booted from; a write stopped by a pulled cable; codec programs at 100 and 400 kHz; real cable lengths; audio between sub-nodes |
+| Raspberry Pi, two-step | The reference board with four AD2437 sub-nodes from their EEPROMs, every link two-step RJ45 (module info read at 5 V), and a fifth node: both steps, a node refused without its 24 V and joining once it is back, power-good low, single-step links still working, the fifth node dropped and found again |
 | Windows (ADI USBi) | AB0020 with an AD2437 main node and up to four AD2437 sub-nodes (UTP and RJ45 links); AB0020 with an AD2428 main node and AD2428, AD2427 and AD2437 sub-nodes (an AD2437 on its own supply with `link N custom`); routing on both, a node re-plugged while routed; EEPROMs written, verified and booted from, three ADAU1761 programmed from their EEPROMs |
+| Windows (ADI USBi), two-step | AB0310 with an AD2437 main node and four AD2437 sub-nodes on custom boards, every link two-step RJ45, with the console's module info and with the AB0312 image: both steps, a node refused without its 24 V and joining once it is back, power-good low, single-step links still working, a fifth node plugged in, dropped and found again. A mixed chain of six: an AB0020 with an AD2428, an AB0204 with an AD2427 and four AD2437 nodes, the first on its own supply (`custom` links, RJ45/UTP converter boards): two-step only between the AD2437 nodes |
 | RP2040 (AB0310 board) | The fixed app: an AB0312 and four AD2437 modules on RJ45 links, both connections routed with nothing typed. The bench console: four sub-nodes found and audio routed |
+| RP2040 (AB0310 board), two-step | The bench console with four AD2437 sub-nodes from their EEPROMs, every link two-step RJ45, and a fifth node: a node refused without its 24 V and joining once it is back, power-good low, single-step links still working, the fifth node dropped and found again |
+
+## Next: catch and report the errors the nodes see
+
+The two-step bench runs show a node, or the link into it, vanishing with no trace of why: the
+I2C trace has failed reads and the log says "dropped", but no node reported anything. Cause:
+the stack asks the nodes for little (`SubNode::InterruptMask()`: INTMSK0 = PWRERR, INTMSK1 =
+0, as ADI's stack does), clears BECNT on every node once a second and never reads it, and
+reads no node status. Starting points for the session that does it:
+
+- **Evidence:** the USBi mixed chain, 2026-10-19: sub-node 3 stopped answering twice in 110 s,
+  right after a position-6 probe cycle, with INTSRC 0x00 throughout; sub-node 3's neighbours
+  answered. Same signature as the drops under Known issues. The raw trace (`WR,1` = failed;
+  `trace_decode.py` leaves failed transfers out of its output) and the notes are in
+  the hardware-check session's notes folder (`io7/`, `io7_rerun_notes.md`).
+- **Unmask what the TRMs allow** (check each chip's TRM in `docs/ADI_chips` for the bits:
+  they differ between the AD243x and AD242x): in INTMSK0 the SRF-missed interrupt
+  (`reg::kIntmsk0Srferr` exists and already has the chain checked at once), the data and
+  header-error and bit-error-overflow interrupts in INTMSK0/INTMSK1, and what a lost link
+  raises. Decide per interrupt whether it only logs, or also triggers the chain check.
+  Keep the AD242x end-of-chain open-line interrupt out of the way ([power
+  diagnostics](a2bcpp/docs/decisions.md#power-diagnostics)).
+- **Report them:** an `EventType::kInterrupt` already reaches the app and the bench console
+  prints "interrupt from sub-node N: type X". Name the types (`INTTYPE` to text) in that line,
+  and add the pending bits (INTPND0/1) the interrupt came with. Read INTPND0/1, BECNT, and the
+  switch status (SWSTAT) of a node before clearing them.
+- **Bit-error counts:** the console `errors` command below needs BECCTL on and the
+  once-a-second BECNT clear off (`BoardTimings::becntResetMs` = 0). Better, read BECNT
+  just before each clear and keep a per-node count the app can ask for.
+- **On a failed read**, say which register and which node (the log now says only "probe
+  failed" or "dropped"), and what the chain check read last from each node.
+- **Test:** simulator scenarios that raise each interrupt (the simulator's models and
+  `test_sim_*` show the pattern); then the USBi mixed chain again, watching for a drop with the
+  masks on: the aim is a log line naming what the node saw before S3 went. Do not change
+  discovery's timing meanwhile, so the drop stays comparable.
 
 ## Features not included
 
 Each is one or two lines; where a chip register exists, its call is there and returns
 `kNotSupported`.
 
-- **Two-step power-up on an AD2437 link** (ADI's sequence: discover at 5 V, read the EEPROM, close
-  the 24 V switch, discover again, check 24 V with VMTR). RJ45 and XLR links into AD242x and
-  AD2433 nodes run single-step, as do all the benches' links; `link N rj45` sets the RJ45
-  polarity and works. An image whose B port is RJ45 or XLR on an AD2437 node gives a two-step
-  link, which isn't probed (logged "two-step (unsupported)"): the chain ends there unless the app
-  sets the link. The presets, B port types and power-good and VMTR fields are in the code; the
-  sequence isn't ([design](a2bcpp/docs/decisions.md#two-step-links)).
 - **Power diagnostics:** telling the faults apart after a power-fault interrupt, the benign open
   line at the end of an AD242x chain from a real cable fault in particular
   ([design](a2bcpp/docs/decisions.md#power-diagnostics)).
@@ -80,6 +110,22 @@ Each is one or two lines; where a chip register exists, its call is there and re
   to the last node with the EEPROMs read, the probe for the next position failed and the chain
   check dropped the node, which then came back from its new image. The cause is not known. Avoid
   it with `ignoreEEPROM 1` while writing.
+- **A start from the EEPROMs of four custom AD2437 boards:** the EEPROM at 0x50-0x54 NAKed
+  right after CHIPID, two-step and single-step alike, and the node was rejected for want of
+  module info, though the same EEPROMs were read and written after node set-up. The cause is
+  not known (the EEPROM's supply, perhaps).
+- **A node and the nodes behind it dropped while idle, then came back:** on the two-step
+  bench (the USBi, and the Pi 17 s into a run), each time with a power-good line being
+  grounded by a clip, and on the USBi's mixed chain twice in 110 s (sub-node 3, at 17.6 s
+  and 50.9 s) with nothing touched. A read of the last node failed ("probe for sub-node N
+  failed; checking the chain"), a node in the middle then failed three reads, and all were
+  found again. No interrupt came before either drop (INTSRC read 0x00 throughout), because
+  the nodes' masks enable only power faults; see **Next**. Not shown to be the stack's.
+- **An AB0312 (or AB0310) with the AB0331 module** (an AD2437 on UTP): the AB0312's image
+  says RJ45, as it is built for the AB0371, and the EEPROM on the base board can't tell the two
+  AD2437 modules apart, so the link after it runs two-step and inverted. Set that link
+  (`link N utp`), or write the board's EEPROM with an image whose B port is UTP
+  ([boards](a2bcpp/docs/boards.md)).
 - **The EEPROM write-cycle wait:** at the default 6 ms, nearly every page write's first try is
   NAKed and retried on the Pi (about one retry a page; harmless, but slower). Raise it with
   `eeprom config cycle MS` if that matters.
@@ -116,9 +162,15 @@ Built and tested on the simulator, not yet on hardware:
   the write has cleared the marker (the node left blank, and the console saying so; an abort
   is taken at once on the Pi), as in [testing](a2bcpp/docs/testing.md#bench-checks); a
   cable length over 30 m accepted; the RP2040 console's input with a pasted block of commands.
-- **XLR links**, once two-step links are built.
+- **Two-step RJ45 links**, as in [testing](a2bcpp/docs/testing.md#two-step-rj45-links), on
+  every host: a link cut between the first nodes; a start from the EEPROMs of the custom
+  boards on the USBi (Known issues, above); power-good read on an AB0312 with IO7 an input
+  (the bench's boards were custom ones, power-good on GPIO7). A node that isn't CFG-4 kept at
+  5 V has no hardware to run on (only the AB0371 module, an AD2437, is used on RJ45:
+  [boards](a2bcpp/docs/boards.md)) and is covered on the simulator only.
+- **XLR links** (no XLR hardware yet).
 
 ## Documents not written
 
-Interconnects (with two-step links), C API compatibility notes and the migration map (with the
+Interconnects, C API compatibility notes and the migration map (with the
 facade), multiple and dual buses (with `BusPair`), troubleshooting, and a changelog.

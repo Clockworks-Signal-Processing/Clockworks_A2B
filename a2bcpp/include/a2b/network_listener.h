@@ -60,6 +60,10 @@ enum class RejectReason : uint8_t {
   /** Its module-info image is for another transceiver (ModuleInfo::targetChip): an image for
       a board with its chip soldered down, on a node with a different chip. */
   kWrongChip,
+  /** The 24 V check of its link failed: on a two-step link it wasn't found again once the
+      24 V switch closed, or its VMTR read VBUS below 4 V (LinkProfile::checkHighVoltage).
+      It is switched off, and its position probed again from the first step. */
+  kNoHighVoltage,
 };
 
 /** @brief Why a sub-node left the bus (EventType::kNodeRemoved). */

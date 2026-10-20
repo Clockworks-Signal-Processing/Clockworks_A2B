@@ -58,6 +58,7 @@ a2b_add_scenario_test(test_sim_mixed_routing)
 a2b_add_scenario_test(test_sim_app_access)
 a2b_add_scenario_test(test_sim_routing)
 a2b_add_scenario_test(test_sim_mute)
+a2b_add_scenario_test(test_sim_two_step)
 
 # A SigmaStudio+ export (C) linked into a test, as an app links its own.
 if(A2B_CPP_SS_PLUS)

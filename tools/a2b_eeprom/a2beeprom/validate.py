@@ -149,9 +149,8 @@ def _check_b_port(module, chip, family, add):
             add(NOTE, "B port", "{} on an {}: UTP (two-step needs the AD2437)".format(
                 name, chip.name))
         else:
-            add(NOTE, "B port", "{}: two-step on an AD2437, which the stack doesn't run yet (the "
-                "chain ends at this node unless the app sets the link); UTP on other "
-                "chips".format(name))
+            add(NOTE, "B port", "{}: two-step on an AD2437 (the next node found at 5 V, then "
+                "the 24 V turned on); UTP on other chips".format(name))
     length = module.cable_length
     if not 0 <= length <= 0xFFFF:
         add(ERROR, "B port", "cable length {} isn't 0-65535".format(length))

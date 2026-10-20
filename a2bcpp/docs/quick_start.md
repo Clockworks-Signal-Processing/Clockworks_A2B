@@ -16,8 +16,9 @@ unplugged is taken out with the nodes after it, and found again when it is plugg
 in. What happens comes to the app as **events**, and the app can accept or reject each
 node. A host can run **several buses**, one `Network` each (below). **Routing** connects
 nodes' channel groups (AD243x crossbars and AD242x TDM order, in mixed chains too;
-[customisation cookbook](cookbook.md), "Routing"). Two-step links are not supported
-([roadmap](../../ROADMAP.md)). How it all runs inside is in the
+[customisation cookbook](cookbook.md), "Routing"). RJ45 and XLR links into AD2437 nodes
+are **two-step**: found at 5 V, then given the 24 V once the app's review keeps them
+([cookbook](cookbook.md#link-profiles)). How it all runs inside is in the
 [architecture guide](architecture.md).
 
 ## What an app does
@@ -160,8 +161,8 @@ switch powers the next node) from, in order:
 3. `BoardConfig::defaultLink`.
 
 The profile is looked up again before each probe, so a change applies to the next probe
-of that position. Two-step links (RJ45, XLR) are not built yet: `SetLinkProfile()` refuses
-them, and a link a node's `DownstreamLink()` makes two-step is not probed.
+of that position. A two-step link (`LinkProfile::Rj45()`, `Xlr()`) needs the upstream
+node's 24 V switch (an AD2437); from any other node it runs single-step.
 
 ## Module info
 
@@ -410,6 +411,8 @@ with the same export, and is part of the test suite
   settings come from, in short.
 - [Provisioning](provisioning.md): the module-info image, the image tool and writing EEPROMs.
 - [Hardware notes](hardware_notes.md): what the chips, boards and adapters taught us.
+- [Clockworks boards and modules](boards.md): which go together, the link each runs, and
+  IO7.
 - [Design decisions](decisions.md): requirements, rationale, policies, and the designs not
   built yet.
 - [Testing](testing.md) and [RAM](ram.md): the tests, the simulator, and the RP2040 figures.

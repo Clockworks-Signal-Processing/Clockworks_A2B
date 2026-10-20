@@ -29,7 +29,7 @@ A2B_TEST(EveryEnumValueHasText) {
   for (uint8_t v = 0; v <= static_cast<uint8_t>(EventType::kRoutingFailed); ++v) {
     A2B_CHECK(std::strcmp(ToString(static_cast<EventType>(v)), "?") != 0);
   }
-  for (uint8_t v = 0; v <= static_cast<uint8_t>(RejectReason::kWrongChip); ++v) {
+  for (uint8_t v = 0; v <= static_cast<uint8_t>(RejectReason::kNoHighVoltage); ++v) {
     A2B_CHECK(std::strcmp(ToString(static_cast<RejectReason>(v)), "?") != 0);
   }
   A2B_CHECK(std::strcmp(ToString(static_cast<RoutingError>(200)), "?") == 0);

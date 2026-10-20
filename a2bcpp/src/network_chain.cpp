@@ -95,16 +95,32 @@ void Network::Impl::StepDiscovering(uint32_t nowMs) {
   if (outcome == Discovery::Outcome::kBusy) {
     return;
   }
+  const NodeAddr position = static_cast<NodeAddr>(m_SubNodeCount);
+  if (outcome == Discovery::Outcome::kIdentified && !m_Reviewed) {
+    TakeChipsPowerConfig(position);
+    const RejectReason decision = Review(position);
+    if (decision != RejectReason::kNone) {
+      m_Phase = Phase::kIdle;
+      EndProbe(m_Discovery.Reject(decision), nowMs);
+      return;
+    }
+    m_Reviewed = true;
+    if (m_Discovery.NeedsHighVoltage()) {  // Kept by the review: now the 24 V.
+      const Discovery::Outcome begun = m_Discovery.BeginHighVoltageStep();
+      if (begun != Discovery::Outcome::kBusy) {
+        m_Phase = Phase::kIdle;
+        EndProbe(begun, nowMs);
+      }
+      return;
+    }
+    if (m_Discovery.FirstStepOnly()) {
+      LogNumber(m_Platform, LogLevel::kInfo, "a2b: sub-node ", static_cast<unsigned>(position),
+                " isn't CFG-4: kept at 5 V");
+    }
+  }
   m_Phase = Phase::kIdle;
   if (outcome != Discovery::Outcome::kIdentified) {
     EndProbe(outcome, nowMs);
-    return;
-  }
-  const NodeAddr position = static_cast<NodeAddr>(m_SubNodeCount);
-  TakeChipsPowerConfig(position);
-  const RejectReason decision = Review(position);
-  if (decision != RejectReason::kNone) {
-    EndProbe(m_Discovery.Reject(decision), nowMs);
     return;
   }
   m_Setup.Begin(*MakeNode(position), *m_Discovery.Caps(), Source(),
@@ -208,6 +224,7 @@ void Network::Impl::Drop(NodeAddr position, uint32_t nowMs) {
   RemoveNodes(position, RemovalReason::kDropped);
   const NodeAddr upstream = static_cast<NodeAddr>(position - 1);  // kMainNode for 0.
   (void)m_Transport.WriteReg(upstream, reg::kSwctl, m_Links[position].swctl);
+  ClearBypass(position);
   const uint32_t waitMs = (m_Board.timings.probeIntervalMs > kDropWaitMs)
                               ? m_Board.timings.probeIntervalMs
                               : kDropWaitMs;
@@ -242,6 +259,7 @@ void Network::Impl::HandleRejectRequest(uint32_t nowMs) {
   if (!link.closeSwitch) {  // Still powered: cut the nodes after it off.
     (void)m_Transport.WriteReg(position, reg::kSwctl, ownSwitch);
   }
+  ClearBypass(position);  // A node kept at 5 V loses its frames.
   m_HasRejected = true;
   m_RejectedAt = position;
   m_RejectedStuck = !link.closeSwitch;
@@ -270,7 +288,7 @@ void Network::Impl::HandleInterrupt(const InterruptPoller::Interrupt& irq) {
 /**
  * Starts the probe of the next position when it is due, unless no probe is to be made
  * there (the most sub-nodes are in, discovery is paused, a rejected node on its own supply sits
- * there, or the link to it is two-step or unsupported).
+ * there, or the link to it is from a B port the stack can't run).
  * @return True if a probe started.
  */
 bool Network::Impl::BeginProbe(uint32_t nowMs) {
@@ -284,8 +302,7 @@ bool Network::Impl::BeginProbe(uint32_t nowMs) {
     return false;
   }
   ApplyLink(position);
-  // Two-step links are not supported yet, nor B ports without a handler: not probed; the
-  // chain ends here.
+  // A B port without a handler: not probed; the chain ends here.
   if (m_Links[position].noProbe) {
     m_Deadline = nowMs + m_Board.timings.probeIntervalMs;
     SetState(NetworkState::kRunning);
@@ -294,6 +311,7 @@ bool Network::Impl::BeginProbe(uint32_t nowMs) {
   m_Discovery.Begin(m_Settings, position, DiscoveryRespCycles(position), m_Links, Source(),
                     m_SubNodes[position], rejectedHere ? m_RejectedChipId : nullptr);
   m_Phase = Phase::kProbe;
+  m_Reviewed = false;
   return true;
 }
 
@@ -366,6 +384,9 @@ RejectReason Network::Impl::Review(NodeAddr position) {
 void Network::Impl::EndProbe(Discovery::Outcome outcome, uint32_t nowMs) {
   const NodeAddr position = static_cast<NodeAddr>(m_SubNodeCount);
   const unsigned number = static_cast<unsigned>(position);
+  if (outcome != Discovery::Outcome::kNoPowerGood) {
+    m_PowerGoodLow = false;
+  }
   switch (outcome) {
     case Discovery::Outcome::kIdentified:
       ++m_SubNodeCount;
@@ -378,6 +399,13 @@ void Network::Impl::EndProbe(Discovery::Outcome outcome, uint32_t nowMs) {
         SetState(NetworkState::kRunning);
       }
       return;
+    case Discovery::Outcome::kNoPowerGood:
+      if (!m_PowerGoodLow) {
+        m_PowerGoodLow = true;
+        LogNumber(m_Platform, LogLevel::kWarning, "a2b: no power-good on the link to sub-node ",
+                  number, "; not probed");
+      }
+      [[fallthrough]];
     case Discovery::Outcome::kNothing:
       m_Deadline = nowMs + m_Board.timings.probeIntervalMs;
       if (m_State == NetworkState::kDiscovering) {
@@ -387,7 +415,11 @@ void Network::Impl::EndProbe(Discovery::Outcome outcome, uint32_t nowMs) {
       return;
     case Discovery::Outcome::kRejected: {
       m_Rejection = m_Discovery.Rejection();
-      RememberRejected(position, !m_Links[position].closeSwitch);
+      if (m_Rejection == RejectReason::kNoHighVoltage) {
+        m_HasRejected = false;  // Probed again from the first step: the 24 V may come back.
+      } else {
+        RememberRejected(position, !m_Links[position].closeSwitch);
+      }
       LogNumber(m_Platform, LogLevel::kWarning, "a2b: sub-node ", number, " rejected");
       Event event;
       event.type = EventType::kNodeRejected;
@@ -450,8 +482,10 @@ LinkProfile Network::Impl::ResolveLink(NodeAddr position) const {
 
 /**
  * Brings the profile settings of the link to @p position up to date (XCVRBINV, whether the
- * switch powers the next node or is bypassed (SWBYP), two-step or unsupported). If they
- * changed, the upstream node's link is set up again at its next probe.
+ * switch powers the next node or is bypassed (SWBYP), two-step and its checks, or
+ * unsupported). If they changed, the upstream node's link is set up again at its next probe.
+ * A two-step link needs the upstream node's high-power switch and power on the A2B pair;
+ * otherwise it runs single-step, without the two-step checks (logged).
  */
 void Network::Impl::ApplyLink(NodeAddr position) {
   const LinkProfile profile = ResolveLink(position);
@@ -461,21 +495,53 @@ void Network::Impl::ApplyLink(NodeAddr position) {
   // frames (the AD242x, AD243x and AD2437 TRMs, "Data-Only and Power-Only Bus Operation").
   const uint8_t control = static_cast<uint8_t>((profile.bSideInverted ? reg::kControlXcvrbinv : 0) |
                                                (closeSwitch ? 0 : reg::kControlSwbyp));
-  const bool noProbe = (profile.discovery != LinkProfile::Discovery::kSingleStep);
-  if (link.control == control && link.closeSwitch == closeSwitch && link.noProbe == noProbe) {
+  const bool noProbe = (profile.discovery == LinkProfile::Discovery::kUnsupported);
+  const bool asksTwoStep = (profile.discovery == LinkProfile::Discovery::kTwoStep);
+  const ChipCaps* upstream = CapsOf(static_cast<NodeAddr>(position - 1));  // Main for 0.
+  const bool twoStep =
+      asksTwoStep && closeSwitch && upstream != nullptr && upstream->hasHighPowerSwitch;
+  const bool checkPowerGood = twoStep && profile.checkPowerGood;
+  const bool checkHighVoltage = profile.checkHighVoltage && (twoStep || !asksTwoStep);
+  if (link.control == control && link.closeSwitch == closeSwitch && link.noProbe == noProbe &&
+      link.twoStep == twoStep && link.checkPowerGood == checkPowerGood &&
+      link.powerGoodGpio == profile.powerGoodGpio && link.checkHighVoltage == checkHighVoltage) {
     return;
   }
   if (noProbe && !link.noProbe) {
     LogNumber(m_Platform, LogLevel::kWarning, "a2b: link to sub-node ",
-              static_cast<unsigned>(position),
-              (profile.discovery == LinkProfile::Discovery::kTwoStep)
-                  ? " is two-step (unsupported); not probed"
-                  : ": Unsupported B port type; not probed");
+              static_cast<unsigned>(position), ": Unsupported B port type; not probed");
+  }
+  if (asksTwoStep && !twoStep) {
+    LogNumber(m_Platform, LogLevel::kInfo, "a2b: link to sub-node ",
+              static_cast<unsigned>(position), ": no 24 V switch before it; single-step");
   }
   link.control = control;
   link.closeSwitch = closeSwitch;
   link.noProbe = noProbe;
+  link.twoStep = twoStep;
+  link.checkPowerGood = checkPowerGood;
+  link.powerGoodGpio = profile.powerGoodGpio;
+  link.checkHighVoltage = checkHighVoltage;
   link.prepared = false;
+}
+
+/**
+ * Clears SWBYP on the node before @p position, if a two-step link has it set (a node kept
+ * at 5 V, now dropped or rejected): the node there loses its frames. Its CONTROL keeps the
+ * link's XCVRBINV, and on the main node its settings. A failed write is left to the chain
+ * check.
+ */
+void Network::Impl::ClearBypass(NodeAddr position) {
+  Discovery::Link& link = m_Links[position];
+  if (!link.bypass) {
+    return;
+  }
+  link.bypass = false;
+  const NodeAddr upstream = static_cast<NodeAddr>(position - 1);  // kMainNode for 0.
+  const uint8_t control = (upstream == kMainNode)
+                              ? static_cast<uint8_t>(m_Settings.mainControl | link.Control())
+                              : link.Control();
+  (void)m_Transport.WriteReg(upstream, reg::kControl, control);
 }
 
 /**

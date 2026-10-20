@@ -69,28 +69,34 @@ constexpr uint8_t kIntOpenLineLowVin = 13;
 constexpr long kLastRegister = 0x1FF;  ///< The last register of page 1 (AD243x).
 constexpr long kMaxCount = 256;        ///< Registers or peripheral bytes one command reads.
 constexpr size_t kBytesPerLine = 16;   ///< Values printed on one line.
+/** `link`'s usage line. */
+constexpr const char* kLinkUsage =
+    "link N utp [two-step|vmtr]|rj45 [single]|xlr|custom [inverted]|default (N: 0-15)";
 
 /**
- * The link profile's name, as `link` takes it: utp (B side straight) or rj45 (B side
- * inverted: XCVRBINV, which only RJ45 links have by default), both powered over the A2B
- * pair; custom (own power), inverted if its cable is RJ45. The rj45 links `link` sets are
- * single-step until two-step discovery is built; a two-step or unsupported link (an image's
- * B port) says so, as the stack doesn't probe past it.
+ * The link profile's name, as `link` takes it. Powered over the A2B pair: rj45 (two-step,
+ * B side inverted: XCVRBINV, which only RJ45 links have by default), rj45 single (the same,
+ * single-step, as an export's inverted link), xlr (two-step, straight, with the power-good
+ * and 24 V checks), utp (single-step, straight), utp two-step and utp vmtr (single-step with
+ * the 24 V check). On its own power: custom, inverted if its cable is RJ45. A two-step link
+ * runs single-step from a node without the 24 V switch (the stack logs it). A link from a B
+ * port the stack can't run says so, as the stack doesn't probe past it.
  */
 std::string ProfileName(const a2b::LinkProfile& link) {
   if (link.discovery == a2b::LinkProfile::Discovery::kUnsupported) {
     return "unsupported B port type (not probed)";
   }
-  std::string name;
-  if (link.power == a2b::LinkProfile::Power::kOnA2bPair) {
-    name = link.bSideInverted ? "rj45" : "utp";
-  } else {
-    name = link.bSideInverted ? "custom inverted" : "custom";
+  if (link.power != a2b::LinkProfile::Power::kOnA2bPair) {
+    return link.bSideInverted ? "custom inverted" : "custom";
   }
-  if (link.discovery == a2b::LinkProfile::Discovery::kTwoStep) {
-    name += " two-step (not supported: not probed)";
+  const bool twoStep = (link.discovery == a2b::LinkProfile::Discovery::kTwoStep);
+  if (link.bSideInverted) {
+    return twoStep ? "rj45" : "rj45 single";
   }
-  return name;
+  if (twoStep) {
+    return link.checkPowerGood ? "xlr" : "utp two-step";
+  }
+  return link.checkHighVoltage ? "utp vmtr" : "utp";
 }
 
 /**
@@ -311,6 +317,8 @@ BenchConsole::BenchConsole(a2b::Platform& host)
     : m_Trace(host), m_Network(m_Trace, m_Board), m_Modules(m_Network) {
   m_Network.SetListener(this);
   m_Network.SetModuleInfoSource(&m_Modules);  // The EEPROMs, but for `module N`.
+  clockworks::UseBoardNodes(m_Factory);       // IO7 an input but on an AB0020.
+  m_Network.SetNodeFactory(&m_Factory);
   // A stereo codec on both sides, as the AB0020 has (its ADAU1761): TDM channels 0-1 each
   // way, in group 0.
   (void)m_MainGroups.AddRx(0, 0x3);
@@ -606,12 +614,13 @@ void BenchConsole::Help() {
       "status                   the bus, its sub-nodes, links, module info and trace\n"
 #endif
       "link                     list the links set\n"
-      "link N utp|rj45|custom   the link into sub-node N (0-15). utp and rj45 power the\n"
-      "                         next node over the A2B pair; rj45 also inverts the B side\n"
-      "                         (XCVRBINV on the node before it), single-step (the stack\n"
-      "                         doesn't run two-step).\n"
-      "                         custom leaves the node on its own power\n"
-      "link N custom inverted   the same, with an RJ45 cable (B side inverted)\n"
+      "link N utp|rj45|xlr      the link into sub-node N (0-15), powered over the A2B pair.\n"
+      "                         rj45 inverts the B side (XCVRBINV on the node before it).\n"
+      "                         rj45 and xlr are two-step from an AD2437: found at 5 V, then\n"
+      "                         the 24 V switched on and checked; single-step from others\n"
+      "link N rj45 single       the RJ45 link single-step (as an export's inverted link)\n"
+      "link N utp two-step      a UTP link run two-step; utp vmtr: single-step, 24 V checked\n"
+      "link N custom            the node on its own power; custom inverted: an RJ45 cable\n"
       "link N default           back to the link the node before it gives (its image's B\n"
       "                         port; the board's into sub-node 0); all: link all default\n"
       "link all board           every link the board's, whatever the images' B ports say\n"
@@ -1022,9 +1031,7 @@ void BenchConsole::Link(const std::vector<std::string>& args) {
   }
   long position = 0;
   if (args.size() < 3 || !ToNumber(args[1], a2b::kMaxSubNodes - 1, position)) {
-    Print(
-        "link N utp|rj45|custom|default (N: 0-15; custom inverted for a locally powered RJ45 "
-        "link), link all default|board\n");
+    Print("%s, link all default|board\n", kLinkUsage);
     return;
   }
   const a2b::NodeAddr node = static_cast<a2b::NodeAddr>(position);
@@ -1043,20 +1050,29 @@ void BenchConsole::Link(const std::vector<std::string>& args) {
   }
   a2b::LinkProfile profile;
   bool inverted = false;
-  if (Same(args[2], "utp") && args.size() == 3) {
+  const std::string option = (args.size() == 4) ? args[3] : std::string();
+  if (Same(args[2], "utp") &&
+      (args.size() == 3 || Same(option, "two-step") || Same(option, "vmtr"))) {
     profile = a2b::LinkProfile::Utp();
-  } else if (Same(args[2], "rj45") && args.size() == 3) {
-    profile = a2b::LinkProfile::Rj45();  // B side inverted; single-step (no two-step yet).
-    profile.discovery = a2b::LinkProfile::Discovery::kSingleStep;
+    if (Same(option, "two-step")) {
+      profile.discovery = a2b::LinkProfile::Discovery::kTwoStep;
+    }
+    profile.checkHighVoltage = Same(option, "vmtr");
+  } else if (Same(args[2], "rj45") && (args.size() == 3 || Same(option, "single"))) {
+    profile = a2b::LinkProfile::Rj45();  // Two-step from an AD2437, B side inverted.
+    if (Same(option, "single")) {
+      profile.discovery = a2b::LinkProfile::Discovery::kSingleStep;
+      profile.checkPowerGood = false;
+      profile.checkHighVoltage = false;
+    }
     inverted = true;
-  } else if (Same(args[2], "custom") &&
-             (args.size() == 3 || (args.size() == 4 && Same(args[3], "inverted")))) {
+  } else if (Same(args[2], "xlr") && args.size() == 3) {
+    profile = a2b::LinkProfile::Xlr();
+  } else if (Same(args[2], "custom") && (args.size() == 3 || Same(option, "inverted"))) {
     profile = a2b::LinkProfile::Custom();
     inverted = (args.size() == 4);
   } else {
-    Print(
-        "link N utp|rj45|custom|default (N: 0-15; custom inverted for a locally powered RJ45 "
-        "link)\n");
+    Print("%s\n", kLinkUsage);
     return;
   }
   profile.bSideInverted = inverted;

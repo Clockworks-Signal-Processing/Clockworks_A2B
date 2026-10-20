@@ -359,7 +359,7 @@
           "AutoCalculate": 1,
           "AutoCalculateChk": true,
           "LinkStatus": true,
-          "DiscStatus": true,
+          "DiscStatus": false,
           "Download": false,
           "EnableStreamCfg": false,
           "AddTunnel": null,
@@ -850,7 +850,7 @@
               }
             ]
           },
-          "CustomPlatformColor": "Green",
+          "CustomPlatformColor": "#313030",
           "PlatformName": "Custom Platform"
         },
         "Angle": 0.0,
@@ -1003,7 +1003,7 @@
               "EmbedXml": false,
               "GenerateXml": false,
               "Download": "",
-              "PeriStatus": 0,
+              "PeriStatus": 2,
               "SpiEn": 0,
               "ProgMode": 0,
               "RxPinLocation": "Left",
@@ -1062,18 +1062,18 @@
               },
               "NodeDiscoveryStatus": {
                 "$type": "AnalogDevices.A2bSdk.Api.NodeDiscoveryStatus, a2bSdk",
-                "NodeDiscovered": true,
+                "NodeDiscovered": false,
                 "FaultIntrType": 0,
                 "DiagnosisFailureCode": 0,
                 "ErrIDInfo": [],
-                "HasAnyFailure": true,
-                "FailureType": 6,
-                "ReadWriteEn": true
+                "HasAnyFailure": false,
+                "FailureType": 0,
+                "ReadWriteEn": false
               },
               "SetReg": {
                 "$type": "AnalogDevices.A2bSdk.Api.RegAddrValPair, a2bSdk",
-                "RegAddr": 18,
-                "RegVal": 16
+                "RegAddr": 77,
+                "RegVal": 0
               },
               "WriteReg": {
                 "$type": "System.Collections.Generic.List`1[[System.Int32, mscorlib]], mscorlib",
@@ -1382,11 +1382,11 @@
                   },
                   {
                     "RegAddr": 77,
-                    "RegVal": 128
+                    "RegVal": 0
                   },
                   {
                     "RegAddr": 78,
-                    "RegVal": 0
+                    "RegVal": 128
                   },
                   {
                     "RegAddr": 79,
@@ -2523,7 +2523,7 @@
               "EmbedXml": false,
               "GenerateXml": false,
               "Download": "eeprom_exercise_high.xml",
-              "PeriStatus": 0,
+              "PeriStatus": 2,
               "SpiEn": 0,
               "ProgMode": 0,
               "RxPinLocation": "Left",
@@ -2639,7 +2639,7 @@
             "$type": "System.Collections.Generic.List`1[[AnalogDevices.TypeDefinitions.Plugins.PinDefinition, TypeDefinitions]], mscorlib",
             "$values": []
           },
-          "CustomPlatformColor": "Green",
+          "CustomPlatformColor": "#313030",
           "PlatformName": "AD2437_AB0020_EVM"
         },
         "Angle": 0.0,
@@ -2813,7 +2813,7 @@
               "EmbedXml": false,
               "GenerateXml": false,
               "Download": "CSP_EVM_a2b_slave_ADAU1761.xml",
-              "PeriStatus": 0,
+              "PeriStatus": 2,
               "SpiEn": 0,
               "ProgMode": 0,
               "RxPinLocation": "Left",
@@ -2933,7 +2933,7 @@
               "EmbedXml": false,
               "GenerateXml": false,
               "Download": "eeprom_exercise.xml",
-              "PeriStatus": 0,
+              "PeriStatus": 2,
               "SpiEn": 0,
               "ProgMode": 0,
               "RxPinLocation": "Left",
@@ -3004,8 +3004,8 @@
               },
               "SetReg": {
                 "$type": "AnalogDevices.A2bSdk.Api.RegAddrValPair, a2bSdk",
-                "RegAddr": 18,
-                "RegVal": 16
+                "RegAddr": 77,
+                "RegVal": 0
               },
               "WriteReg": {
                 "$type": "System.Collections.Generic.List`1[[System.Int32, mscorlib]], mscorlib",
@@ -3315,11 +3315,11 @@
                   },
                   {
                     "RegAddr": 77,
-                    "RegVal": 128
+                    "RegVal": 0
                   },
                   {
                     "RegAddr": 78,
-                    "RegVal": 0
+                    "RegVal": 128
                   },
                   {
                     "RegAddr": 79,
@@ -4456,7 +4456,7 @@
           "FS": 48000,
           "Link": false,
           "UserText": "ADAU1761 set to I2S mode (1 clock delay on sync), falling edge for Sync and for BCLK",
-          "ResetSize": true,
+          "ResetSize": false,
           "RestrictResize": true
         },
         "Angle": 0.0,
@@ -4494,13 +4494,13 @@
           "FS": 48000,
           "Link": false,
           "UserText": "'eff-all if I can figure out how to change the block name.",
-          "ResetSize": true,
+          "ResetSize": false,
           "RestrictResize": true
         },
         "Angle": 0.0,
         "Position": {
           "X": 912.0,
-          "Y": 134.76470588235293
+          "Y": 135.0
         },
         "Size": {
           "Height": 30.0,
@@ -4532,13 +4532,13 @@
           "FS": 48000,
           "Link": false,
           "UserText": "This ia an AB0312\r\n\r\n",
-          "ResetSize": true,
+          "ResetSize": false,
           "RestrictResize": true
         },
         "Angle": 0.0,
         "Position": {
-          "X": 927.41500000000008,
-          "Y": 181.11764705882342
+          "X": 927.0,
+          "Y": 181.0
         },
         "Size": {
           "Height": 62.820000000000007,

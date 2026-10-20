@@ -66,9 +66,11 @@ void CheckSettings(const ADI_A2B_SLAVE_NCD& sub, const clockworks::ModuleSetting
   A2B_CHECK(Is("PINCFG",
                Bit(gpio.bHighDriveStrength, 0) | Bit(gpio.bIRQInv, 4) | Bit(gpio.bIRQTriState, 5),
                s.pincfg));
-  const bool io7Out = (gpio.sPinMuxSettings.bGPIO7PinUsage == A2B_GPIO_0_OUTPUT);
+  const bool io7Out = (gpio.sPinMuxSettings.bGPIO7PinUsage == A2B_GPIO_7_OUTPUT);
+  const bool io7In = (gpio.sPinMuxSettings.bGPIO7PinUsage == A2B_GPIO_7_INPUT);
   A2B_CHECK(Is("GPIOOEN", Bit(io7Out ? 1 : 0, 7), s.gpiooen));
   A2B_CHECK(Is("GPIODAT", Bit(io7Out ? gpio.sOutPinVal.bGPIO7Val : 0, 7), s.gpiodat));
+  A2B_CHECK(Is("GPIOIEN.IO7", Bit(io7In ? 1 : 0, 7), s.gpioien & 0x80u));
 }
 
 A2B_TEST(Ab0020MatchesItsExport) {
@@ -118,7 +120,7 @@ A2B_TEST(Ab0312MatchesItsExport) {
   if (board == nullptr) {
     return;
   }
-  CheckSettings(sub, board->settings);
+  CheckSettings(sub, board->settings);  // IO7 an input: the AB0312's power-good.
   A2B_CHECK(board->codecName == nullptr);
   for (size_t i = 0; i < sub.nNumPeriDevice; ++i) {
     A2B_CHECK(sub.apPeriConfig[i] == nullptr || sub.apPeriConfig[i]->nNumPeriConfigUnit == 0);
@@ -136,8 +138,39 @@ A2B_TEST(Ab0312MatchesItsExport) {
   A2B_CHECK_EQ(info.peripheralBlocks, 0);
 }
 
+A2B_TEST(BoardNodeMakesIo7AnInputButOnAnAb0020) {
+  // An image that drives IO7 (as the AB0312's once did): an input on any board but the AB0020.
+  for (uint16_t product : {0x0312, 0x0020, 0x0204}) {
+    a2b::SubNodeInfo info;
+    info.moduleInfo.vendorId = clockworks::kClockworksModuleVendor;
+    info.moduleInfo.productId = product;
+    a2b::LinkProfile boardLink;
+    a2b::SubNode::Context context;
+    context.info = &info;
+    context.boardLink = &boardLink;
+    clockworks::BoardNode node(context);
+    a2b::RegisterImage image;
+    A2B_CHECK(image.Set(0x4A, 0x81) == a2b::Result::kOk);  // GPIODAT: IO7 and IO0 high.
+    A2B_CHECK(image.Set(0x4D, 0x81) == a2b::Result::kOk);  // GPIOOEN: both driven.
+    node.TweakRegisters(image);
+    uint8_t dat = 0;
+    uint8_t oen = 0;
+    uint8_t ien = 0;
+    A2B_CHECK(image.Get(0x4A, dat) && image.Get(0x4D, oen));
+    const bool led = (product == 0x0020);
+    A2B_CHECK_EQ(dat, led ? 0x81 : 0x01);
+    A2B_CHECK_EQ(oen, led ? 0x81 : 0x01);
+    A2B_CHECK_EQ(image.Get(0x4E, ien), !led);
+    A2B_CHECK_EQ(ien, led ? 0x00 : 0x80);
+  }
+  // A factory with UseBoardNodes() makes every node one.
+  a2b::NodeFactory factory;
+  clockworks::UseBoardNodes(factory);
+  A2B_CHECK(factory.Find(a2b::SubNodeInfo()) == a2b::Make<clockworks::BoardNode>);
+}
+
 A2B_TEST(GenericModuleReadsBack) {
-  // The image for nodes without a board: GPIO0-6 inputs, PINCFG 0, RX 0 and TX 0, no codec,
+  // The image for nodes without a board: GPIO0-7 inputs, PINCFG 0, RX 0 and TX 0, no codec,
   // CFG-4 on an AD2437; any chip takes it.
   const clockworks::ModuleProfile generic = clockworks::GenericModule();
   A2B_CHECK(clockworks::Supports(generic, 0x27));
@@ -150,7 +183,7 @@ A2B_TEST(GenericModuleReadsBack) {
   bool pincfg = false;
   bool i2s = false;
   for (size_t i = 0; i < info.regCount; ++i) {
-    gpioien = gpioien || (info.reg[i] == 0x4E && info.value[i] == 0x7F);
+    gpioien = gpioien || (info.reg[i] == 0x4E && info.value[i] == 0xFF);
     pincfg = pincfg || (info.reg[i] == 0x52 && info.value[i] == 0x00);
     i2s = i2s || (info.reg[i] == 0x42 && info.value[i] == 0x11);  // DRX0 and DTX0.
   }

@@ -4,7 +4,7 @@
   "target_chip": "External",
   "view_as": "AD243x",
   "eeprom_size": 32768,
-  "notes": "AB0312 as a sub-node: the settings of clockworks::Ab0312() (a2bcpp/examples/clockworks/clockworks_boards.cpp); I2S on a header, no codec. Module 0C54:0312: Clockworks' vendor ID and the board's number. The EEPROM is on the base board and the transceiver is a plug-in module, so the target chip is External. B port: ADI's RJ45, two-step with an AD2437 module (the stack doesn't run two-step yet), UTP with any other. Local power by default; the board can be set for bus power. I2C at 400 kHz (I2CCFG.DATARATE) once the image's start is read, as the AB0020 runs it.",
+  "notes": "AB0312 as a sub-node: the settings of clockworks::Ab0312() (a2bcpp/examples/clockworks/clockworks_boards.cpp); I2S on a header, no codec. Module 0C54:0312: Clockworks' vendor ID and the board's number. The EEPROM is on the base board and the transceiver is a plug-in module, so the target chip is External. IO7 is an input: the board's power-good, which a two-step link reads. B port: ADI's RJ45, for the AB0371 module (an AD2437): two-step. With a UTP module (AB0001, AB0333) the stack gives UTP; with the AB0331 (an AD2437, UTP) the app sets the link, or the image is built with a UTP B port (a2bcpp/docs/boards.md). Local power by default; the board can be set for bus power. I2C at 400 kHz (I2CCFG.DATARATE) once the image's start is read, as the AB0020 runs it.",
   "header": {
     "vendor_id": "0x0C54",
     "product_id": "0x0312",
@@ -44,12 +44,12 @@
     "pdmctl2": "0x00",
     "clk1cfg": "0x00",
     "clk2cfg": "0x81",
-    "gpiooen": "0x80",
-    "gpioien": "0x00",
+    "gpiooen": "0x00",
+    "gpioien": "0x80",
     "pinten": "0x00",
     "pintinv": "0x00",
     "pincfg": "0x01",
-    "gpiodat": "0x80"
+    "gpiodat": "0x00"
   },
   "groups": {
     "tx": [

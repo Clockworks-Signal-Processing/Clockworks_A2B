@@ -193,6 +193,7 @@ class Network::Impl {
   void AbandonProbe();                                ///< Abandons a probe; tidies the bus.
   LinkProfile ResolveLink(NodeAddr position) const;   ///< The link profile to a position.
   void ApplyLink(NodeAddr position);                  ///< Refreshes a link's profile settings.
+  void ClearBypass(NodeAddr position);                ///< SWBYP off on the node before it.
   a2b::SubNode* MakeNode(NodeAddr position);          ///< Makes a node's object in its slot.
   void FinishNode(NodeAddr position);                 ///< The node's own link, once it is set up.
   void DestroyNode(NodeAddr position, bool removed);  ///< Destroys a node's object.
@@ -232,6 +233,9 @@ class Network::Impl {
   NetworkError m_Error = NetworkError::kNone;
   Step m_Step = Step::kReadId;
   Phase m_Phase = Phase::kIdle;
+  /** The node the probe found has been reviewed (a two-step link's, before its 24 V). */
+  bool m_Reviewed = false;
+  bool m_PowerGoodLow = false;            ///< A two-step link's power-good was low (logged once).
   uint32_t m_Deadline = 0;                ///< The next step, or the next probe.
   uint32_t m_ProbeFloor = 0;              ///< No probe before then, even on ResumeDiscovery().
   size_t m_MaxSubNodes = 1;               ///< BoardPolicy::maxSubNodes, as checked at Start().

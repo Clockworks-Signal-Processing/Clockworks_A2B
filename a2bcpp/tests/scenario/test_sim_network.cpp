@@ -488,6 +488,9 @@ A2B_TEST(InvertedLink) {
     A2B_CHECK(bench.network.Start() == Result::kOk);
     A2B_CHECK(bench.RunUntil(NetworkState::kRunning, 1000));
     A2B_CHECK_EQ(bench.bus.Sub(0).Reg(reg::kControl), reg::kControlXcvrbinv);
+    bench.Run(1200);  // Idle probes behind sub-node 0 and chain checks.
+    // Scenario 10: XCVRBINV was written before ENSW on each node and kept after it.
+    A2B_CHECK_EQ(bench.bus.OrderErrors(), 0);
   }
 }
 
@@ -648,11 +651,15 @@ A2B_TEST(StartChecksTheBoard) {
   zeroNodes.policy.maxSubNodes = 0;
   Network empty(sim, zeroNodes);
   A2B_CHECK(empty.Start() == Result::kInvalidArgument);
+  BoardConfig custom = MakeBoard();
+  custom.defaultLink = LinkProfile::ForBPort(3, 0x37);  // A B port with no handler.
+  Network unsupportedLink(sim, custom);
+  A2B_CHECK(unsupportedLink.Start() == Result::kNotSupported);
+  A2B_CHECK(unsupportedLink.State() == NetworkState::kStopped);
   BoardConfig rj45 = MakeBoard();
   rj45.defaultLink = LinkProfile::Rj45();
   Network twoStep(sim, rj45);
-  A2B_CHECK(twoStep.Start() == Result::kNotSupported);  // Two-step is not supported yet.
-  A2B_CHECK(twoStep.State() == NetworkState::kStopped);
+  A2B_CHECK(twoStep.Start() == Result::kOk);  // A two-step default link (test_sim_two_step).
   A2B_CHECK_EQ(sim.TransferCount(), 0);
 }
 

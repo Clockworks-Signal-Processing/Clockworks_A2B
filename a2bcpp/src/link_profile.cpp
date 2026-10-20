@@ -9,8 +9,9 @@
  * stores 2, UTP in the specification); the specification's numbering is used
  * (provisioning.md).
  *
- * Only single-step links are supported: Network::Start() refuses a two-step default link,
- * and a link that is two-step or unsupported is not probed.
+ * A two-step link needs the upstream node's high-power switch (ChipCaps::hasHighPowerSwitch,
+ * the AD2437): Network runs it single-step from any other node. A link from a B port the
+ * stack has no handler for (Discovery::kUnsupported) is not probed.
  *
  * Copyright 2026 by ClockWorks Signal Processing LLC
  * Licensed under the terms found in CLOCKWORKS_SOFTWARE_LICENSE.txt and included here by reference.
@@ -19,13 +20,9 @@
 
 #include "a2b/link_profile.h"
 
+#include "chip_caps.h"
+
 namespace a2b {
-namespace {
-
-/// PRODUCT of the AD2437, the only chip with the 24 V high-power switch two-step needs.
-constexpr uint8_t kAd2437 = 0x37;
-
-}  // namespace
 
 /**
  * UTP: single-step discovery, power on the A2B pair, B side not inverted.
@@ -84,7 +81,8 @@ LinkProfile LinkProfile::Custom() {
  *         one with Discovery::kUnsupported (the next node is not probed).
  */
 LinkProfile LinkProfile::ForBPort(uint8_t bPortType, uint8_t productId) {
-  const bool twoStepChip = (productId == kAd2437);
+  const ChipCaps* caps = LookUpChipCaps(kAdiVendorId, productId);
+  const bool twoStepChip = (caps != nullptr && caps->hasHighPowerSwitch);
   if (bPortType == static_cast<uint8_t>(BPortType::kXlr)) {
     return twoStepChip ? Xlr() : Utp();
   }

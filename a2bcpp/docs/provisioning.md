@@ -116,11 +116,13 @@ module's B port is, and the stack sets the link from this node to the next from 
 | 5 | CUSTOM | Something else |
 
 - **Two-step needs the AD2437's 24 V switch**, so XLR and RJ45 give UTP on every other chip.
-  An AB0312's RJ45 port, for instance, is two-step with an AD2437 module and UTP with an
-  AD2428 module.
-- **Two-step links aren't run** ([roadmap](../../ROADMAP.md#features-not-included)):
-  an XLR or RJ45 port on an AD2437 ends the chain at that node, with a log line. The app (the bench's `link N rj45`) can set the
-  link instead.
+  An AB0312's RJ45 port, for instance, is two-step with its AD2437 (the AB0371 module) and
+  UTP with an AD2428 module. An AB0312 that carries the AB0331 (an AD2437 on UTP) needs its
+  link set by the app, or an image with a UTP B port: the image can't tell the two AD2437
+  modules apart ([boards](boards.md)). The next node is found at 5 V, its module info read and reviewed, and only
+  then is the 24 V turned on, if its power configuration (its chip's) is CFG-4; a node that
+  isn't stays at 5 V ([cookbook](cookbook.md#link-profiles)). The app (the bench's
+  `link N rj45 single`) can run such a link single-step instead.
 - **Types 3-5 have no handler yet.** `CustomBPortLink()` (`src/link_profile.cpp`) is a
   placeholder that answers "Unsupported B port type", and the chain ends at that node. Types
   6 and up are reserved and get the same answer.
@@ -193,7 +195,7 @@ app's `NodeFactory` matches on them (`ByModule(0x0C54, 0x0020, ...)`).
 | Board | Module | Target chip | B port | Power |
 |---|---|---|---|---|
 | AB0020 | 0C54:0020 | External (a plug-in AD2437, AD2433 or AD2428) | UTP | Local power (0x23 bit 0); the board can be set for bus power |
-| AB0312 | 0C54:0312 | External | RJ45: two-step with an AD2437 module, UTP with any other | Local power; the board can be set for bus power |
+| AB0312 | 0C54:0312 | External | RJ45: two-step with the AB0371 (AD2437), UTP with an AD2428 or AD2433 module ([boards](boards.md)) | Local power; the board can be set for bus power; IO7 an input (power-good) |
 | AB0204 | 0C54:0204 | AD2427 (soldered down) | UTP | Bus powered only, CFG0, as every AD2427 microphone board |
 
 The AB0204 has no EEPROM: its image is for `module N file`, or to compile in. The stack uses
@@ -365,7 +367,8 @@ that provisions modules itself.
   families (section 2). A base board that needs more than one data pin a way, or settings
   that differ by family, would need a second set in the format.
 - **Power-good and write protect** on the Clockworks boards: which sub-node GPIO carries
-  power-good (for two-step links, not built), and whether an EEPROM's WP pin is wired. A
+  power-good (GPIO7 on the AB0310 and AB0312, which two-step links read; [boards](boards.md)),
+  and whether an EEPROM's WP pin is wired. A
   write-protected EEPROM fails `eeprom write` at the read-back.
 - **A remote EEPROM's NAK on hardware**, during its write cycle: whether the main node
   reports it as an I2C error interrupt as well as a failed transfer. On the Pi, at the

@@ -158,6 +158,26 @@ A2B_TEST(EveryChipCanInvertItsBSide) {
   }
 }
 
+A2B_TEST(XcvrbinvChangedUnderEnswIsCounted) {
+  // Scenario 10's check: the TRMs want XCVRBINV set before ENSW, and kept by later CONTROL
+  // writes.
+  Bench bench;
+  Transport& transport = bench.transport;
+  const uint8_t mstr = reg::kControlMstr;
+  transport.WriteReg(kMainNode, reg::kControl, static_cast<uint8_t>(mstr | reg::kControlXcvrbinv));
+  transport.WriteReg(kMainNode, reg::kSwctl, reg::kSwctlEnsw);
+  transport.WriteReg(kMainNode, reg::kControl,
+                     static_cast<uint8_t>(mstr | reg::kControlXcvrbinv | reg::kControlNewstrct));
+  A2B_CHECK_EQ(bench.bus.OrderErrors(), 0);  // Set first, then kept.
+  transport.WriteReg(kMainNode, reg::kControl, mstr);
+  A2B_CHECK_EQ(bench.bus.OrderErrors(), 1);  // Cleared under ENSW.
+  transport.WriteReg(kMainNode, reg::kControl, static_cast<uint8_t>(mstr | reg::kControlXcvrbinv));
+  A2B_CHECK_EQ(bench.bus.OrderErrors(), 2);  // Set after ENSW.
+  transport.WriteReg(kMainNode, reg::kSwctl, 0);
+  transport.WriteReg(kMainNode, reg::kControl, mstr);
+  A2B_CHECK_EQ(bench.bus.OrderErrors(), 2);  // The switch is open: any change is fine.
+}
+
 A2B_TEST(DscdoneNeedsRespCyclesInTheWindow) {
   sim::SubNodeSpec spec = Ad(0x37);
   spec.link.minRespCycles = 0x80;

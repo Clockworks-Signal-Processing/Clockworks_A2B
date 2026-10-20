@@ -114,6 +114,41 @@ copied from the reference board sets XCVRBINV, so its links must all be UTP.
 - A chain that mixes connection types can need a different value on each link. Discovery
   doesn't try the other polarity: on the wrong one, the main node is found and nothing else.
 
+### Two-step links (RJ45, XLR)
+From the AD2437 TRM ("Power on the Bus", "Power Configurations", Figures 7-2 and 7-3, and
+"Diagnostics Software Flow - XLR/DMX and RJ45 CAT Cable-based System") and ADI's
+`discovery.c`:
+- **An RJ45 cable carries two supplies:** 5 V on the data pair, through a low-pass filter,
+  which powers the next node's transceiver and EEPROM, and the 24 V bus bias on the other
+  three pairs, which the upstream node's high-power switch (CFG-4: a high-side NMOS) passes
+  on. An XLR cable carries the 24 V on two wires, the third the ground return.
+- **The first step runs at 5 V with SWBYP:** CONTROL.SWBYP turns the upstream node's B side
+  on without the switch ("the line switch will not be enabled even if SWCTL.ENSW is set"),
+  so the node is found, and its module info read, before any 24 V is applied. Every
+  CONTROL write of that node keeps SWBYP until the second step: the main node's NEWSTRCT
+  writes included.
+- **The second step:** the switch opened and SWBYP cleared, the node loses its frames and
+  has to be discovered again, now with ENSW, which closes the switch. ADI's stack goes
+  straight on, with no wait between the steps.
+- **Power-good** of the board before the link is read first: the main node's from the host
+  (`Platform::PowerGood()`), a sub-node's on GPIO7 (its GPIOIEN bit set, then GPIOIN), as
+  ADI's `a2b_dscvryPreSlaveInit` reads IO7. Low means no 5 V on the data pair: the TRM's
+  "critical short" (a crossover cable, a short, BN or BP shorted).
+- **VBUS** is VMTR input 1 (VMTR_VEN bit 1, VMTR_VLTG1), 0-32 V at 125 mV a step (TRM,
+  Table 5-30). The TRM's flow and ADI's `A2B_24V_DISCONECT_THRESHOLD` (32 = 0x20) take
+  under 4 V as no 24 V ("VBUS is disconnected"); the bench's nodes read 0xB9 (23.1 V). The
+  TRM applies the check to RJ45 links ("This step applies to RJ45/CAT cable-based systems
+  only"); `Xlr()` asks for it too, as ADI's stack ran it on every two-step link.
+- **Only a CFG-4 node gets the 24 V.** ADI's stack read the power byte (0x23) of a module
+  whose ID was 0x37 and rejected any other node unless it was the last. The stack takes the
+  node's chip's power configuration, and keeps a node that isn't CFG-4 at 5 V, with SWBYP on
+  the node before it. No Clockworks board puts one behind an RJ45 link: only the AB0371
+  module (an AD2437) is used on RJ45 ([boards](boards.md)).
+- **The power-good GPIO is a board property.** On the AB0310 and AB0312 it is IO7, an
+  input; on the AB0020 IO7 drives the LED. The examples keep IO7 an input on every node but
+  an AB0020 ([boards](boards.md)); `LinkProfile::powerGoodGpio` picks another pin, and
+  `checkPowerGood = false` skips the check.
+
 ### Discovery
 - **NODEADR points at node n - 1** when DISCVRY is written for node n (TRMs, DISCVRY register).
 - **Before a node first powers the next link** it gets INTMSK0 = PWRERR and INTMSK1 = 0, CONTROL
@@ -213,6 +248,9 @@ NODEADR and CHIP may be written, and the `Transport` rewrites them before its ne
 
 ## Boards
 
+Which boards and modules go together, and the link each pair runs, is in
+[boards.md](boards.md).
+
 - **AB0020** (main or sub-node, ADAU1761 codec at I2C 0x39): UTP on both ports. The codec gives
   the AD2437 its SYNC and bit clock, so it is programmed first. SPI must be off in its image.
   Its sub-node program is 38 writes of 6076 bytes in all (the largest 1732 B, with its
@@ -228,9 +266,10 @@ NODEADR and CHIP may be written, and the `Transport` rewrites them before its ne
   `AB0020.dat`.
 - **The Clockworks boards' EEPROM is on the base board** (AB0020, AB0310, AB0312); the plug-in
   A2B module has none, so their images name no chip (target chip External) and the stack
-  reads the chip from the module. An AB0312's RJ45 B port is two-step with an AD2437 module
-  (which the stack doesn't run: the chain ends there unless the link is set, `link N rj45`)
-  and UTP with any other ([provisioning](provisioning.md)).
+  reads the chip from the module. An AB0312's RJ45 B port is two-step with its AD2437
+  (the AB0371 module) and UTP with an AD2428 or AD2433 module; with the AB0331 (an AD2437 on
+  UTP) the link must be set, `link N utp` ([boards](boards.md)). `link N rj45 single` runs
+  the RJ45 link single-step.
 - **A node's power configuration is its chip's, not its image's.** An image holds one power
   configuration, but a board with a plug-in module may carry an AD2437 (CFG-4) or an AD2428 or
   AD2433 (CFG-0). Taking the image's once gave an AD2428 module CFG-4, and would have

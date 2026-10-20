@@ -115,7 +115,7 @@ CABLE_TYPE_HINTS = {
     4: "An RJ45 not ADI's, B side inverted (the stack can't run it yet)",
     5: "Something else (the stack can't run it yet)",
 }
-TWO_STEP_CABLES = (0, 1)  # Two-step on an AD2437 (not run by the stack yet).
+TWO_STEP_CABLES = (0, 1)  # Two-step on an AD2437.
 CUSTOM_CABLES = (3, 4, 5)  # No handler in the stack yet: "Unsupported B port type".
 MAX_CABLE_M = 30  # The AD2437 data sheet's longest link (a warning only); the AD242x's is 15 m.
 MAX_CABLE_M_AD242X = 15

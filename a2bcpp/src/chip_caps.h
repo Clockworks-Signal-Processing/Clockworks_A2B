@@ -33,7 +33,7 @@ struct ChipCaps {
   bool hasCrossbar;        ///< Slot crossbar registers (used by routing).
   bool hasI2sMsInv;        ///< CONTROL.I2SMSINV bit.
   bool hasSpreadSpectrum;  ///< PLL spread-spectrum settings.
-  bool hasVoltageMonitor;  ///< VMTR block on MMR page 1 (24 V check in two-step discovery).
+  bool hasVoltageMonitor;  ///< VMTR block on MMR page 1 (the 24 V check of a link).
   /** MMRPAGE and register page 1 (0x100-0x1FF). The AD242x register map ends at page 0's
       0x9B. */
   bool hasPage1;
@@ -53,6 +53,9 @@ struct ChipCaps {
       AD2437, 0 (CFG-0) on the AD2433, and 0 on the AD242x, which have none. A node's image
       gives way to it (ModuleInfo::powerConfig). */
   uint8_t powerConfig;
+  /** The high-power (24 V) switch an RJ45 or XLR link needs for two-step discovery: the
+      AD2437 only (CFG-4, a high-side NMOS on the cable's power wires). */
+  bool hasHighPowerSwitch;
 };
 
 const ChipCaps* LookUpChipCaps(uint8_t vendorId, uint8_t productId);  ///< Table row, or nullptr.

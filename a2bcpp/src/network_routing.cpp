@@ -527,9 +527,10 @@ uint8_t Network::Impl::MainDatctl() const {
 Result Network::Impl::WriteDataControl(uint32_t nowMs) {
   Result result = m_Transport.WriteReg(kMainNode, reg::kDatctl, MainDatctl());
   if (result == Result::kOk) {
-    result = m_Transport.WriteReg(
-        kMainNode, reg::kControl,
-        static_cast<uint8_t>(m_Settings.mainControl | m_Links[0].control | reg::kControlNewstrct));
+    result =
+        m_Transport.WriteReg(kMainNode, reg::kControl,
+                             static_cast<uint8_t>(m_Settings.mainControl | m_Links[0].Control() |
+                                                  reg::kControlNewstrct));
   }
   if (result == Result::kOk) {
     m_Settling = true;
@@ -609,9 +610,10 @@ Result Network::Impl::WriteSlots(uint32_t nowMs) {
     result = m_Transport.WriteReg(kMainNode, reg::kI2srrate, reducedRate);
   }
   if (result == Result::kOk) {
-    result = m_Transport.WriteReg(
-        kMainNode, reg::kControl,
-        static_cast<uint8_t>(m_Settings.mainControl | m_Links[0].control | reg::kControlNewstrct));
+    result =
+        m_Transport.WriteReg(kMainNode, reg::kControl,
+                             static_cast<uint8_t>(m_Settings.mainControl | m_Links[0].Control() |
+                                                  reg::kControlNewstrct));
   }
   if (result == Result::kOk) {
     m_Settling = true;

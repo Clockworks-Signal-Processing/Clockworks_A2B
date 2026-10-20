@@ -60,6 +60,12 @@ struct ChipSpec {
 enum class LinkPower : uint8_t {
   kOnPair,         ///< Over the A2B pair: needs ENSW on the upstream node.
   kSeparateWires,  ///< Its own supply (Node::SetLocalPower()).
+  /** An RJ45 or XLR link into a node behind a high-power switch: the node runs from the
+      5 V the upstream board puts on the data pair while that board's power-good is high
+      (the main node's Bus::SetPowerGood(), a sub-node's GPIO7 input), and gets the 24 V
+      (VBUS) once the upstream switch closes. Frames reach it with CONTROL.SWBYP or the
+      switch closed; without either it drops out but stays powered. */
+  kTwoStep,
 };
 
 /** @brief The link from the upstream node to a sub-node. */
@@ -157,6 +163,10 @@ class Node {
   bool LocalPower() const { return m_LocalPower; }    ///< Own supply is on.
   /// The supply its switch passes downstream (VBUS, e.g. 24 V) is there.
   bool DownstreamSupply() const { return m_DownstreamSupply; }
+  /// On a LinkPower::kTwoStep link: the 24 V reaches it (the upstream switch is closed).
+  bool HighVoltage() const { return m_HighVoltage; }
+  /// On a LinkPower::kTwoStep link: how many times the 24 V was switched on to it.
+  size_t HighVoltageCount() const { return m_HighVoltageCount; }
 
   Eeprom& AddEeprom(uint8_t i2cAddr,
                     size_t size = Eeprom::kDefaultSize);  ///< Adds an EEPROM behind it.
@@ -189,6 +199,8 @@ class Node {
   uint8_t m_Vmtr[reg::kVmtrInputs] = {};
   bool m_LocalPower = true;
   bool m_DownstreamSupply = true;
+  bool m_HighVoltage = false;     ///< kTwoStep link: the 24 V reaches it.
+  size_t m_HighVoltageCount = 0;  ///< kTwoStep link: times the 24 V came on.
   std::vector<std::unique_ptr<Eeprom>> m_Eeproms;
   std::vector<std::pair<uint8_t, I2cDevice*>> m_Devices;
 };
@@ -231,7 +243,10 @@ class Bus {
   /// Transfers to this bus within 1 ms after a CONTROL.NEWSTRCT (the settle).
   size_t AccessesInNewStructSettle() const { return m_SettleAccesses; }
   size_t NewStructCount() const { return m_NewStructs; }  ///< CONTROL.NEWSTRCT writes.
-  AudioTrace TraceAudio() const;                          ///< The audio its registers route.
+  /** CONTROL writes that changed XCVRBINV on a node whose SWCTL.ENSW was set: the TRMs want
+      XCVRBINV before ENSW, and kept by later CONTROL writes (scenario 10). */
+  size_t OrderErrors() const { return m_OrderErrors; }
+  AudioTrace TraceAudio() const;  ///< The audio its registers route.
   /// Calls @p observer right after each CONTROL.NEWSTRCT has taken effect, so a test can look
   /// at the audio at the moment a new structure starts (a mute is there to cover it).
   void SetNewStructObserver(std::function<void()> observer) {
@@ -251,20 +266,23 @@ class Bus {
   Result MainAccess(const uint8_t* writeData, size_t writeLen, uint8_t* readData,
                     size_t readLen);  ///< Transfer to the main address.
   Result BusAccess(const uint8_t* writeData, size_t writeLen, uint8_t* readData,
-                   size_t readLen);                 ///< Transfer to the bus address.
-  void WriteMain(uint16_t reg, uint8_t value);      ///< Main-node register write.
-  uint8_t ReadMain(uint16_t reg);                   ///< Main-node register read.
-  void WriteControl(uint8_t value);                 ///< Main-node CONTROL write.
-  void SoftReset(bool mstr);                        ///< CONTROL.SOFTRST, with MSTR as written.
-  void Wedge();                                     ///< The SUSTAIN trap.
-  void StartDiscovery(uint8_t respCycles);          ///< DISCVRY write.
-  bool CanDiscover() const;                         ///< Next sub-node's link is right.
-  bool Powered(size_t position) const;              ///< A sub-node has power.
-  static bool SwitchClosed(const Node& node);       ///< ENSW without SWBYP.
-  void CheckPower();                                ///< Drops sub-nodes that lost power.
-  void DropFrom(size_t position, bool powerFault);  ///< Sub-nodes from here drop out.
-  void LoseChain();                                 ///< Every sub-node undiscovered.
-  void CheckSettle();                               ///< Counts an access in the settle.
+                   size_t readLen);             ///< Transfer to the bus address.
+  void WriteMain(uint16_t reg, uint8_t value);  ///< Main-node register write.
+  uint8_t ReadMain(uint16_t reg);               ///< Main-node register read.
+  void WriteControl(uint8_t value);             ///< Main-node CONTROL write.
+  void SoftReset(bool mstr);                    ///< CONTROL.SOFTRST, with MSTR as written.
+  void Wedge();                                 ///< The SUSTAIN trap.
+  void StartDiscovery(uint8_t respCycles);      ///< DISCVRY write.
+  bool CanDiscover() const;                     ///< Next sub-node's link is right.
+  bool Powered(size_t position) const;          ///< A sub-node has power.
+  bool FiveVolts(size_t position) const;        ///< kTwoStep: the upstream board's 5 V.
+  bool Frames(size_t position) const;           ///< kTwoStep: frames reach it.
+  void CheckOrder(const Node& node, uint8_t controlBefore);  ///< XCVRBINV changed under ENSW.
+  static bool SwitchClosed(const Node& node);                ///< ENSW without SWBYP.
+  void CheckPower();                                         ///< Drops sub-nodes that lost power.
+  void DropFrom(size_t position, bool powerFault);           ///< Sub-nodes from here drop out.
+  void LoseChain();                                          ///< Every sub-node undiscovered.
+  void CheckSettle();                                        ///< Counts an access in the settle.
 
   Simulator& m_Sim;
   const uint8_t m_MainAddr;
@@ -294,6 +312,7 @@ class Bus {
   uint32_t m_NewStructAt = 0;                 ///< ... at this time.
   size_t m_SettleAccesses = 0;                ///< Transfers in the millisecond after it.
   size_t m_NewStructs = 0;                    ///< NEWSTRCT writes.
+  size_t m_OrderErrors = 0;                   ///< See OrderErrors().
   std::function<void()> m_NewStructObserver;  ///< Called after each one took effect.
 };
 

@@ -34,18 +34,24 @@
  * **The boards.** AB0020: an ADAU1761 codec on I2S TDM2 32-bit (RX 0 and TX 0 on channels
  * 0-1), its MCLK from the transceiver's CLKOUT2 (12.288 MHz). Its settings are the bench
  * project's sub-node (`tools/SS+reference/2x_AB0020_EVM_with_2437`): I2SGCFG 0xE0, I2SCFG
- * 0x11, GPIODAT and GPIOOEN 0x80 (IO7 driven high), PINCFG 0x01, CLK2CFG 0x81 and SPICFG
- * 0x02. SPI is off because it powers on enabled, and "ADR2/CLKOUT2 is not functional when
- * SPI is enabled with the default GPIO select" (AD2437 TRM, note to Table 5-28): without
- * it the codec has no MCLK.
+ * 0x11, GPIODAT and GPIOOEN 0x80 (IO7 driven high: the board's LED), PINCFG 0x01, CLK2CFG
+ * 0x81 and SPICFG 0x02. SPI is off because it powers on enabled, and "ADR2/CLKOUT2 is not
+ * functional when SPI is enabled with the default GPIO select" (AD2437 TRM, note to Table 5-28):
+ * without it the codec has no MCLK.
  *
  * AB0312: no codec; its I2S on a header, programmed as the AB0020's (RX 0 and TX 0 on
  * channels 0-1). Its settings are its project's sub-node
  * (`tools/SS+reference/AB0310_AB0312_EVM_with_2437`), the same values as the AB0020's,
- * CLKOUT2 and IO7 included as the project has them. Its B port is ADI's RJ45 (the project's
- * CONTROL sets XCVRBINV): with an AD2437 module the link after it is two-step, which the
- * stack doesn't run yet (the chain ends there; the bench's `link N rj45` gives the
- * single-step inverted link), and UTP with any other module (LinkProfile::ForBPort()).
+ * CLKOUT2 included, but IO7 an input (GPIOIEN 0x80), as the project has it: on the AB0310
+ * and AB0312 it carries the board's power-good, which a two-step link reads. Its B port is ADI's
+ * RJ45 (the project's CONTROL sets XCVRBINV), for the AB0371 module (an AD2437): the link after it
+ * is two-step. With a UTP module (AB0331, an AD2437; AB0001, an AD2428; AB0333, an AD2433) the RJ45
+ * connector isn't used for A2B: the image gives UTP on an AD2428 or AD2433
+ * (LinkProfile::ForBPort()), but on an AB0331 the app must set the link (`link N utp`), as
+ * the EEPROM on the base board can't tell the AB0331 from the AB0371 (docs/boards.md).
+ *
+ * **IO7** is an input on every board but the AB0020 (BoardNode): an image written before
+ * IO7 became an input, or one for another board, is corrected as it is written.
  *
  * AB0204: an AD2427 with four MEMS PDM microphones, two on DRX0 and two on DRX1, clocked
  * from the BCLK pin. From the AD242x TRM ("PDM Clocking Options", "PDM
@@ -177,7 +183,7 @@ ModuleProfile Ab0020() {
   board.settings.i2sgcfg = 0xE0;  // TDM2, 32-bit, SYNC inverted, early, 50% duty.
   board.settings.i2scfg = 0x11;   // DRX0 and DTX0, both on BCLK's rising edge.
   board.settings.gpiodat = 0x80;  // IO7 high ...
-  board.settings.gpiooen = 0x80;  // ... and driven.
+  board.settings.gpiooen = 0x80;  // ... and driven: the board's LED.
   board.settings.pincfg = 0x01;   // High drive strength.
   board.settings.clk2cfg = 0x81;  // CLKOUT2 on ADR2: the PLL / 2 / 4, 12.288 MHz at 48 kHz.
   board.settings.spicfg = 0x02;   // SPI off, so that CLKOUT2 reaches ADR2.
@@ -206,8 +212,7 @@ ModuleProfile Ab0312() {
   board.description = "AB0312: I2S on a header (RX 0, TX 0: channels 0-1), no codec";
   board.settings.i2sgcfg = 0xE0;  // TDM2, 32-bit, SYNC inverted, early, 50% duty.
   board.settings.i2scfg = 0x11;   // DRX0 and DTX0, both on BCLK's rising edge.
-  board.settings.gpiodat = 0x80;  // IO7 high ...
-  board.settings.gpiooen = 0x80;  // ... and driven.
+  board.settings.gpioien = 0x80;  // IO7 an input: the board's power-good.
   board.settings.pincfg = 0x01;   // High drive strength.
   board.settings.clk2cfg = 0x81;  // CLKOUT2 on ADR2: the PLL / 2 / 4, 12.288 MHz at 48 kHz.
   board.settings.spicfg = 0x02;   // SPI off.
@@ -265,8 +270,9 @@ const ModuleProfile* NoEepromDefault(uint8_t productId) {
 
 /**
  * The image for a node with no board set whose EEPROM isn't read (the bench console's
- * `ignoreEEPROM 1`, the fixed app's unknown nodes): the minimal example's settings (GPIO0-6
- * inputs, PINCFG 0), I2S on DRX0 and DTX0 as the Clockworks boards have it, so that RX 0
+ * `ignoreEEPROM 1`, the fixed app's unknown nodes): the minimal example's settings with IO7
+ * an input too (GPIO0-7 inputs, PINCFG 0), I2S on DRX0 and DTX0 as the Clockworks boards
+ * have it, so that RX 0
  * and TX 0 on channels 0-1 are on the port (the stack refuses channels a port doesn't give;
  * an image without I2S gave the bench its "no SYNC"), no codec, any chip, a UTP B port, module
  * 00AD:0037 as the minimal example's. I2SGCFG 0xE0 and I2SCFG 0x11 mean the same on the AD242x
@@ -276,10 +282,10 @@ const ModuleProfile* NoEepromDefault(uint8_t productId) {
 ModuleProfile GenericModule() {
   ModuleProfile module;
   module.name = "generic";
-  module.description = "no board: GPIO0-6 inputs, I2S (RX 0, TX 0: channels 0-1)";
+  module.description = "no board: GPIO0-7 inputs, I2S (RX 0, TX 0: channels 0-1)";
   module.settings.i2sgcfg = 0xE0;  // TDM2, 32-bit, SYNC inverted, early, 50% duty.
   module.settings.i2scfg = 0x11;   // DRX0 and DTX0, both on BCLK's rising edge.
-  module.settings.gpioien = 0x7F;
+  module.settings.gpioien = 0xFF;
   module.settings.pincfg = 0x00;
   (void)module.groups.AddRx(0, 0x3);
   (void)module.groups.AddTx(0, 0x3);
@@ -637,5 +643,50 @@ const ModuleProfile* BoardModuleSource::ImageFor(const a2b::SubNodeIdentity& nod
 const ModuleProfile* BoardModuleSource::Using(a2b::NodeAddr position) const {
   return a2b::IsSubNode(position) ? m_Using[position] : nullptr;
 }
+
+/**
+ * Makes IO7 an input (GPIOIEN set, GPIOOEN and GPIODAT clear), whatever the node's image
+ * says, unless its module info names the AB0020: its IO7 drives its LED. On the AB0310 and
+ * AB0312, IO7 carries the board's power-good, which a two-step link reads.
+ * @param image The node's settings, before they are written.
+ */
+void BoardNode::TweakRegisters(a2b::RegisterImage& image) {
+  constexpr uint16_t kGpiodat = 0x4A;
+  constexpr uint16_t kGpiooen = 0x4D;
+  constexpr uint16_t kGpioien = 0x4E;
+  constexpr uint8_t kIo7 = 0x80;
+  const a2b::ModuleInfo& info = Info().moduleInfo;
+  if (info.vendorId == kClockworksModuleVendor && info.productId == 0x0020) {
+    return;  // The AB0020: IO7 drives its LED.
+  }
+  uint8_t value = 0;
+  if (image.Get(kGpiooen, value)) {
+    (void)image.Set(kGpiooen, static_cast<uint8_t>(value & ~kIo7));
+  }
+  if (image.Get(kGpiodat, value)) {
+    (void)image.Set(kGpiodat, static_cast<uint8_t>(value & ~kIo7));
+  }
+  value = 0;
+  (void)image.Get(kGpioien, value);
+  (void)image.Set(kGpioien, static_cast<uint8_t>(value | kIo7));
+}
+
+namespace {
+
+/** Makes a BoardNode, for every node (UseBoardNodes()). */
+a2b::MakeNodeFn ChooseBoardNode(const a2b::SubNodeInfo& info, void* context) {
+  (void)info;
+  (void)context;
+  return a2b::Make<BoardNode>;
+}
+
+}  // namespace
+
+/**
+ * Gives a factory a chooser that makes every sub-node a BoardNode. Pass the factory to
+ * Network::SetNodeFactory().
+ * @param factory The factory.
+ */
+void UseBoardNodes(a2b::NodeFactory& factory) { factory.SetChooser(ChooseBoardNode); }
 
 }  // namespace clockworks

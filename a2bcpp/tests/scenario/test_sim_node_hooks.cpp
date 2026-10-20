@@ -108,8 +108,7 @@ class ChosenModule : public SubNode {
   uint32_t TypeTag() const override { return kChosenTag; }
 };
 
-/** A module whose downstream link is two-step (RJ45): not probed (two-step is not supported yet).
- */
+/** A module whose downstream link is two-step (RJ45). */
 class Rj45Module : public SubNode {
  public:
   using SubNode::SubNode;
@@ -460,8 +459,10 @@ A2B_TEST(CustomLinkInTheMiddle) {
 
 A2B_TEST(SetLinkProfileChecks) {
   Bench bench;
-  A2B_CHECK(bench.network.SetLinkProfile(0, LinkProfile::Rj45()) == Result::kNotSupported);
-  A2B_CHECK(bench.network.SetLinkProfile(0, LinkProfile::Xlr()) == Result::kNotSupported);
+  A2B_CHECK(bench.network.SetLinkProfile(0, LinkProfile::Rj45()) == Result::kOk);
+  A2B_CHECK(bench.network.SetLinkProfile(0, LinkProfile::Xlr()) == Result::kOk);
+  A2B_CHECK(bench.network.SetLinkProfile(0, LinkProfile::ForBPort(5, 0x37)) ==
+            Result::kNotSupported);
   A2B_CHECK(bench.network.SetLinkProfile(16, LinkProfile::Utp()) == Result::kInvalidArgument);
   A2B_CHECK(bench.network.SetLinkProfile(-1, LinkProfile::Utp()) == Result::kInvalidArgument);
   A2B_CHECK(bench.network.ClearLinkProfile(16) == Result::kInvalidArgument);
@@ -480,22 +481,23 @@ A2B_TEST(ClearLinkProfileGoesBackToTheDefault) {
   A2B_CHECK(bench.RunUntilCount(1, 2000));  // The next probe uses the board's link.
 }
 
-A2B_TEST(TwoStepDownstreamLinkIsNotProbed) {
+A2B_TEST(TwoStepDownstreamLink) {
   Bench bench;
   NodeFactory factory;
   factory.ByModule(0x00AD, 0x0037, Make<Rj45Module>);
   bench.network.SetNodeFactory(&factory);
   bench.Plug(0x0037);
-  bench.Plug(0x0037);
+  bench.Plug(0x0037, Ad2437(1, true, sim::LinkPower::kTwoStep));
+  bench.Plug(0x0037, Ad2437(2, false));
   A2B_CHECK(bench.StartAndRun());
-  bench.Run(1500);
-  A2B_CHECK_EQ(bench.network.SubNodeCount(), 1);
-  A2B_CHECK(bench.Logged("link to sub-node 1 is two-step (unsupported); not probed"));
-  // No probe went past sub-node 0: DISCVRY was written once.
-  A2B_CHECK_EQ(Count(Decode(bench.sim.Trace()), kMainNode, true, reg::kDiscvry), 1);
+  // Sub-node 1 is found twice (5 V, then 24 V); sub-node 2's link is the RJ45 one too, so
+  // the UTP node behind it isn't found at 5 V.
+  A2B_CHECK_EQ(bench.network.SubNodeCount(), 2);
+  A2B_CHECK(bench.bus.Sub(1).HighVoltage());
+  A2B_CHECK_EQ(bench.bus.OrderErrors(), 0);
   // The app's single-step link for that position applies from the next probe.
-  A2B_CHECK(bench.network.SetLinkProfile(1, LinkProfile::Utp()) == Result::kOk);
-  A2B_CHECK(bench.RunUntilCount(2, 2000));
+  A2B_CHECK(bench.network.SetLinkProfile(2, LinkProfile::Utp()) == Result::kOk);
+  A2B_CHECK(bench.RunUntilCount(3, 2000));
 }
 
 A2B_TEST(LinkChangeAtTheEndOfTheChainAppliesAtTheNextProbe) {

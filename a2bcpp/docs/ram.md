@@ -15,8 +15,8 @@ Measured with the Arm GNU Toolchain 13.2.rel1 (Debian's `gcc-arm-none-eabi` 13.2
 | Static RAM (`.data` + `.bss`) | 0 |
 | **`Network`, per bus** | **15,368** |
 | of which `Network::kImplSize` | 15,360 |
-| of which the Impl uses | 14,984 (376 left on the RP2040) |
-| On 64-bit hosts, the Impl | 16,896 of 17,408 |
+| of which the Impl uses | 15,160 (200 left on the RP2040) |
+| On 64-bit hosts, the Impl | 17,024 of 17,408 |
 | `BoardConfig`, per bus (the app's; the main node's `ChannelGroups` in it) | 708 |
 | **Two buses: two `Network`s** | **30,736** |
 
@@ -40,7 +40,7 @@ bandwidth):
 | `ConnectionTable` (32 connections) | 580 |
 | The main node's start-up `RegisterImage` | 484 |
 | Event queue, 32 × `Event` (12) | 384 |
-| `Discovery` | about 204 |
+| `Discovery`, and the links' settings (17 × 14) | 212 + 238 |
 | `LinkProfile` × 16 and flags (the app's per-link profiles) | 96 + 16 |
 | Cable lengths (`SetCableLength()`) | 32 |
 | `Transport`, `ScriptRunner`, `InterruptPoller` | 40 + 60 + 24 |
@@ -61,13 +61,13 @@ Worst path, in bytes, plus the platform's I2C driver depth:
 
 | Path | `-Og` | `-O3` |
 |---|---:|---:|
-| **Two buses, one thread** (`a2b_PollTwoBuses`), through a peripheral script's EEPROM read (`ModuleScript::RunUnit`) | **448** | **408** |
-| Two buses, through the EEPROM scan (`Discovery::Identify`) | 424 | 344 |
-| Two buses, as the call graph gives it (the routing plan, the local mute) | 408 | 400 |
-| One bus (`Network::Poll`), through `ModuleScript::RunUnit` | 432 | 392 |
-| One bus, as the call graph gives it | 392 | 384 |
+| **Two buses, one thread** (`a2b_PollTwoBuses`), through a peripheral script's EEPROM read (`ModuleScript::RunUnit`) | **456** | **392** |
+| Two buses, through the EEPROM scan (`Discovery::Identify`) | 440 | 368 |
+| Two buses, as the call graph gives it (the routing plan, the local mute) | 448 | 416 |
+| One bus (`Network::Poll`), through `ModuleScript::RunUnit` | 440 | 376 |
+| One bus, as the call graph gives it | 432 | 400 |
 
-With one thread polling two buses, the high-water mark is 448 B plus the I2C driver. An app's
+With one thread polling two buses, the high-water mark is 456 B plus the I2C driver. An app's
 own `RoutingPolicy` adds its depth in place of `ComputeResponseCycles()`'s (232 B `-Og`, 176 B
 `-O3`); an app's own module-info source adds its depth in place of the EEPROM source's; and a
 handler that calls `PeripheralWrite()` adds about 170 B to its own frame. With a thread per bus,

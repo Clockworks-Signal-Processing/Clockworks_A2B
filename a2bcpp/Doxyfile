@@ -3,7 +3,11 @@
 PROJECT_NAME           = "a2bcpp"
 PROJECT_BRIEF          = "C++ A2B plug-and-play stack"
 OUTPUT_DIRECTORY       = ../build/a2bcpp-doxygen
-INPUT                  = include src import platforms examples docs
+# The Markdown files the docs link to outside docs/ are inputs too, or Doxygen can't resolve
+# the links (and warns). The top-level README.md is not: its first lines draw a warning, and
+# links to it carry an #anchor, which Doxygen leaves alone.
+INPUT                  = include src import platforms examples docs tools/README.md \
+                         ../ROADMAP.md ../tools/a2b_eeprom/README.md
 USE_MDFILE_AS_MAINPAGE = docs/quick_start.md
 FILE_PATTERNS          = *.h *.cpp *.md
 RECURSIVE              = YES

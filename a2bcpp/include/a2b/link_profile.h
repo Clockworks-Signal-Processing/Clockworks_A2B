@@ -36,7 +36,10 @@ struct LinkProfile {
   /** @brief How the next node is discovered. */
   enum class Discovery : uint8_t {
     kSingleStep,  ///< One discovery with the power already on.
-    kTwoStep,  ///< Discover at 5 V, read the module info, then switch on 24 V (not supported yet).
+    /** Find the node at 5 V with the upstream switch bypassed (CONTROL.SWBYP), read its
+        module info, then close the 24 V switch and find it again. Needs the upstream node's
+        high-power switch (an AD2437); from any other node the link runs single-step. */
+    kTwoStep,
     /** The stack can't run the link (a B port type with no handler yet, CustomBPortLink()):
         the next node is not probed. */
     kUnsupported,
@@ -55,10 +58,14 @@ struct LinkProfile {
   Power power = Power::kOnA2bPair;               ///< Power source of the next node.
   /** The upstream node inverts its B side (CONTROL.XCVRBINV), as an RJ45 link needs. */
   bool bSideInverted = false;
-  /** Two-step: check power-good before the first step (two-step is not supported yet). */
+  /** Two-step: check the upstream board's power-good before each first step (the main
+      node's through Platform::PowerGood(), a sub-node's on #powerGoodGpio); no node is
+      probed while it is low. */
   bool checkPowerGood = false;
-  uint8_t powerGoodGpio = 7;  ///< Two-step: the sub-node GPIO that carries power-good.
-  /** Two-step: check 24 V with the voltage monitor (two-step is not supported yet). */
+  uint8_t powerGoodGpio = 7;  ///< Two-step: the upstream sub-node's GPIO that carries power-good.
+  /** Check the new node's VBUS with its voltage monitor (VMTR) once it is found at its
+      final power: at least 4 V, or it is rejected (RejectReason::kNoHighVoltage). Two-step
+      links, and single-step ones that ask; a node without VMTR (AD242x) isn't checked. */
   bool checkHighVoltage = false;
 
   static LinkProfile Utp();     ///< UTP: single-step, power on the pair.

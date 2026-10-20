@@ -1,8 +1,7 @@
 # Customisation cookbook
 
 How to change what the stack does for your modules, links and buses without changing
-the stack. Recipes for two-step links will be added with that feature (see "Not yet
-implemented", at the end).
+the stack.
 
 Everything here is optional: an app with ADI-style modules that keep their module info
 in EEPROM needs none of it ([quick start](quick_start.md)). How the stack runs, which
@@ -92,9 +91,9 @@ A node rejected by the review or during its set-up is destroyed without `OnRemov
 section).
 
 **Stable hooks.** The hooks above, their signatures and when they run are the stable
-interface ([decisions](decisions.md#why-c), caveat 2: the procedures stay non-virtual). Planned
-hooks (`SwitchBypass()` and `HighPowerSwitch()` for two-step links, `Partner()` for dual buses)
-will come with defaults, so a class written now keeps compiling and working.
+interface ([decisions](decisions.md#why-c), caveat 2: the procedures stay non-virtual). A
+planned hook (`Partner()` for dual buses) will come with a default, so a class written now
+keeps compiling and working.
 
 ## The main node
 
@@ -135,7 +134,24 @@ brought up. Its B-side polarity (`bSideInverted`, CONTROL.XCVRBINV) and its powe
 (`power`: `kOnA2bPair` closes the upstream node's switch, `kSeparateWires` and `kNone` leave it
 open and set the upstream node's CONTROL.SWBYP, which turns its B side on without the switch)
 apply. Presets: `Utp()` (single-step, power on the pair), `Custom()` (single-step, power on
-separate wires), `Rj45()` and `Xlr()` (two-step, not yet supported).
+separate wires), `Rj45()` (two-step, B side inverted) and `Xlr()` (two-step, straight).
+
+**Two-step links.** `Discovery::kTwoStep` finds the node at 5 V first, with the upstream
+node's CONTROL.SWBYP set (an RJ45 cable carries 5 V on its data pair), reads its module
+info and asks the review (`OnNodeIdentified()`); only then does it close the 24 V switch,
+find the node again and check its VBUS with the node's voltage monitor. It needs the
+upstream node's high-power switch (an AD2437); from any other node the link runs
+single-step, without the two-step checks, and the log says so. A node whose power
+configuration isn't CFG-4 stays at 5 V (a safety path: an RJ45 link joins two AD2437
+nodes on the Clockworks boards, [boards](boards.md)). The checks, on by default in `Rj45()` and `Xlr()`:
+- `checkPowerGood`: the upstream board's power-good before each first step, the main
+  node's through `Platform::PowerGood()`, a sub-node's on GPIO `powerGoodGpio` (7). While
+  it is low nothing is probed there (logged once).
+- `checkHighVoltage`: VBUS at least 4 V once the node is at its final power; else it is
+  rejected (`RejectReason::kNoHighVoltage`, also when it isn't found at 24 V). Its chip ID
+  isn't kept, so the position is probed from the first step again every 2 s and the node
+  joins once the 24 V is back. A single-step link may ask for it too (`Utp()` with
+  `checkHighVoltage = true`); a node without a voltage monitor (AD242x) isn't checked.
 
 A node on its own supply that still draws the bias current (its A side DC-coupled) is
 found over a `Utp()` link too. One that draws none, such as a galvanically isolated A
@@ -151,8 +167,7 @@ The link to sub-node n takes its profile from the first of:
    node's image gives: its B-side cable type (0x28), the module's B port, on its chip
    (`LinkProfile::ForBPort()`; [provisioning](provisioning.md)):
    - UTP: single-step, straight;
-   - ADI's XLR or RJ45 on an AD2437: two-step (not run yet: the chain ends there); on any
-     other chip, UTP;
+   - ADI's XLR or RJ45 on an AD2437: two-step; on any other chip, UTP;
    - RJ45-CUSTOM, RJ45-CUSTOM-INV, CUSTOM: no handler yet (`CustomBPortLink()` in
      `src/link_profile.cpp`, "Unsupported B port type"): the chain ends there.
 
@@ -164,8 +179,11 @@ The link to sub-node n takes its profile from the first of:
    the minimal and fixed examples do.
 
 ```cpp
-a2b::LinkProfile rj45 = a2b::LinkProfile::Rj45();     // B side inverted (XCVRBINV)
-rj45.discovery = a2b::LinkProfile::Discovery::kSingleStep;  // two-step is not supported yet
+network.SetLinkProfile(1, a2b::LinkProfile::Rj45());  // two-step, B side inverted
+a2b::LinkProfile rj45 = a2b::LinkProfile::Rj45();     // an RJ45 link run single-step
+rj45.discovery = a2b::LinkProfile::Discovery::kSingleStep;
+rj45.checkPowerGood = false;
+rj45.checkHighVoltage = false;
 network.SetLinkProfile(2, rj45);                      // the link into sub-node 2
 network.SetLinkProfile(3, a2b::LinkProfile::Custom());  // sub-node 3 has its own supply
 ```
@@ -173,9 +191,9 @@ network.SetLinkProfile(3, a2b::LinkProfile::Custom());  // sub-node 3 has its ow
 The profile is looked up before every probe of that position, so a change applies to
 the next probe: the upstream node's link is set up again (masks, polarity, the
 power-configuration check). A link whose node is in the bus keeps its settings until the
-node is found again. Two-step and unsupported profiles are refused by `SetLinkProfile()`
-(`Result::kNotSupported`) until two-step links are built; a link a `DownstreamLink()` makes
-two-step or unsupported is not probed, and the log says so.
+node is found again. An unsupported profile is refused by `SetLinkProfile()`
+(`Result::kNotSupported`); a link a `DownstreamLink()` makes unsupported is not probed, and
+the log says so.
 
 ## Module-info sources
 
@@ -767,6 +785,6 @@ both threads.
 ## Not included
 
 The [roadmap](../../ROADMAP.md#features-not-included) lists what the stack
-doesn't do, with the calls that are there for it and return `Result::kNotSupported`: two-step
-links, power diagnostics, dual buses, the C facade, SPI, spread spectrum, GPIO over distance
-and the others.
+doesn't do, with the calls that are there for it and return `Result::kNotSupported`: power
+diagnostics, dual buses, the C facade, SPI, spread spectrum, GPIO over distance and the
+others.

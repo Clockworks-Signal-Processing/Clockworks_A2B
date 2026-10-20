@@ -88,11 +88,38 @@ chips on each module, bus 2's main node clocked from bus 1's) are designed, not 
   profile defaults to inverted; UTP, XLR and Custom default to off, and the application can
   change any of them. Per the TRMs, a node's XCVRBINV is set before its SWCTL.ENSW, and later
   CONTROL writes (for example NEWSTRCT) must keep it.
-- Two-step is an option the host application chooses per link, UTP links included (a UTP
-  link into an AD2437 may be two-step; the defaults stay as above). Its sequence: read the
-  EEPROM, then turn on the CFG4 (24 V) power. Not built: the design is under
-  [Designed, not built](decisions.md#two-step-links). Until it is, an RJ45 link runs single-step with its
-  B side inverted.
+- **Two-step** is an option the host application chooses per link, UTP links included (a
+  UTP link into an AD2437 may be two-step; the presets stay as above). As ADI's
+  `discovery.c` and the AD2437 TRM's Figures 7-2 and 7-3 have it:
+  1. The board's power-good: the main node's through `Platform::PowerGood()`, a sub-node's
+     on the GPIO its `LinkProfile` names (`powerGoodGpio`, GPIO7 by default). While it is
+     low nothing is probed there.
+  2. SWBYP on the upstream node, so the link runs at 5 V; the node is discovered and its
+     module info read.
+  3. The review (the power budget, then `OnNodeIdentified()`): keeping the node is the
+     app's decision, made before any 24 V is applied.
+  4. If the node's power configuration is CFG-4: the upstream switch opened and SWBYP
+     cleared, then the node discovered again with ENSW, which closes the 24 V switch; it
+     must be the same chip.
+  5. 24 V checked with the node's voltage monitor (VMTR, `checkHighVoltage`): VBUS at
+     least 4 V, else the node is rejected (`RejectReason::kNoHighVoltage`, also when the
+     second discovery finds nothing) and not processed further.
+- **Compared with ADI's stack:** the 24 V is turned on only for a node whose power
+  configuration (its chip's) is CFG-4; any other stays at 5 V with SWBYP, at any position
+  (a safety path: RJ45 hardware joins AD2437 nodes; [boards](boards.md))
+  (ADI's took the module info's power byte on a fixed product, 0x37, and rejected a
+  non-CFG-4 node unless it was the last). A failed 24 V check stops processing the node, and
+  its chip ID isn't kept, so it joins once the 24 V is back. The 24 V check runs on a
+  single-step link only if it asks (`Utp()` doesn't; ADI's stack read VBUS on every AD2437
+  sub-node), and VMTR_VEN goes back to 0 after it.
+- **Two-step needs the upstream node's high-power switch** (`ChipCaps::hasHighPowerSwitch`,
+  the AD2437): from any other node a two-step link runs single-step, without the two-step
+  checks, and the log says so. So `Rj45()` stays two-step, and the bench console's `link N
+  rj45` works on every chain; an RJ45 link run single-step clears `discovery` and the two
+  checks (`link N rj45 single`).
+- No SubNode hooks for the two steps: `DownstreamLink()` already gives each link's profile,
+  and the review decides whether the node gets its 24 V.
+- **Custom** stays single-step with `SeparateWires` power.
 - **A sub-node's image gives the link after it:** its B-side cable type (0x28) is the
   module's B port, in the specification's numbering plus Clockworks' RJ45-CUSTOM,
   RJ45-CUSTOM-INV and CUSTOM (`LinkProfile::ForBPort()`; provisioning.md). XLR and RJ45 are
@@ -383,28 +410,6 @@ ADI's stack has these defects; the C++ stack does the intended thing instead. Ea
 
 Features whose design is settled but which aren't built. The roadmap lists them with the rest
 of what isn't included; their stubs, where a chip register exists, return `kNotSupported`.
-
-### Two-step links
-RJ45 and XLR links into an AD2437 are two-step by design (ADI's `discovery.c`): the node is found
-at 5 V, its module info read, and only then is the 24 V high-power switch turned on. `LinkProfile`
-asks for it per link (`Discovery::kTwoStep`; the presets `Rj45()` and `Xlr()`), and today such a
-link is refused by `SetLinkProfile()` and not probed when an image's B port gives it. The design:
-1. Check power-good: the main node through `Platform::PowerGood()`, a sub-node through the GPIO
-   its `LinkProfile` names (`powerGoodGpio`, GPIO7 by default).
-2. Set SWBYP so the link runs at 5 V, then discover the node.
-3. Take the node's power capability from its `ModuleInfoSource`.
-4. Clear the upstream node's ENSW and discover again at high voltage.
-5. Check 24 V with the voltage monitor (VMTR, `checkHighVoltage`).
-
-Compared with ADI's stack: CFG4 (24 V) is turned on only when the node's module info gives that
-power configuration, and keeping the node is the app's decision (`OnNodeIdentified()`); a failed
-24 V check stops processing the node; the capability test uses the real chip, not a placeholder
-product ID; Custom stays single-step with `SeparateWires` power. To build with it: the `SubNode`
-hooks `SwitchBypass()` and `HighPowerSwitch()`; the simulator's check that XCVRBINV is written
-before ENSW and kept on later CONTROL writes (scenario 10); whether `Utp()` should run the
-AD2437's 24 V check (ADI's stack ran it on every AD2437 sub-node); simulator scenarios 16-19; the
-bench console's `link N xlr` and a way to ask for two-step on a UTP link. No XLR hardware has been
-run.
 
 ### Power diagnostics
 A `PowerDiag` step after a power-fault interrupt that tells the faults apart. In particular the
