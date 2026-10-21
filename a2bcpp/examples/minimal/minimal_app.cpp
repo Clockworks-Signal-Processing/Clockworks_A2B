@@ -151,6 +151,8 @@ void MinimalApp::OnEvent(a2b::Network& network, const a2b::Event& event) {
     case a2b::EventType::kRoutingApplied:
     case a2b::EventType::kRoutingFailed:
       return;  // The example routes no audio (ApplyRouting() is never called).
+    case a2b::EventType::kErrorReport:
+      return;  // The error watch is never turned on here.
   }
 }
 

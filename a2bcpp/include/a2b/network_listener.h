@@ -100,6 +100,10 @@ enum class EventType : uint8_t {
   /** A routing plan could not be built or written: Event::routingError says why, and
       Event::node names the node at fault (#kNoNode if none). The last plan written stays. */
   kRoutingFailed,
+  /** The error watch (Network::SetErrorWatch()) took a report: a probe of position
+      Event::node failed, or sub-node Event::node failed a chain check and its kNodeRemoved
+      events follow. Network::LastErrorReport() has what the nodes held. */
+  kErrorReport,
 };
 
 /**

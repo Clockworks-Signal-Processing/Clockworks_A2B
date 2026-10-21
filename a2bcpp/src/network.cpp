@@ -765,6 +765,65 @@ RejectReason Network::LastRejection() const { return m_Impl->LastRejection(); }
 bool Network::DiscoveryPaused() const { return m_Impl->DiscoveryPaused(); }
 
 /**
+ * Turns the error watch on or off, for finding out why a node drops. While it is on, every
+ * node counts bit errors (BECCTL: header-count, decoding, CRC, parity and interrupt-CRC
+ * errors, BECOVF when more than 16 come between two BECNT clears; a header-count error
+ * mostly raises a CRC error as well, so one line error can count twice, which the TRMs
+ * advise against and the watch accepts to miss nothing) and raises the SRF-missed
+ * and BECOVF interrupts besides its own (SubNode::InterruptMask()); each BECNT is read and
+ * summed before the stack's clear (BoardTimings::becntResetMs); and a failed probe or a
+ * node failing a chain check gets an ErrorReport (EventType::kErrorReport) of what the nodes
+ * held. Turning it on clears what the nodes had latched and the sums; turning it off writes
+ * BECCTL and INTMSK0 back. Both happen at the next Poll() between probes. Off by default:
+ * then the stack sends nothing for it.
+ * @param on True to watch.
+ */
+void Network::SetErrorWatch(bool on) { m_Impl->SetErrorWatch(on); }
+
+/**
+ * Tells whether the error watch is on.
+ * @return True after SetErrorWatch(true).
+ */
+bool Network::ErrorWatch() const { return m_Impl->ErrorWatch(); }
+
+/**
+ * The error watch's last report: what the nodes held when a probe failed, or before a node
+ * that failed a chain check was dropped. Kept until the next report.
+ * @return The report; ErrorReport::Cause::kNone if none was taken.
+ */
+const ErrorReport& Network::LastErrorReport() const { return m_Impl->LastErrorReport(); }
+
+/**
+ * A node's bit errors, summed from its BECNT before each of the stack's clears while the
+ * error watch is on, since it was turned on or ClearErrors(). Kept by position: a node
+ * dropped and found again adds to the same sum. An upper bound, not an error count: the
+ * watch has BECNT count header-count errors too, which mostly come with a CRC error for the
+ * same line error (SetErrorWatch()). Read it as "errors or none", and compare nodes and
+ * links by it rather than taking the figure for the number of errors.
+ * @param node #kMainNode or a sub-node position.
+ * @return The sum; 0 for a position out of range.
+ */
+uint32_t Network::BitErrorCount(NodeAddr node) const { return m_Impl->BitErrorCount(node); }
+
+/**
+ * At the next Poll() between probes, zeroes the bit-error sums and clears every node's
+ * latched INTPND0 bits and BECNT, and the main node's INTPND2.I2CERR and ICRCERR.
+ */
+void Network::ClearErrors() { m_Impl->ClearErrors(); }
+
+/**
+ * Reads a node's error registers once each, without retries: SWSTAT, INTPND0 to BECNT, and
+ * NODE on a sub-node. Nothing is cleared.
+ * @param node #kMainNode or a sub-node in the bus (or joining it).
+ * @param state Set to what was read; NodeErrorState::read is false if a read failed.
+ * @return Result::kOk, Result::kInvalidArgument for a node that isn't there, or
+ *         Result::kI2cError.
+ */
+Result Network::ReadErrorState(NodeAddr node, NodeErrorState& state) {
+  return m_Impl->ReadErrorState(node, state);
+}
+
+/**
  * Makes the state of a stopped Network.
  * @param owner The Network, which the default module-info source reads through and the
  *        listener is given.

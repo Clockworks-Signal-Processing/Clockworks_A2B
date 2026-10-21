@@ -117,6 +117,7 @@ transfer's start):
 | A dropped node's upstream switch opened to the next probe there | `probeIntervalMs` (500), **never less than 250 ms** | Minimum | The AD2437 TRM's bus drop flow waits 250 ms after SWCTL = 0 (the AD242x TRM's, 100 ms) before discovery, so the dropped part starts from power-up | none |
 | A rejected node to the next probe of its position | `rejectedProbeMs` (2000) | Period | New: the position is probed again for a different module; the same node (its chip ID) is switched off again at once | none |
 | BECNT cleared (0 written to every node) | every `becntResetMs` (1000), between probes; 0 for none | Period | The TRMs ("Line Diagnostics After Discovery": write 0 to BECNT once every second); ADI's `a2b_app_handle_becovf`, a broadcast every 1 s | none (a broadcast write of 0x1F) |
+| The error watch's reads (only while it is on) | each node's BECNT just before each clear; the report's reads (three a sub-node, two the main node, then one of the failing node) between a failed probe or check and the drop | - | New: `Network::SetErrorWatch()`. They add a few transfers per node before the drop; the drop's own timing is unchanged | none |
 
 A node is also dropped at once when an interrupt says so: SRF missed from the new last node (if
 its `InterruptMask()` enables it), a power fault, an I2C or interrupt messaging error, or a

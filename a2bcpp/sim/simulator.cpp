@@ -453,6 +453,9 @@ void Node::Write(uint16_t reg, uint8_t value) {
       case reg::kIntpnd2:
         m_Regs[0][low] = static_cast<uint8_t>(m_Regs[0][low] & ~value);  // Write 1 to clear.
         return;
+      case reg::kBecnt:
+        m_Regs[0][low] = 0;  // Any write clears the count.
+        return;
       default:
         if (low >= reg::kChipid0 && low < reg::kChipid0 + reg::kCountChipid) {
           return;  // Read-only.
@@ -704,6 +707,10 @@ Result Bus::BusAccess(const uint8_t* writeData, size_t writeLen, uint8_t* readDa
     return Result::kI2cError;  // No such node on the bus yet.
   }
   Node& node = *m_Subs[position];
+  if ((nodeadr & reg::kNodeadrPeri) == 0 && node.m_FailAccesses > 0) {
+    --node.m_FailAccesses;
+    return Result::kI2cError;
+  }
   if ((nodeadr & reg::kNodeadrPeri) != 0) {
     I2cDevice* device = node.FindDevice(node.m_Regs[0][reg::kChip]);
     if (device == nullptr) {
@@ -1047,6 +1054,8 @@ void Bus::DropFrom(size_t position, bool powerFault) {
   const uint8_t mask = last.m_Regs[0][reg::kIntmsk0];
   if (powerFault) {
     last.m_Regs[0][reg::kIntpnd0] |= reg::kIntmsk0Pwrerr;
+    last.m_Regs[0][reg::kSwstat] = static_cast<uint8_t>(
+        reg::kSwstatFault | (7 << reg::kSwstatFaultCodePos));  // Undetermined, as INTTYPE 15.
     if ((mask & reg::kIntmsk0Pwrerr) != 0) {
       m_Interrupts.push_back({source, reg::kInttypePwrerrCable});
     }
@@ -1055,6 +1064,41 @@ void Bus::DropFrom(size_t position, bool powerFault) {
     m_Interrupts.push_back({source, reg::kInttypeSrferr});
   }
 }
+
+/**
+ * A node sees @p count bit errors: BECNT counts them (up to 255) if its BECCTL counts any
+ * error type, and past BECCTL.THRESHLD's limit (BECNT > 2 << THRESHLD) INTPND0.BECOVF is
+ * set and, if INTMSK0 enables it, INTTYPE 4 raised (TRMs, BECCTL and BECNT). The model
+ * doesn't tell the error types apart.
+ * @param position A sub-node position, or -1 for the main node.
+ * @param count Errors seen.
+ */
+void Bus::InjectBitErrors(int position, uint8_t count) {
+  Node& node = (position < 0) ? *m_Main : *m_Subs[static_cast<size_t>(position)];
+  uint8_t* regs = node.m_Regs[0];
+  if ((regs[reg::kBecctl] & reg::kBecctlCountAll) == 0) {
+    return;
+  }
+  const unsigned sum = regs[reg::kBecnt] + count;
+  regs[reg::kBecnt] = static_cast<uint8_t>((sum > 0xFF) ? 0xFF : sum);
+  const unsigned limit = 2u << (regs[reg::kBecctl] >> reg::kBecctlThreshldPos);
+  if (regs[reg::kBecnt] <= limit || (regs[reg::kIntpnd0] & reg::kIntmsk0Becovf) != 0) {
+    return;
+  }
+  regs[reg::kIntpnd0] |= reg::kIntmsk0Becovf;
+  if ((regs[reg::kIntmsk0] & reg::kIntmsk0Becovf) != 0) {
+    const uint8_t source =
+        (position < 0) ? reg::kIntsrcMstint
+                       : static_cast<uint8_t>(reg::kIntsrcSlvint | (position & reg::kIntsrcInode));
+    m_Interrupts.push_back({source, reg::kInttypeBecovf});
+  }
+}
+
+/**
+ * Makes the next @p count register accesses to sub-node @p position fail, as a node that
+ * stops answering for a while without dropping out (its peripherals still answer).
+ */
+void Bus::FailNodeAccesses(size_t position, int count) { m_Subs[position]->m_FailAccesses = count; }
 
 /** Counts a transfer in the millisecond after the last CONTROL.NEWSTRCT. */
 void Bus::CheckSettle() {

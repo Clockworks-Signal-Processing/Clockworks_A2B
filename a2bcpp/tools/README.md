@@ -40,6 +40,12 @@ microseconds from the start of the trace. A file may start with an `I2CT-BEGIN` 
   `--trace traces/boot.txt` (every I2C transfer, from the start), and **Pi bench: Get traces from
   Pi** copies `~/traces` to `build/a2b-bench-pi/traces`.
 
+The bench console has the error watch on from the start, which adds a BECCTL and an INTMSK0
+write per node and a BECNT read before each clear ([bench console](../docs/bench_console.md),
+`errors`). To compare a trace with a golden, or with an earlier trace, start the console with
+`--commands="errors off"` so the traffic is the stack's own; the library's default is off, so
+the other programs need nothing.
+
 **The goldens** were captured from ADI's stack, with an I2C trace hook added to its three
 platform layers (enabled with `A2B_TRACE_I2C`; the hook is not part of this snapshot, so a new
 golden needs ADI's stack with such a hook). For each golden two runs of the same scenario were

@@ -159,6 +159,8 @@ void FixedApp::OnEvent(a2b::Network& network, const a2b::Event& event) {
     case a2b::EventType::kRoutingFailed:
       std::printf("routing failed: %s\n", a2b::ToString(event.routingError));
       return;
+    case a2b::EventType::kErrorReport:
+      return;  // The error watch is never turned on here.
   }
 }
 

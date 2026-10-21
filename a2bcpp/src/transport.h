@@ -14,6 +14,7 @@
 #include <cstddef>
 #include <cstdint>
 
+#include "a2b/error_report.h"
 #include "a2b/platform.h"
 #include "a2b/types.h"
 
@@ -59,6 +60,8 @@ class Transport {
 
   uint8_t MainAddr() const { return m_MainAddr; }  ///< The main node's 7-bit I2C address.
   uint8_t BusAddr() const { return m_BusAddr; }    ///< The bus's 7-bit I2C address.
+  /** The last register access that failed (FailedAccess::tries is 1), since the start. */
+  const FailedAccess& LastFailure() const { return m_LastFailure; }
 
  private:
   static constexpr uint8_t kUnknown = 0xFF;  ///< Cached value unknown; no value written is this.
@@ -69,6 +72,8 @@ class Transport {
   Result WriteChunk(uint8_t i2cAddr, uint8_t regLow, const uint8_t* data,
                     size_t len);  ///< One register-write transfer.
   void NoteRegisterWrites(NodeAddr node, uint16_t reg, size_t len);  ///< Updates the caches.
+  Result NoteResult(Result result, NodeAddr node, uint16_t reg, bool write,
+                    uint32_t startMs);  ///< Keeps a failure.
   /// Index of a node in m_MmrPage.
   static size_t PageIndex(NodeAddr node) { return static_cast<size_t>(node + 1); }
 
@@ -78,6 +83,7 @@ class Transport {
   uint8_t m_Nodeadr;                    ///< Last NODEADR value written, or kUnknown.
   uint8_t m_Chip[kMaxSubNodes];         ///< CHIP per sub-node, or kUnknown.
   uint8_t m_MmrPage[kMaxSubNodes + 1];  ///< MMRPAGE per node ([0] = main), or kUnknown.
+  FailedAccess m_LastFailure;           ///< The last register access that failed.
 };
 
 }  // namespace a2b

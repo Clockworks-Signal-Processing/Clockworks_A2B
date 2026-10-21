@@ -151,16 +151,19 @@ void Network::Impl::TakeChipsPowerConfig(NodeAddr position) {
 }
 
 /**
- * Between probes: the chain check when it is due (or asked for), then BECNT.
+ * Between probes: the chain check when it is due (or asked for), the error watch's
+ * settings, then BECNT (summed first while watching).
  * @return False if the check started the bus again.
  */
 bool Network::Impl::Upkeep(uint32_t nowMs) {
   if ((m_CheckNow || TimeReached(nowMs, m_CheckDeadline)) && !CheckChain(nowMs)) {
     return false;
   }
+  ApplyWatch();
   const uint32_t becntMs = m_Board.timings.becntResetMs;
   if (becntMs != 0 && TimeReached(nowMs, m_BecntDeadline)) {
     m_BecntDeadline = nowMs + becntMs;
+    SumBitErrors();
     const uint8_t zero = 0;
     const Result result = (m_SubNodeCount == 0) ? m_Transport.WriteReg(kMainNode, reg::kBecnt, zero)
                                                 : m_Transport.BroadcastWrite(reg::kBecnt, &zero, 1);
@@ -182,8 +185,10 @@ bool Network::Impl::CheckChain(uint32_t nowMs) {
   m_CheckDeadline = nowMs + m_Board.timings.chainCheckMs;
   uint8_t ids[2] = {};
   uint8_t control = 0;
-  if (ReadForCheck(kMainNode, reg::kVendor, ids, sizeof(ids)) != Result::kOk ||
-      ReadForCheck(kMainNode, reg::kControl, &control, 1) != Result::kOk) {
+  FailedAccess failed;
+  if (ReadForCheck(kMainNode, reg::kVendor, ids, sizeof(ids), failed) != Result::kOk ||
+      ReadForCheck(kMainNode, reg::kControl, &control, 1, failed) != Result::kOk) {
+    LogFailure(failed);
     Restart("a2b: main node does not answer; starting again", true);
     return false;
   }
@@ -195,8 +200,14 @@ bool Network::Impl::CheckChain(uint32_t nowMs) {
   for (size_t i = 0; i < m_SubNodeCount; ++i) {
     const NodeAddr position = static_cast<NodeAddr>(i);
     const SubNodeIdentity& identity = m_SubNodes[i].identity;
-    if (ReadForCheck(position, reg::kVendor, ids, sizeof(ids)) != Result::kOk ||
-        ids[0] != identity.vendorId || ids[1] != identity.productId) {
+    const Result result = ReadForCheck(position, reg::kVendor, ids, sizeof(ids), failed);
+    if (result != Result::kOk || ids[0] != identity.vendorId || ids[1] != identity.productId) {
+      if (result != Result::kOk) {
+        LogFailure(failed);
+      }
+      if (m_Watch) {
+        TakeReport(ErrorReport::Cause::kDropped, position, failed);
+      }
       Drop(position, nowMs);
       return true;
     }
@@ -204,12 +215,25 @@ bool Network::Impl::CheckChain(uint32_t nowMs) {
   return true;
 }
 
-/** Reads registers for a chain check, up to three times; the result of the last try. */
-Result Network::Impl::ReadForCheck(NodeAddr node, uint16_t reg, uint8_t* data, size_t len) {
+/**
+ * Reads registers for a chain check, up to three times; the result of the last try.
+ * @param failed Set to the read, its tries and their time; FailedAccess::tries is 0 if it
+ *        worked.
+ */
+Result Network::Impl::ReadForCheck(NodeAddr node, uint16_t reg, uint8_t* data, size_t len,
+                                   FailedAccess& failed) {
+  const uint32_t startMs = m_Platform.NowMs();
   Result result = Result::kI2cError;
-  for (int i = 0; i < kCheckTries && result != Result::kOk; ++i) {
+  int tries = 0;
+  while (tries < kCheckTries && result != Result::kOk) {
     result = m_Transport.ReadRegs(node, reg, data, len);
+    ++tries;
   }
+  failed = FailedAccess();
+  failed.node = node;
+  failed.reg = reg;
+  failed.tries = static_cast<uint8_t>((result == Result::kOk) ? 0 : tries);
+  failed.elapsedMs = m_Platform.NowMs() - startMs;
   return result;
 }
 
@@ -435,13 +459,19 @@ void Network::Impl::EndProbe(Discovery::Outcome outcome, uint32_t nowMs) {
       m_Deadline = nowMs + m_Board.timings.rejectedProbeMs;
       SetState(NetworkState::kRunning);
       return;
-    default:
+    default: {
+      const FailedAccess failed = m_Transport.LastFailure();
+      if (m_Watch) {
+        TakeReport(ErrorReport::Cause::kProbeFailed, position, failed);
+      }
       m_Discovery.Abandon();
       LogNumber(m_Platform, LogLevel::kWarning, "a2b: probe for sub-node ", number,
                 " failed; checking the chain");
+      LogFailure(failed);
       m_CheckNow = true;
       m_Deadline = nowMs + m_Board.timings.probeIntervalMs;
       return;
+    }
   }
 }
 
@@ -577,7 +607,7 @@ void Network::Impl::FinishNode(NodeAddr position) {
   link.swctl = caps.switchMode;
   link.hasSwitchConfig = caps.hasSwitchConfig;
   link.powerConfig = m_SubNodes[position].moduleInfo.powerConfig;
-  link.intmsk0 = masks.intmsk0;
+  link.intmsk0 = LinkIntmsk0(position);
   link.intmsk1 = masks.intmsk1;
 }
 
@@ -613,6 +643,7 @@ void Network::Impl::RemoveNodes(NodeAddr from, RemovalReason why) {
     Queue(event);
     DestroyNode(position, true);
     m_Transport.ForgetNode(position);
+    m_Watched[i + 1] = false;  // A node found there again gets the watch's settings again.
   }
   if (static_cast<size_t>(from) < m_SubNodeCount) {
     m_SubNodeCount = static_cast<size_t>(from);

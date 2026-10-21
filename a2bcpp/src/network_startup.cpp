@@ -238,6 +238,9 @@ void Network::Impl::BeginDiscovery() {
   m_CheckDeadline = nowMs + m_Board.timings.chainCheckMs;
   m_BecntDeadline = nowMs + m_Board.timings.becntResetMs;
   m_Poller.CheckAtNextPoll();
+  for (bool& watched : m_Watched) {
+    watched = false;  // The main node's image and the sub-nodes are new.
+  }
 }
 
 /**

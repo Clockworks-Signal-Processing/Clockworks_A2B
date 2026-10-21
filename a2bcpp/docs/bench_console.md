@@ -174,7 +174,11 @@ Command names ignore case. `help` lists them.
 | `eeprom abort` | Stops the job, at once, even while it runs; a write stopped leaves the node blank (below) |
 | `i2cTrace on FILE` | Writes every I2C transfer to FILE (overwritten) |
 | `i2cTrace off`, `i2cTrace status` | Stops and closes the trace / shows it |
-| `interrupts quiet`, `interrupts all` | Hides (the default) or shows the last sub-node's open-line interrupts, types 12 and 13 (PWRERR: cable disconnected, open circuit or wrong port; AD242x TRM, Table 5-1). Each probe behind the last node closes its switch, and with nothing plugged in there an AD242x reports its open B side; `status` counts them. The first one from a last node prints a hint, once until the chain changes: nothing is plugged in after it, or the node there draws no bias current (its own supply behind an isolated A side, as an AB0020 with an AD2437 behind an AD242x), which needs `link N custom`. Every other interrupt is printed |
+| `interrupts quiet`, `interrupts all` | Hides (the default) or shows the last sub-node's open-line interrupts, types 12 and 13 (PWRERR: cable disconnected, open circuit or wrong port; AD242x TRM, Table 5-1). Each probe behind the last node closes its switch, and with nothing plugged in there an AD242x reports its open B side; `status` counts them. The first one from a last node prints a hint, once until the chain changes: nothing is plugged in after it, or the node there draws no bias current (its own supply behind an isolated A side, as an AB0020 with an AD2437 behind an AD242x), which needs `link N custom`. Every other interrupt is printed, with its type's name ("type 5 (SRF missed)") |
+| `errors` | The error watch, on from the start (`a2b::Network::SetErrorWatch()`). Each node's error registers, read now: BECNT and the sum the stack keeps (read before each of its once-a-second clears; an upper bound, as a header-count error mostly counts a CRC error too), the latched INTPND0 bits by name (SRF-CRC, SRF-missed, BECOVF, PWRERR, parity, CRC, decoding, header-count; the main node's INTPND2 I2CERR and ICRCERR too), SWSTAT (FIN, a cable fault by name) and NODE (LAST: the node lost its downstream) |
+| `errors on`, `errors off` | Turns the watch on or off. On: every node counts bit errors (BECCTL 0x7F: every type, BECOVF past 16 a second; counting header-count errors double-counts most line errors, which the TRMs advise against and the watch accepts so nothing is missed), raises the SRF-missed and BECOVF interrupts besides its own, and when a probe fails or a node fails the chain check the console prints an error report before the drop (below). Turning it on clears what the nodes had latched. Off: BECCTL and INTMSK0 as they were, and the stack sends nothing for it |
+| `errors clear` | Zeroes the sums and clears every node's latched INTPND0 bits and BECNT |
+| `errors report` | Prints the last error report again |
 | `rdm REG [COUNT]` | Reads COUNT (1-256, default 1) main-node registers from REG, 16 to a line. REG 0x100-0x1FF is page 1, on the AD2433 and AD2437 only |
 | `rds N REG [COUNT]` | The same for sub-node N |
 | `wrm REG VALUE...` | Writes main-node registers from REG, one VALUE (0x00-0xFF) each |
@@ -531,9 +535,11 @@ with `local`, only the nodes named drop out; with `global`, all do, for about a
 millisecond a step.
 
 Each link's cable length goes into the response cycles: 4 m unless `cable N` gives the
-link its own (the stack doesn't measure cables). Shorter cables need nothing: the TRMs
-call the 4 m calculation adequate when the lengths are unknown, as each node adjusts its
-response time during discovery. Set the long ones, e.g. `cable 2 15`; `status` lists them.
+link its own (the stack doesn't measure cables). Give every link a length close to its
+real one, short ones too, e.g. `cable 1 0.1` for modules on one board or `cable 2 15`:
+short links left at 4 m dropped nodes now and then on the bench, though the TRMs call the
+4 m calculation adequate ([hardware notes](hardware_notes.md#routing-and-audio)). `status`
+lists them.
 
 ### Links
 
@@ -553,6 +559,27 @@ RJ45 link, [boards](boards.md)),
 and when a link asked two-step runs single-step because the chip before it has no 24 V
 switch. A node whose VBUS stays under 4 V is rejected ("no 24 V on its link") and probed
 again every 2 s, from its first step. `status` names each link by its `link` form.
+
+### Catching a drop
+
+With the error watch on (the default), a node that fails the chain check prints, before
+its `removed` lines:
+
+```
+  interrupt from sub-node 2: type 5 (SRF missed)
+error report at 18235 ms: sub-node 3 failed the chain check (sub-node 3, 0x02 read, 3 tries, 1521 ms); no answer after that either
+  main node: BECNT 0 (sum 0), INTPND0 0x00, INTPND2 0x00, SWSTAT 0x01 FIN
+  sub-node 0: BECNT 0 (sum 0), INTPND0 0x00, SWSTAT 0x01 FIN, NODE 0x20
+  ...
+  sub-node 2: BECNT 0 (sum 3), INTPND0 0x40 SRF-missed, SWSTAT 0x01 FIN, NODE 0xA2 LAST
+```
+
+Read it from the node before the failing one: LAST with SRF-missed says the link or the node
+behind it went away (the TRMs' drop); a cable fault in SWSTAT or PWRERR says power; neither,
+with "it answered a read after that", says the node was dropped while it could still answer.
+Bit-error sums that grow before a drop point at the link. The lines above are what the
+console prints; the values are an example. The procedure is in
+[testing](testing.md#catching-a-drop).
 
 ### Registers
 

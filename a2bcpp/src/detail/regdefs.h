@@ -47,6 +47,7 @@ inline constexpr uint16_t kSlotfmt = 0x10;     ///< Main node only: slot format.
 inline constexpr uint16_t kDatctl = 0x11;      ///< Main node only: data control.
 inline constexpr uint16_t kControl = 0x12;     ///< Control.
 inline constexpr uint16_t kDiscvry = 0x13;  ///< Main node only: start discovery (response cycles).
+inline constexpr uint16_t kSwstat = 0x14;   ///< Switch status: completion and cable faults.
 inline constexpr uint16_t kIntstat = 0x15;  ///< Interrupt status.
 inline constexpr uint16_t kIntsrc = 0x16;   ///< Main node only: interrupt source.
 inline constexpr uint16_t kInttype =
@@ -156,11 +157,14 @@ inline constexpr uint8_t kIntsrcMstint = 0x80;    ///< The main node raised the 
 inline constexpr uint8_t kIntsrcSlvint = 0x40;    ///< A sub-node raised the interrupt.
 inline constexpr uint8_t kIntsrcInode = 0x0F;     ///< Which sub-node.
 inline constexpr uint8_t kIntpnd2Dscdone = 0x01;  ///< Discovery done.
+inline constexpr uint8_t kIntpnd2I2cerr = 0x02;   ///< Main node: a remote access failed.
+inline constexpr uint8_t kIntpnd2Icrcerr = 0x04;  ///< Main node: interrupt frame CRC error.
 inline constexpr uint8_t kIntpnd0Srferr =
     0x40;  ///< SRF missed (SRFMISSERR on AD243x): the next node's SRF didn't come.
 inline constexpr uint8_t kIntmsk2Dscdone = 0x01;  ///< Discovery-done interrupt enable.
 
 // INTTYPE values.
+inline constexpr uint8_t kInttypeBecovf = 4;            ///< Bit error count overflow.
 inline constexpr uint8_t kInttypeSrferr = 5;            ///< SRF missed (INTPND0.SRFERR).
 inline constexpr uint8_t kInttypePwrerrFirst = 9;       ///< First power fault type (9-15).
 inline constexpr uint8_t kInttypePwrerrLast = 15;       ///< Last power fault type (9-15).
@@ -200,19 +204,32 @@ inline constexpr uint8_t kI2srateX4 = 6;  ///< #kI2srateRate: four times the sup
 
 // Register fields that the SigmaStudio+ import sets (import/ss_plus). A mask is the
 // field; a k...Pos constant is the bit position of a field wider than one bit.
-inline constexpr uint8_t kSlotfmtDnfp = 0x08;       ///< Downstream floating-point compression.
-inline constexpr uint8_t kI2ccfgDisable = 0x80;     ///< AD243x: I2C pins used as GPIO.
-inline constexpr uint8_t kI2sgcfgSyncdis = 0x08;    ///< AD243x: SYNC pin disabled.
-inline constexpr uint8_t kI2sgcfgRxondtx1 = 0x08;   ///< AD242x: receive on DTX1.
-inline constexpr uint8_t kI2scfgTx0en = 0x01;       ///< AD242x: DTX0 enabled.
-inline constexpr uint8_t kI2scfgTx1en = 0x02;       ///< AD242x: DTX1 enabled.
-inline constexpr uint8_t kI2scfgRx0en = 0x10;       ///< AD242x: DRX0 enabled.
-inline constexpr uint8_t kI2scfgRx1en = 0x20;       ///< AD242x: DRX1 enabled.
-inline constexpr uint8_t kI2scfgTxpins = 0x07;      ///< AD243x: number of TX pins.
-inline constexpr uint8_t kI2scfgRxpins = 0x70;      ///< AD243x: number of RX pins.
-inline constexpr uint8_t kI2scfgRxpinsPos = 4;      ///< Position of #kI2scfgRxpins.
-inline constexpr uint8_t kIntmsk0Pwrerr = 0x10;     ///< Power fault interrupt (INTPND0 bit 4).
-inline constexpr uint8_t kIntmsk0Srferr = 0x40;     ///< SRF missed interrupt (INTPND0 bit 6).
+inline constexpr uint8_t kSlotfmtDnfp = 0x08;      ///< Downstream floating-point compression.
+inline constexpr uint8_t kI2ccfgDisable = 0x80;    ///< AD243x: I2C pins used as GPIO.
+inline constexpr uint8_t kI2sgcfgSyncdis = 0x08;   ///< AD243x: SYNC pin disabled.
+inline constexpr uint8_t kI2sgcfgRxondtx1 = 0x08;  ///< AD242x: receive on DTX1.
+inline constexpr uint8_t kI2scfgTx0en = 0x01;      ///< AD242x: DTX0 enabled.
+inline constexpr uint8_t kI2scfgTx1en = 0x02;      ///< AD242x: DTX1 enabled.
+inline constexpr uint8_t kI2scfgRx0en = 0x10;      ///< AD242x: DRX0 enabled.
+inline constexpr uint8_t kI2scfgRx1en = 0x20;      ///< AD242x: DRX1 enabled.
+inline constexpr uint8_t kI2scfgTxpins = 0x07;     ///< AD243x: number of TX pins.
+inline constexpr uint8_t kI2scfgRxpins = 0x70;     ///< AD243x: number of RX pins.
+inline constexpr uint8_t kI2scfgRxpinsPos = 4;     ///< Position of #kI2scfgRxpins.
+inline constexpr uint8_t kIntmsk0Pwrerr = 0x10;    ///< Power fault interrupt (INTPND0 bit 4).
+inline constexpr uint8_t kIntmsk0Srferr = 0x40;    ///< SRF missed interrupt (INTPND0 bit 6).
+inline constexpr uint8_t kIntmsk0Becovf = 0x20;    ///< Bit error count overflow (INTPND0 bit 5).
+
+// SWSTAT and BECCTL fields (both families' TRMs).
+inline constexpr uint8_t kSwstatFin = 0x01;        ///< The switch finished closing.
+inline constexpr uint8_t kSwstatFault = 0x02;      ///< A cable fault was detected.
+inline constexpr uint8_t kSwstatFaultCode = 0x70;  ///< Cable fault code (7: undetermined).
+inline constexpr uint8_t kSwstatFaultCodePos = 4;  ///< Position of #kSwstatFaultCode.
+/** Count header-count, decoding, CRC, parity and interrupt-CRC errors. ENHDCNT (bit 0) is
+    against the TRMs' guideline ("Error Management": a header-count error mostly raises a CRC
+    error too, so BECNT counts one line error twice); the error watch takes it to miss
+    nothing, so read a sum as an upper bound. */
+inline constexpr uint8_t kBecctlCountAll = 0x1F;
+inline constexpr uint8_t kBecctlThreshldPos = 5;    ///< BECOVF when BECNT > 2 << THRESHLD.
 inline constexpr uint8_t kPincfgDrvstr = 0x01;      ///< High drive strength.
 inline constexpr uint8_t kPincfgGpioselPos = 6;     ///< AD243x: position of the GPIO mode field.
 inline constexpr uint8_t kPincfgGpiosel = 0xC0;     ///< AD243x: GPIO mode field (unused on AD242x).

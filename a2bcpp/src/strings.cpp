@@ -150,6 +150,8 @@ const char* ToString(EventType type) {
       return "routing applied";
     case EventType::kRoutingFailed:
       return "routing failed";
+    case EventType::kErrorReport:
+      return "error report";
   }
   return "?";
 }
@@ -198,6 +200,79 @@ const char* ToString(RoutingMute mode) {
       return "none";
   }
   return "?";
+}
+
+/**
+ * A name for an interrupt type (INTTYPE), from the AD242x and AD2437 TRMs' tables. Types 12
+ * and 13 are the AD242x's, type 14 and 80 the AD2437's.
+ * @param type The INTTYPE value.
+ * @return Its name, or "unknown".
+ */
+const char* InterruptName(uint8_t type) {
+  static const char* const kLow[] = {
+      "header count error",                     // 0
+      "data decoding error",                    // 1
+      "CRC error",                              // 2
+      "data parity error",                      // 3
+      "bit error count overflow",               // 4
+      "SRF missed",                             // 5
+      "SRF CRC error",                          // 6
+      "unknown",                                // 7
+      "unknown",                                // 8
+      "power fault: shorted to GND",            // 9
+      "power fault: shorted to VBUS",           // 10
+      "power fault: wires shorted together",    // 11
+      "power fault: open line",                 // 12
+      "power fault: reversed or wrong port",    // 13
+      "power fault: open line",                 // 14
+      "power fault: undetermined cable fault",  // 15
+  };
+  if (type < sizeof(kLow) / sizeof(kLow[0])) {
+    return kLow[type];
+  }
+  if (type >= 16 && type <= 23) {
+    static const char* const kGpio[] = {"IO0 pin", "IO1 pin", "IO2 pin", "IO3 pin",
+                                        "IO4 pin", "IO5 pin", "IO6 pin", "IO7 pin"};
+    return kGpio[type - 16];
+  }
+  switch (type) {
+    case 24:
+      return "discovery done";
+    case 25:
+      return "I2C error";
+    case 26:
+      return "interrupt CRC error";
+    case 41:
+      return "power fault: shorted to GND, not localized";
+    case 42:
+      return "power fault: shorted to VBUS, not localized";
+    case 48:
+      return "mailbox 0 full";
+    case 49:
+      return "mailbox 0 empty";
+    case 50:
+      return "mailbox 1 full";
+    case 51:
+      return "mailbox 1 empty";
+    case 80:
+      return "VMTR";
+    case 128:
+      return "interrupt messaging error";
+    case 252:
+      return "start-up error";
+    case 253:
+      return "sub-node INTTYPE read error";
+    case 254:
+      return "standby done";
+    case 255:
+      return "main node PLL locked";
+    default:
+      break;
+  }
+  if (type >= 64 && type <= 70) {
+    return "SPI error or done";
+  }
+  return "unknown";
 }
 
 }  // namespace a2b

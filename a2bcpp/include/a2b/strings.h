@@ -25,6 +25,7 @@ const char* ToString(RemovalReason reason);  ///< Why a node left the bus.
 const char* ToString(EventType type);        ///< "node added", ...
 const char* ToString(RoutingError error);    ///< Why a routing plan failed.
 const char* ToString(RoutingMute mode);      ///< What a plan mutes while it is written.
+const char* InterruptName(uint8_t type);     ///< An INTTYPE value: "SRF missed", ...
 
 }  // namespace a2b
 

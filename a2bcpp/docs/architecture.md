@@ -169,6 +169,29 @@ A node that fails a check, the review or its set-up is switched off and becomes 
 `rejectedProbeMs` (2 s). The same chip ID there is switched off again straight after
 CHIPID, without an event; another module is identified as usual.
 
+**The error watch** (`Network::SetErrorWatch()`, off by default; the bench console turns it
+on) is for finding out why a node drops. It works between probes, like the chain check:
+- Each node, as it joins or when the watch is turned on, gets BECCTL counting every error
+  type (BECOVF past 16) and the SRF-missed and BECOVF interrupts added to its INTMSK0
+  (its link's INTMSK0 too, so the next probe keeps them). Turned off, both go back.
+- At each BECNT clear (`becntResetMs`) every node's BECNT is read first and summed
+  (`Network::BitErrorCount()`). The sum is an upper bound, not an error count: BECCTL counts
+  header-count errors too, and a header-count error mostly raises a CRC error for the same
+  line error, so one error can count twice. The TRMs advise leaving ENHDCNT clear for that
+  reason; the watch takes it so that nothing goes uncounted, and a sum is meant for telling
+  a quiet link from a noisy one, not for counting errors.
+- When a probe fails, or a sub-node fails its chain-check reads, the stack reads the error
+  registers of the main node and of every node before it (SWSTAT, INTPND0 to BECNT, NODE:
+  never INTTYPE), then, before a drop, the failing node's IDs once more. The bits read are
+  cleared, the report is kept (`Network::LastErrorReport()`) and `kErrorReport` is queued;
+  the drop then goes ahead as before. The upstream node of a node that is really gone shows
+  NODE.LAST and the SRF missed; a node that answers that last read was dropped while it
+  could still answer.
+
+Whether or not the watch is on, a failed access is logged with its node, register, tries
+and time ("a2b: failed access: sub-node 3, 0x02 read, 3 tries, 1521 ms"): a NAK is quick,
+while a host adapter that times out (the USBi) takes about 500 ms a try.
+
 ### Routing
 
 ```
@@ -255,6 +278,7 @@ Everything the app hears about comes through its `NetworkListener` (cookbook,
 
 Order within a round follows the bus: e.g. a node whose 24 V downstream supply is
 removed gives `kInterrupt` (its power fault), then `kNodeRemoved` for each node after it.
+With the error watch on, `kErrorReport` comes just before those `kNodeRemoved` events.
 
 ## Several buses
 
@@ -295,7 +319,7 @@ for (;;) {
   the shared I2C controller (the stack holds the lock for each whole register or
   peripheral access), make its other calls (`NowMs()`, `Log()`, the GPIO calls)
   thread-safe, and guard any app object two buses share.
-- **RAM.** Each `Network` is about 15 KB on the RP2040, with no heap; one thread polling
+- **RAM.** Each `Network` is about 15.5 KB on the RP2040, with no heap; one thread polling
   two buses needs 456 bytes of stack plus the I2C driver (`-Og`)
   ([RAM on the RP2040](ram.md)).
 

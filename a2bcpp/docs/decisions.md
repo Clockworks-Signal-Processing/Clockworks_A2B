@@ -278,7 +278,8 @@ Each item is ported, and has a rule in the trace comparison ([testing.md](testin
 - SWCTL written 0x21/0x11 on every node around each blind probe, in each chip's own switch mode
   (0x01 on the AD242x).
 - BECNT reset every second: a broadcast, as ADI's stack wrote it, or the main node's register
-  while there are no sub-nodes.
+  while there are no sub-nodes. The error watch, when an app turns it on, reads each node's
+  BECNT just before the clear; with it off nothing is added ([architecture](architecture.md#finding-the-chain)).
 - The high-power-switch mode-4 open-detect timer is compiled out of ADI's PnP builds
   (`#ifndef A2B_FEATURE_PNP`), so there is nothing to port.
 - **AD243x main-node start-up, the same on the first discovery as on a rediscovery:**

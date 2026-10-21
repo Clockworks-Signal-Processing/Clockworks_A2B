@@ -280,6 +280,7 @@ dropped.
 | `kInterrupt` | A node raised an interrupt the stack doesn't consume (not DSCDONE or MSTR_RUNNING) | `node` (or `kMainNode`), `interruptType` (INTTYPE) |
 | `kRoutingApplied` | A routing plan was written (`Routing()` gives it) | none |
 | `kRoutingFailed` | A plan for the chain as it changed can't be built, or writing it failed | `routingError`, `node` (the node it is about, or `kNoNode`) |
+| `kErrorReport` | The error watch (`SetErrorWatch()`, off by default) took a report: a probe failed, or a node failed a chain check and its `kNodeRemoved` events follow. `LastErrorReport()` has it | `node` (the position probed, or the node dropped) |
 
 `RemovalReason`: `kDropped` (it, or a node before it, stopped answering: unplugged, lost
 power, a line fault), `kRejected` (`RejectNode()` for it or a node before it),
@@ -384,8 +385,10 @@ a node plugged in there is found. When to stop is the app's decision:
 
 The stack consumes DSCDONE and MSTR_RUNNING, and checks the chain at once after the
 interrupts that may mean a drop. Every other interrupt becomes a `kInterrupt` event with
-the node and its INTTYPE. Which interrupts a sub-node raises is its INTMSK0/1, which its
-`SubNode::InterruptMask()` gives (default: power faults only, ADI's masks):
+the node and its INTTYPE. `a2b::InterruptName(type)` names an INTTYPE value. Which
+interrupts a sub-node raises is its INTMSK0/1, which its `SubNode::InterruptMask()` gives
+(default: power faults only, ADI's masks; the error watch adds SRF missed and BECOVF while
+it is on):
 
 ```cpp
 class WatchedModule : public a2b::SubNode {
@@ -438,8 +441,9 @@ app's risk:
 | MMRPAGE | Selects the page; cached | Refused (`kInvalidArgument`): the register address picks the page |
 | CONTROL, SWCTL, SWCTL2, DISCVRY, RESPCYCS | Discovery and the links | A switch opened takes the power from the nodes after it, which the next chain check removes as dropped. The main node's MSTR cleared (with or without a soft reset) starts the bus again at the next chain check. A soft reset with MSTR kept leaves the PLL locked but resets the main node's registers and loses the chain: the sub-nodes are removed as dropped, and none is found again until the app calls `Start()` |
 | INTSRC, INTTYPE, INTPND0-2 | The interrupt checks | A read of INTTYPE clears the interrupt it reports, so the stack never sees it (a DSCDONE lost fails that probe); a 1 written to INTPNDn clears a pending interrupt |
-| INTMSK0-2 | The main node's from its image at start-up (its INTMSK2 with DSCDONE added); a sub-node's before the first probe behind it, and when that link's profile changes | Lasts until the stack writes them again; DSCDONE cleared in the main node's INTMSK2 makes every probe fail |
-| BECNT | Cleared every second (any write clears it) | Clears it too |
+| INTMSK0-2 | The main node's from its image at start-up (its INTMSK2 with DSCDONE added); a sub-node's before the first probe behind it, and when that link's profile changes. The error watch adds SRF missed and BECOVF to INTMSK0 while it is on, and puts back what it found when it is turned off | Lasts until the stack writes them again; DSCDONE cleared in the main node's INTMSK2 makes every probe fail |
+| BECNT | Cleared every second (any write clears it); read first while the error watch is on | Clears it too, and the count read before it is lost |
+| BECCTL | Only the error watch's: every error type counted with BECOVF past 16 (0x7F) while it is on, and what it found when it is turned off | Lasts until the watch is turned on or off again; with the watch off the stack never writes it |
 | BCDNSLOTS-UPSLOTS, RESPCYCS (in a plan), UPMASK0-DNOFFSET, RXMASK0-7, TXXBAR0-31 | The routing plan's (Routing) | Lasts until the next plan is written (`ApplyRouting()`, or the chain changes after one); a slot register takes effect at the next CONTROL.NEWSTRCT, the stack's or the app's |
 | The main node's image, a sub-node's settings from its module info | Written at start-up and at the node's set-up | Lasts until the bus starts again or the node is found again |
 
@@ -595,7 +599,9 @@ and each link's cable length, the first of: the link's own from
 length, for instance; `ClearCableLength(n)` removes it); the upstream node's image, its
 B-side cable length ([provisioning](provisioning.md)); `routing.cableDm` (4 m by default,
 which the AD2431-35 TRM calls adequate when the lengths are unknown, since each node adjusts
-its response time during discovery). `CableLength(n)` gives the one in use. There is no upper
+its response time during discovery; on the bench, short links left at 4 m dropped nodes now
+and then, so give lengths close to the real ones: [hardware
+notes](hardware_notes.md#routing-and-audio)). `CableLength(n)` gives the one in use. There is no upper
 limit: a length whose response cycles can't be written fails the plan
 (`kNoResponseCycles`), and one longer than the real cable can stop discovery
 ([hardware notes](hardware_notes.md#routing-and-audio)). A length that changes a link in the

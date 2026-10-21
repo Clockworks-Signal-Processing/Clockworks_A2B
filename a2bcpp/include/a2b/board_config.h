@@ -107,7 +107,9 @@ struct BoardRouting {
       Network::SetCableLength() gives that link its own or the upstream node's image gives
       its B-side cable (ModuleInfo::bCableDm). The AD2431-35 TRM ("Response
       Cycles"): with the lengths unknown, the calculation for 4 m is adequate, as each node
-      adjusts its response time during discovery (-4 to +15 bit times). From 1. */
+      adjusts its response time during discovery (-4 to +15 bit times). On the bench, short
+      links left at 4 m dropped nodes now and then: give lengths close to the real ones.
+      From 1. */
   uint16_t cableDm = 40;
   /** What the stack mutes while it writes a routing plan. The
       NetworkListener's OnAudioMute() and OnAudioUnmute() are called in any mode. */

@@ -15,6 +15,7 @@ hardware taught us: [hardware notes](a2bcpp/docs/hardware_notes.md).
 | Links | Single-step UTP, RJ45 (B side inverted) and Custom (own supply, SWBYP) links, per position; two-step RJ45 and XLR links from an AD2437 (found at 5 V with SWBYP, the 24 V turned on after the review for a CFG-4 node, VBUS checked with VMTR), also on a UTP link that asks; the link from an image's B port; cable lengths per link |
 | Audio | Routing on AD243x crossbars and AD242x TDM order, mixed chains, the routing mutes and `MuteNetwork()`, bandwidth, 44.1/48/96/192 kHz |
 | Access | Raw register access, peripheral read/write/write-read on I2C |
+| Errors | The error watch (`Network::SetErrorWatch()`, on in the bench console): bit errors counted on every node and summed before each BECNT clear, the SRF-missed and BECOVF interrupts, and a report of every node's error registers (SWSTAT, INTPND0-2, INTMSK0, BECCTL, BECNT, NODE; the console prints all but INTMSK0 and BECCTL) when a probe fails or before a drop; failed accesses named in the log with their time; interrupt types named; the console's `errors` command |
 | Several buses | One `Network` per bus on one host |
 | Provisioning | The image tool (`tools/a2b_eeprom`), `ImageModuleInfoSource`, the bench console's `eeprom` commands |
 | Platforms | Linux (i2c-dev), RP2040 (Pico SDK), Windows over the ADI USBi (libusb) |
@@ -31,40 +32,26 @@ hardware taught us: [hardware notes](a2bcpp/docs/hardware_notes.md).
 | Windows (ADI USBi), two-step | AB0310 with an AD2437 main node and four AD2437 sub-nodes on custom boards, every link two-step RJ45, with the console's module info and with the AB0312 image: both steps, a node refused without its 24 V and joining once it is back, power-good low, single-step links still working, a fifth node plugged in, dropped and found again. A mixed chain of six: an AB0020 with an AD2428, an AB0204 with an AD2427 and four AD2437 nodes, the first on its own supply (`custom` links, RJ45/UTP converter boards): two-step only between the AD2437 nodes |
 | RP2040 (AB0310 board) | The fixed app: an AB0312 and four AD2437 modules on RJ45 links, both connections routed with nothing typed. The bench console: four sub-nodes found and audio routed |
 | RP2040 (AB0310 board), two-step | The bench console with four AD2437 sub-nodes from their EEPROMs, every link two-step RJ45, and a fifth node: a node refused without its 24 V and joining once it is back, power-good low, single-step links still working, the fifth node dropped and found again |
+| The error watch | On from the start in the bench console on both sites' Pi benches and on the USBi, over repeated start-ups (`tools/drop_test`, ten starts a run, 2026-10-20): the drop reports, the failed-access lines, `errors` and `errors report`. Not yet run on the RP2040 |
 
-## Next: catch and report the errors the nodes see
+## The error watch: results and what's left
 
-The two-step bench runs show a node, or the link into it, vanishing with no trace of why: the
-I2C trace has failed reads and the log says "dropped", but no node reported anything. Cause:
-the stack asks the nodes for little (`SubNode::InterruptMask()`: INTMSK0 = PWRERR, INTMSK1 =
-0, as ADI's stack does), clears BECNT on every node once a second and never reads it, and
-reads no node status. Starting points for the session that does it:
+The stack and the bench console catch and report what the nodes see (the error watch;
+[architecture](a2bcpp/docs/architecture.md#finding-the-chain), the console's `errors`
+command).
 
-- **Evidence:** the USBi mixed chain, 2026-10-19: sub-node 3 stopped answering twice in 110 s,
-  right after a position-6 probe cycle, with INTSRC 0x00 throughout; sub-node 3's neighbours
-  answered. Same signature as the drops under Known issues. The raw trace (`WR,1` = failed;
-  `trace_decode.py` leaves failed transfers out of its output) and the notes are in
-  the hardware-check session's notes folder (`io7/`, `io7_rerun_notes.md`).
-- **Unmask what the TRMs allow** (check each chip's TRM in `docs/ADI_chips` for the bits:
-  they differ between the AD243x and AD242x): in INTMSK0 the SRF-missed interrupt
-  (`reg::kIntmsk0Srferr` exists and already has the chain checked at once), the data and
-  header-error and bit-error-overflow interrupts in INTMSK0/INTMSK1, and what a lost link
-  raises. Decide per interrupt whether it only logs, or also triggers the chain check.
-  Keep the AD242x end-of-chain open-line interrupt out of the way ([power
-  diagnostics](a2bcpp/docs/decisions.md#power-diagnostics)).
-- **Report them:** an `EventType::kInterrupt` already reaches the app and the bench console
-  prints "interrupt from sub-node N: type X". Name the types (`INTTYPE` to text) in that line,
-  and add the pending bits (INTPND0/1) the interrupt came with. Read INTPND0/1, BECNT, and the
-  switch status (SWSTAT) of a node before clearing them.
-- **Bit-error counts:** the console `errors` command below needs BECCTL on and the
-  once-a-second BECNT clear off (`BoardTimings::becntResetMs` = 0). Better, read BECNT
-  just before each clear and keep a per-node count the app can ask for.
-- **On a failed read**, say which register and which node (the log now says only "probe
-  failed" or "dropped"), and what the chain check read last from each node.
-- **Test:** simulator scenarios that raise each interrupt (the simulator's models and
-  `test_sim_*` show the pattern); then the USBi mixed chain again, watching for a drop with the
-  masks on: the aim is a log line naming what the node saw before S3 went. Do not change
-  discovery's timing meanwhile, so the drop stays comparable.
+- **The bench runs found the drops' cause** ([testing](a2bcpp/docs/testing.md#catching-a-drop)):
+  short links left at the 4 m default cable length. With lengths close to the real ones there
+  were no drops ([hardware notes](a2bcpp/docs/hardware_notes.md#routing-and-audio)). The
+  dropped node never answered the late read, so the chain check's drop decision stays.
+- **Not done:** the per-error interrupts (CRC, decoding, header count, parity) stay masked,
+  as they would flood the 20 ms INTTYPE poll on a noisy link (BECNT counts them); VMTR is
+  not read in the report; the AD242x end-of-chain open-line interrupt is still only hidden
+  by the console ([power diagnostics](a2bcpp/docs/decisions.md#power-diagnostics)).
+- **BECNT counts header-count errors** (BECCTL's ENHDCNT), which the TRMs advise against: a
+  header-count error mostly raises a CRC error for the same line error, so one error can
+  count twice and a sum is an upper bound. The watch takes it so that nothing goes
+  uncounted, which suits comparing links; clearing the bit would make the figure a count.
 
 ## Features not included
 
@@ -92,11 +79,6 @@ Each is one or two lines; where a chip register exists, its call is there and re
   other polarity in discovery.
 - **A supplier-block reader** for `OnNodeIdentified()`, if apps need the vendor data during the
   review (the bench console reads it with `eeprom info`).
-- **A bench console `errors` command** for finding a bad link or cable (clicks on the bench).
-  `errors on` turns on bit-error counting on every node (BECCTL) and clears the counts. It also
-  stops the stack's once-a-second clear of BECNT (`BoardTimings::becntResetMs` set to 0), which
-  would otherwise wipe them. `errors` prints each node's count and its latched errors by name.
-  `errors clear` zeroes them, and `errors off` restores the defaults.
 - **A USBi on a Linux host:** ADI ships no Linux driver; it may need the USBi's firmware loaded
   (fxload) and a udev rule.
 - **A differential routing test** against ADI's `a2bpnp_calc.c` on 10k topologies, with the
@@ -114,13 +96,10 @@ Each is one or two lines; where a chip register exists, its call is there and re
   right after CHIPID, two-step and single-step alike, and the node was rejected for want of
   module info, though the same EEPROMs were read and written after node set-up. The cause is
   not known (the EEPROM's supply, perhaps).
-- **A node and the nodes behind it dropped while idle, then came back:** on the two-step
-  bench (the USBi, and the Pi 17 s into a run), each time with a power-good line being
-  grounded by a clip, and on the USBi's mixed chain twice in 110 s (sub-node 3, at 17.6 s
-  and 50.9 s) with nothing touched. A read of the last node failed ("probe for sub-node N
-  failed; checking the chain"), a node in the middle then failed three reads, and all were
-  found again. No interrupt came before either drop (INTSRC read 0x00 throughout), because
-  the nodes' masks enable only power faults; see **Next**. Not shown to be the stack's.
+- **A node and the nodes behind it dropped at start-up or while idle, then came back:**
+  short links left at the 4 m default cable length. Give each link a length close to its real
+  one ([hardware notes](a2bcpp/docs/hardware_notes.md#routing-and-audio)); the stack can't
+  measure cables.
 - **An AB0312 (or AB0310) with the AB0331 module** (an AD2437 on UTP): the AB0312's image
   says RJ45, as it is built for the AB0371, and the EEPROM on the base board can't tell the two
   AD2437 modules apart, so the link after it runs two-step and inverted. Set that link
@@ -153,15 +132,26 @@ Built and tested on the simulator, not yet on hardware:
 - **The bench console's register commands on an AD2428 main node** (`rdm 0x100` must be refused:
   no page 1).
 - **The RP2040 minimal example** on its board.
+- **`ram_report.py` rerun** on a PC with the Arm toolchain, to confirm the 32-bit Impl rows
+  after the error watch: they grew by 304 bytes where a 64-bit host measures 296
+  ([RAM on the RP2040](a2bcpp/docs/ram.md)). Eight bytes, so it waits for the next version.
 - **EEPROMs:** `eeprom config cycle 0` on the Pi or RP2040 (does a write-cycle NAK raise the main
   node's I2C error interrupt?); `eeprom erase`; a backup written back; the 20 m image on a long
   cable; the boards' power-good GPIO and EEPROM write protect ([provisioning](a2bcpp/docs/provisioning.md)).
 - **The SigmaStudio+ import of an AD2428 export** in `test_ss_plus_file`, and an export's host
   operations against a real board ([main- and sub-node programming](a2bcpp/docs/main_and_sub_node_programming.md)).
-- **The fixes in this release** that change behaviour on the bench: `eeprom abort` typed after
-  the write has cleared the marker (the node left blank, and the console saying so; an abort
-  is taken at once on the Pi), as in [testing](a2bcpp/docs/testing.md#bench-checks); a
-  cable length over 30 m accepted; the RP2040 console's input with a pasted block of commands.
+- **Earlier releases' fixes** that change behaviour on the bench and have not been re-checked
+  there: `eeprom abort` typed after the write has cleared the marker (the node left blank, and
+  the console saying so; an abort is taken at once on the Pi), as in
+  [testing](a2bcpp/docs/testing.md#bench-checks); a cable length over 30 m accepted; the RP2040
+  console's input with a pasted block of commands.
+- **This release's error watch** on the bench, beyond the drop hunt it was written for:
+  `errors off` putting each node's BECCTL and INTMSK0 back; `errors clear` on a running chain;
+  a SWSTAT cable fault named on an AD242x sub-node (codes 4 and 5, which only those chips
+  report; the simulator covers the naming, no bench has raised one).
+- **The real cable lengths on the USBi bench**: they stopped the drops on both sites' Pi
+  benches, and the USBi's mixed chain has not been run with them
+  ([hardware notes](a2bcpp/docs/hardware_notes.md#routing-and-audio)).
 - **Two-step RJ45 links**, as in [testing](a2bcpp/docs/testing.md#two-step-rj45-links), on
   every host: a link cut between the first nodes; a start from the EEPROMs of the custom
   boards on the USBi (Known issues, above); power-good read on an AB0312 with IO7 an input

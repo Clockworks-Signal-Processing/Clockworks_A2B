@@ -200,6 +200,7 @@ class Node {
   bool m_LocalPower = true;
   bool m_DownstreamSupply = true;
   bool m_HighVoltage = false;     ///< kTwoStep link: the 24 V reaches it.
+  int m_FailAccesses = 0;         ///< Register accesses still to fail (FailNodeAccesses()).
   size_t m_HighVoltageCount = 0;  ///< kTwoStep link: times the 24 V came on.
   std::vector<std::unique_ptr<Eeprom>> m_Eeproms;
   std::vector<std::pair<uint8_t, I2cDevice*>> m_Devices;
@@ -218,7 +219,11 @@ class Bus {
   void SetDownstreamSupply(size_t position, bool on);  ///< Its downstream supply (24 V) off or on.
   void ResetSub(size_t position);  ///< A sub-node resets (PLL unlock): it drops out.
   void RaiseInterrupt(size_t position, uint8_t type);  ///< A sub-node raises an interrupt.
-  void PowerCycle();                                   ///< Power-cycles every node.
+  /// A node (-1: the main node) sees @p count bit errors of the types its BECCTL counts.
+  void InjectBitErrors(int position, uint8_t count);
+  /// The next @p count register accesses to a sub-node fail; it stays in the chain.
+  void FailNodeAccesses(size_t position, int count);
+  void PowerCycle();    ///< Power-cycles every node.
   void StartRunning();  ///< Main node left running by a previous session.
 
   void SetSync(bool present);                       ///< SYNC on the main node's pin.

@@ -117,16 +117,19 @@ class BenchConsole : public a2b::NetworkListener {
   void EepromFinished();                             ///< Reports a job that has ended.
   void Trace(const std::vector<std::string>& args);  ///< `i2cTrace`.
 #endif
-  void Interrupts(const std::vector<std::string>& args);                 ///< `interrupts`.
-  void ReadRegisters(const std::vector<std::string>& args);              ///< `rdm`, `rds`.
-  void WriteRegisters(const std::vector<std::string>& args);             ///< `wrm`, `wrs`.
-  void PeripheralRead(const std::vector<std::string>& args);             ///< `periRead`.
-  void PeripheralWrite(const std::vector<std::string>& args);            ///< `periWrite`.
-  void Pause();                                                          ///< `pause`.
-  void Resume();                                                         ///< `resume`.
-  void Reject(const std::vector<std::string>& args);                     ///< `reject`.
-  void AddConnection(const std::vector<std::string>& args);              ///< `addCon`, `removeCon`.
-  void ListConnections();                                                ///< `listCon`.
+  void Interrupts(const std::vector<std::string>& args);                       ///< `interrupts`.
+  void Errors(const std::vector<std::string>& args);                           ///< `errors`.
+  void PrintErrorState(a2b::NodeAddr node, const a2b::NodeErrorState& state);  ///< One node.
+  void PrintErrorReport();                                     ///< The error watch's last report.
+  void ReadRegisters(const std::vector<std::string>& args);    ///< `rdm`, `rds`.
+  void WriteRegisters(const std::vector<std::string>& args);   ///< `wrm`, `wrs`.
+  void PeripheralRead(const std::vector<std::string>& args);   ///< `periRead`.
+  void PeripheralWrite(const std::vector<std::string>& args);  ///< `periWrite`.
+  void Pause();                                                ///< `pause`.
+  void Resume();                                               ///< `resume`.
+  void Reject(const std::vector<std::string>& args);           ///< `reject`.
+  void AddConnection(const std::vector<std::string>& args);    ///< `addCon`, `removeCon`.
+  void ListConnections();                                      ///< `listCon`.
   std::string ChannelsCarried(const a2b::Connection& connection) const;  ///< Its channels.
   void ApplyRouting();                                                   ///< `applyRouting`.
   void SetRoute(const std::vector<std::string>& args);                   ///< `setRoute`.

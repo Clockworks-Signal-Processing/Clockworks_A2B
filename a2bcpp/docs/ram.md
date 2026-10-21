@@ -10,15 +10,21 @@ numbers; rerun it when a change adds per-bus state.
 Measured with the Arm GNU Toolchain 13.2.rel1 (Debian's `gcc-arm-none-eabi` 13.2.1, the Pico SDK
 2.0.0's version). The two optimisation levels agree on every size.
 
+**To rerun:** the error watch added 304 bytes to the Impl rows below, where on a 64-bit host
+it adds 296 (`sizeof(Network::Impl)`, measured). Padding can differ between the two, so the
+rows may well be right, but the 32-bit figures have not been remeasured since to confirm it.
+Eight bytes change nothing that matters, so settle it with the next version's
+`ram_report.py` run rather than before this release.
+
 | What | Bytes |
 |---|---:|
 | Static RAM (`.data` + `.bss`) | 0 |
-| **`Network`, per bus** | **15,368** |
-| of which `Network::kImplSize` | 15,360 |
-| of which the Impl uses | 15,160 (200 left on the RP2040) |
-| On 64-bit hosts, the Impl | 17,024 of 17,408 |
+| **`Network`, per bus** | **15,880** |
+| of which `Network::kImplSize` | 15,872 |
+| of which the Impl uses | 15,464 (408 left on the RP2040) |
+| On 64-bit hosts, the Impl | 17,320 of 17,408 |
 | `BoardConfig`, per bus (the app's; the main node's `ChannelGroups` in it) | 708 |
-| **Two buses: two `Network`s** | **30,736** |
+| **Two buses: two `Network`s** | **31,760** |
 
 `Network` keeps all of a bus's state in fixed storage inside the object, so these are the whole
 cost: no heap. The app also keeps each bus's `BoardConfig` and host script.
@@ -45,14 +51,15 @@ bandwidth):
 | Cable lengths (`SetCableLength()`) | 32 |
 | `Transport`, `ScriptRunner`, `InterruptPoller` | 40 + 60 + 24 |
 | `EepromModuleInfoSource` | 28 |
+| The error watch: its last report (`ErrorReport`), the BECNT sums, the settings it saved and its flags | 304 |
 
 If RAM gets tight, the groups (8 each way per node) and the second plan are where it is: a plan
 could be built straight into the registers' writes at the cost of `Routing()`, and each
 `SubNodeInfo` keeps the node's parsed register list (48 B of it), which could move out.
 
 The minimal example's RP2040 build (Debug, Pico SDK 2.0.0, stdio and I2C drivers included)
-has 37,540 bytes of static RAM: `.bss` 30,632 (its app object: one `BoardConfig`, a 64-op host
-script, the `Network`) and `.data` 6,908. The fixed app's figures are below, beside the bench
+has 38,076 bytes of static RAM: `.bss` 31,156 (its app object: one `BoardConfig`, a 64-op host
+script, the `Network`) and `.data` 6,920. The fixed app's figures are below, beside the bench
 console's.
 
 ### Stack
@@ -84,15 +91,15 @@ console](bench_console.md#on-the-rp2040)), measured from its ELF (`arm-none-eabi
 
 | What | Debug (`-Og`) | Release (`-O3`) |
 |---|---:|---:|
-| Flash (the `.bin`) | 233,032 | 280,876 |
+| Flash (the `.bin`) | 243,176 | 288,452 |
 | `.data` | 18,520 | 18,360 |
-| `.bss` | 37,112 | 37,120 |
-| **Static RAM** (`.data` + `.bss`) | **55,632** | **55,480** |
-| Left for the heap (`.heap`) | 206,320 | 206,472 |
+| `.bss` | 37,760 | 37,768 |
+| **Static RAM** (`.data` + `.bss`) | **56,280** | **56,128** |
+| Left for the heap (`.heap`) | 205,672 | 205,824 |
 
-Of the `.bss`, the `BenchConsole` is 23,688 bytes (its `Network`, `BoardConfig`, 256-op host
+Of the `.bss`, the `BenchConsole` is 24,200 bytes (its `Network`, `BoardConfig`, 256-op host
 script and the console's settings) and the four built-in exports' node structures 11,424. The
-fixed app, built with them for comparison: 161,976 bytes of flash and 28,884 of static RAM
+fixed app, built with them for comparison: 169,336 bytes of flash and 29,540 of static RAM
 (Debug).
 
 The console uses the heap (its strings, the command line's words, the codec programs of
@@ -156,5 +163,5 @@ stack high-water mark depends on how the app polls them:
 | `.bss` + `.data`, whole RP2040 app | about 163 KB | ADI's stack with a RP2040 console app |
 | `.bss`, whole RP2040 app (Debug build) | 150,800 | `arm-none-eabi-size` on the app |
 
-Two buses of the C++ stack (30,736 B) are under a third of ADI's `gApp_Info` for one chain, and the whole
+Two buses of the C++ stack (31,760 B) are under a third of ADI's `gApp_Info` for one chain, and the whole
 example's `.bss` about a fifth of ADI's app.

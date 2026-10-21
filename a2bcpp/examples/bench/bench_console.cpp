@@ -319,6 +319,7 @@ BenchConsole::BenchConsole(a2b::Platform& host)
   m_Network.SetModuleInfoSource(&m_Modules);  // The EEPROMs, but for `module N`.
   clockworks::UseBoardNodes(m_Factory);       // IO7 an input but on an AB0020.
   m_Network.SetNodeFactory(&m_Factory);
+  m_Network.SetErrorWatch(true);  // `errors off` turns it off.
   // A stereo codec on both sides, as the AB0020 has (its ADAU1761): TDM channels 0-1 each
   // way, in group 0.
   (void)m_MainGroups.AddRx(0, 0x3);
@@ -423,6 +424,8 @@ bool BenchConsole::Execute(const char* line) {
 #endif
   } else if (Same(command, "interrupts")) {
     Interrupts(args);
+  } else if (Same(command, "errors")) {
+    Errors(args);
   } else if (Same(command, "rdm") || Same(command, "rds")) {
     ReadRegisters(args);
   } else if (Same(command, "wrm") || Same(command, "wrs")) {
@@ -549,17 +552,20 @@ void BenchConsole::OnEvent(a2b::Network& network, const a2b::Event& event) {
       if (openLineAtEnd && !m_ShowAllInterrupts) {
         ++m_HiddenInterrupts;
       } else if (event.node == a2b::kMainNode) {
-        Print("  interrupt from the main node: type %u\n",
-              static_cast<unsigned>(event.interruptType));
+        Print("  interrupt from the main node: type %u (%s)\n",
+              static_cast<unsigned>(event.interruptType), a2b::InterruptName(event.interruptType));
       } else {
-        Print("  interrupt from sub-node %u: type %u\n", node,
-              static_cast<unsigned>(event.interruptType));
+        Print("  interrupt from sub-node %u: type %u (%s)\n", node,
+              static_cast<unsigned>(event.interruptType), a2b::InterruptName(event.interruptType));
       }
       if (openLineAtEnd) {
         HintOpenLine(event.node, event.interruptType);
       }
       return;
     }
+    case a2b::EventType::kErrorReport:
+      PrintErrorReport();
+      return;
     case a2b::EventType::kRoutingApplied: {
       const a2b::RoutingPlan& plan = m_Network.Routing();
       Print("routing applied: %u connection(s) routed, main node RESPCYCS 0x%02X (window %u-%u)\n",
@@ -668,6 +674,13 @@ void BenchConsole::Help() {
       "interrupts quiet|all     hide (the default) or show the open-line interrupts (types\n"
       "                         12, 13) of the last sub-node, which each probe behind it\n"
       "                         gives when nothing is plugged in there\n"
+      "errors                   each node's bit errors (summed), latched errors, switch\n"
+      "                         status and NODE.LAST, read now\n"
+      "errors on|off            the error watch (on from the start): bit-error counting,\n"
+      "                         the SRF-missed and BECOVF interrupts, and a report of what\n"
+      "                         the nodes held when a probe fails or before a drop\n"
+      "errors clear             zero the sums and clear the latched errors\n"
+      "errors report            print the last report again\n"
       "rdm REG [COUNT]          read main-node registers from REG (0x100-0x1FF: page 1,\n"
       "                         AD243x only); COUNT 1-256, default 1\n"
       "rds N REG [COUNT]        read sub-node N's registers\n"
@@ -1294,6 +1307,113 @@ void BenchConsole::Interrupts(const std::vector<std::string>& args) {
   Print("Interrupts: %s (%u open-line interrupt(s) of the last sub-node hidden so far)\n",
         m_ShowAllInterrupts ? "all shown" : "quiet, the last sub-node's open line hidden",
         static_cast<unsigned>(m_HiddenInterrupts));
+}
+
+/**
+ * `errors [on|off|clear|report]`: the error watch (a2b::Network::SetErrorWatch(), on from
+ * the start). With no word, each node's error registers read now, with its bit errors
+ * summed since the watch was turned on or cleared.
+ * @param args The command line's words.
+ */
+void BenchConsole::Errors(const std::vector<std::string>& args) {
+  if (args.size() == 2 && (Same(args[1], "on") || Same(args[1], "off"))) {
+    m_Network.SetErrorWatch(Same(args[1], "on"));
+  } else if (args.size() == 2 && Same(args[1], "clear")) {
+    m_Network.ClearErrors();
+    Print("Errors: cleared at the next poll\n");
+    return;
+  } else if (args.size() == 2 && Same(args[1], "report")) {
+    if (m_Network.LastErrorReport().cause == a2b::ErrorReport::Cause::kNone) {
+      Print("Errors: no report yet\n");
+    } else {
+      PrintErrorReport();
+    }
+    return;
+  } else if (args.size() != 1) {
+    Print("errors [on|off|clear|report]\n");
+    return;
+  }
+  Print("Error watch: %s\n", m_Network.ErrorWatch() ? "on" : "off");
+  if (args.size() != 1 || m_Network.State() == a2b::NetworkState::kStopped) {
+    return;
+  }
+  for (int i = -1; i < static_cast<int>(m_Network.SubNodeCount()); ++i) {
+    const a2b::NodeAddr node = static_cast<a2b::NodeAddr>(i);
+    a2b::NodeErrorState state;
+    (void)m_Network.ReadErrorState(node, state);
+    PrintErrorState(node, state);
+  }
+}
+
+/**
+ * Prints one node's error registers: BECNT (and the sum the stack keeps), the latched
+ * INTPND0 bits by name (the main node's INTPND2 too), SWSTAT and NODE.
+ */
+void BenchConsole::PrintErrorState(a2b::NodeAddr node, const a2b::NodeErrorState& state) {
+  static const char* const kIntpnd0[] = {"header-count", "decoding", "CRC",        "parity",
+                                         "PWRERR",       "BECOVF",   "SRF-missed", "SRF-CRC"};
+  // SWSTAT.FAULT_CODE (both families' TRMs): 4 and 5 are the AD242x's, 6 the AD243x's.
+  static const char* const kFault[] = {
+      "no fault",  "short to GND", "short to VBUS",         "wires shorted",
+      "open line", "reversed",     "open line or reversed", "undetermined"};
+  if (!state.read) {
+    Print("  %s: no answer\n", NodeName(node, false).c_str());
+    return;
+  }
+  std::string text = "BECNT " + std::to_string(state.becnt) + " (sum " +
+                     std::to_string(m_Network.BitErrorCount(node)) + ")";
+  char hex[8];
+  std::snprintf(hex, sizeof(hex), "0x%02X", state.intpnd[0]);
+  text += std::string(", INTPND0 ") + hex;
+  for (int bit = 7; bit >= 0; --bit) {
+    if ((state.intpnd[0] & (1 << bit)) != 0) {
+      text += std::string(" ") + kIntpnd0[bit];
+    }
+  }
+  if (node == a2b::kMainNode) {
+    std::snprintf(hex, sizeof(hex), "0x%02X", state.intpnd[2]);
+    text += std::string(", INTPND2 ") + hex;
+    text += ((state.intpnd[2] & 0x02) != 0) ? " I2CERR" : "";
+    text += ((state.intpnd[2] & 0x04) != 0) ? " ICRCERR" : "";
+  }
+  std::snprintf(hex, sizeof(hex), "0x%02X", state.swstat);
+  text += std::string(", SWSTAT ") + hex;
+  text += ((state.swstat & 0x01) != 0) ? " FIN" : "";
+  if ((state.swstat & 0x02) != 0) {
+    text += std::string(" FAULT ") + kFault[(state.swstat >> 4) & 0x07];
+  }
+  if (node != a2b::kMainNode) {
+    std::snprintf(hex, sizeof(hex), "0x%02X", state.node);
+    text += std::string(", NODE ") + hex;
+    text += ((state.node & 0x80) != 0) ? " LAST" : "";
+  }
+  Print("  %s: %s\n", NodeName(node, false).c_str(), text.c_str());
+}
+
+/** Prints the error watch's last report: the failed access, then each node's registers. */
+void BenchConsole::PrintErrorReport() {
+  const a2b::ErrorReport& report = m_Network.LastErrorReport();
+  const a2b::FailedAccess& failed = report.failed;
+  const std::string where =
+      (failed.node == a2b::kNoNode) ? "broadcast" : NodeName(failed.node, false);
+  char access[96];
+  std::snprintf(access, sizeof(access), "%s, 0x%02X %s, %u tr%s, %u ms", where.c_str(),
+                static_cast<unsigned>(failed.reg), failed.write ? "write" : "read",
+                static_cast<unsigned>(failed.tries), (failed.tries == 1) ? "y" : "ies",
+                static_cast<unsigned>(failed.elapsedMs));
+  const unsigned position = static_cast<unsigned>(report.position);
+  if (report.cause == a2b::ErrorReport::Cause::kDropped) {
+    Print("error report at %u ms: sub-node %u failed the chain check (%s); %s\n",
+          static_cast<unsigned>(report.timeMs), position, access,
+          report.answeredLate ? "it answered a read after that" : "no answer after that either");
+  } else {
+    Print("error report at %u ms: the probe for sub-node %u failed (%s)\n",
+          static_cast<unsigned>(report.timeMs), position, access);
+  }
+  PrintErrorState(a2b::kMainNode, report.main);
+  for (size_t i = 0; i < report.subCount; ++i) {
+    PrintErrorState(static_cast<a2b::NodeAddr>(i), report.subs[i]);
+  }
 }
 
 /**

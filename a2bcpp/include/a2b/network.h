@@ -15,6 +15,7 @@
 #include <cstdint>
 
 #include "a2b/board_config.h"
+#include "a2b/error_report.h"
 #include "a2b/link_profile.h"
 #include "a2b/module_info.h"
 #include "a2b/network_listener.h"
@@ -72,6 +73,13 @@ class Network {
   Result WriteRegisters(NodeAddr node, uint16_t reg, const uint8_t* data,
                         size_t len);  ///< Writes a node's registers, at the app's risk.
 
+  void SetErrorWatch(bool on);                  ///< Counts and reports the errors the nodes see.
+  bool ErrorWatch() const;                      ///< SetErrorWatch(true) is in force.
+  const ErrorReport& LastErrorReport() const;   ///< What the nodes held at the last report.
+  uint32_t BitErrorCount(NodeAddr node) const;  ///< A node's BECNT, summed (error watch).
+  void ClearErrors();  ///< Zeroes the sums and clears the latched errors, at the next Poll().
+  Result ReadErrorState(NodeAddr node, NodeErrorState& state);  ///< A node's error registers.
+
   // Chip features the stack doesn't support yet: each returns Result::kNotSupported, so an
   // app can be written against them now (the roadmap's "Features not included").
   Result SetSpreadSpectrum(bool enable);  ///< Spread-spectrum clocking on every node.
@@ -111,10 +119,10 @@ class Network {
  private:
   class Impl;  ///< The state and the work (src/network_impl.h).
 
-  /** @brief Bytes of storage for the Impl: about 15 KB on the RP2040, 4 KB of it the
+  /** @brief Bytes of storage for the Impl: about 15.5 KB on the RP2040, 4 KB of it the
       peripheral-script buffer and about 6 KB the routing (a2bcpp/docs/ram.md has the
       breakdown); network.cpp checks that it fits. */
-  static constexpr size_t kImplSize = (sizeof(void*) > 4) ? 17408 : 15360;
+  static constexpr size_t kImplSize = (sizeof(void*) > 4) ? 17408 : 15872;
 
   alignas(8) unsigned char m_Storage[kImplSize];  ///< Holds the Impl.
   Impl* m_Impl;                                   ///< The Impl in m_Storage.

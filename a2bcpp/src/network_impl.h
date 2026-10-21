@@ -105,6 +105,13 @@ class Network::Impl {
   a2b::SubNode* NodeObject(NodeAddr position);                ///< See Network::NodeObject().
   RejectReason LastRejection() const { return m_Rejection; }  ///< See Network::LastRejection().
   bool DiscoveryPaused() const { return m_Paused; }           ///< See Network::DiscoveryPaused().
+  void SetErrorWatch(bool on);                                ///< See Network::SetErrorWatch().
+  bool ErrorWatch() const { return m_Watch; }                 ///< See Network::ErrorWatch().
+  /// See Network::LastErrorReport().
+  const ErrorReport& LastErrorReport() const { return m_Report; }
+  uint32_t BitErrorCount(NodeAddr node) const;                  ///< See Network::BitErrorCount().
+  void ClearErrors() { m_ClearErrorsDue = true; }               ///< See Network::ClearErrors().
+  Result ReadErrorState(NodeAddr node, NodeErrorState& state);  ///< See Network::ReadErrorState().
 
  private:
   /** Steps of kStarting and kConfiguring. */
@@ -147,16 +154,25 @@ class Network::Impl {
   void StepDiscovering(uint32_t nowMs);  ///< kDiscovering and kRunning.
   bool Upkeep(uint32_t nowMs);           ///< Chain check and BECNT.
   bool CheckChain(uint32_t nowMs);       ///< Finds drops.
-  Result ReadForCheck(NodeAddr node, uint16_t reg, uint8_t* data, size_t len);  ///< With retries.
+  Result ReadForCheck(NodeAddr node, uint16_t reg, uint8_t* data, size_t len,
+                      FailedAccess& failed);     ///< With retries.
   void Drop(NodeAddr position, uint32_t nowMs);  ///< Takes out a dropped node and after.
   void HandleRejectRequest(uint32_t nowMs);      ///< Carries out RejectNode().
   void HandleInterrupt(const InterruptPoller::Interrupt& irq);  ///< Reports an interrupt.
-  bool BeginProbe(uint32_t nowMs);                              ///< Starts the next probe.
-  void StepSetup(uint32_t nowMs);                               ///< Phase::kSetup.
-  bool BeginRouting(uint32_t nowMs);                            ///< Starts writing a due plan.
-  void StepRouting(uint32_t nowMs);                             ///< Phase::kRouting.
-  Result WriteSlots(uint32_t nowMs);                            ///< Slot registers, NEWSTRCT.
-  Result WriteCrossbars();                                      ///< RXMASK and TXXBAR.
+  void LogFailure(const FailedAccess& failed);                  ///< Names a failed access.
+  void ApplyWatch();                                            ///< The error watch's settings.
+  Result WatchNode(NodeAddr node);                              ///< One node's BECCTL and INTMSK0.
+  uint8_t LinkIntmsk0(NodeAddr position) const;  ///< A sub-node's INTMSK0, watch included.
+  void SumBitErrors();                           ///< Adds each node's BECNT to its sum.
+  Result ReadErrorRegs(NodeAddr node, NodeErrorState& state);  ///< SWSTAT, INTPND0-BECNT, NODE.
+  void TakeReport(ErrorReport::Cause cause, NodeAddr position,
+                  const FailedAccess& failed);  ///< The error watch's report.
+  bool BeginProbe(uint32_t nowMs);              ///< Starts the next probe.
+  void StepSetup(uint32_t nowMs);               ///< Phase::kSetup.
+  bool BeginRouting(uint32_t nowMs);            ///< Starts writing a due plan.
+  void StepRouting(uint32_t nowMs);             ///< Phase::kRouting.
+  Result WriteSlots(uint32_t nowMs);            ///< Slot registers, NEWSTRCT.
+  Result WriteCrossbars();                      ///< RXMASK and TXXBAR.
   bool StartMute();                             ///< RouteStep::kMute; false if it did not finish.
   void BuildMuteScope(MuteScope& scope) const;  ///< What the plan being written mutes.
   bool CrossbarChanges(size_t index) const;     ///< A node's TXXBAR differs from the bus's.
@@ -275,12 +291,20 @@ class Network::Impl {
   BandwidthUsage m_Bandwidth;  ///< Of the plan built last.
   /** Sub-nodes of #m_Plan whose crossbars are still on the bus: fewer after a node leaves. */
   size_t m_XbarKnown = 0;
-  bool m_Muted = false;       ///< MuteNetwork(true) is in force.
-  bool m_MuteDue = false;     ///< DATCTL is to be written at the next idle poll.
-  uint32_t m_MuteRetry = 0;   ///< Not before then (after a failed write).
-  bool m_RouteMute = false;   ///< The plan being written has DATCTL's slot enables clear.
-  bool m_MuteHooked = false;  ///< OnAudioMute() was called, OnAudioUnmute() not yet.
-  MuteScope m_MuteScope;      ///< What the plan being written mutes.
+  bool m_Muted = false;           ///< MuteNetwork(true) is in force.
+  bool m_MuteDue = false;         ///< DATCTL is to be written at the next idle poll.
+  uint32_t m_MuteRetry = 0;       ///< Not before then (after a failed write).
+  bool m_RouteMute = false;       ///< The plan being written has DATCTL's slot enables clear.
+  bool m_MuteHooked = false;      ///< OnAudioMute() was called, OnAudioUnmute() not yet.
+  MuteScope m_MuteScope;          ///< What the plan being written mutes.
+  bool m_Watch = false;           ///< SetErrorWatch(true) is in force.
+  bool m_ClearErrorsDue = false;  ///< ClearErrors(): at the next poll between probes.
+  /** Each node has the watch's settings: [0] the main node, [n + 1] sub-node n. */
+  bool m_Watched[kMaxSubNodes + 1] = {};
+  uint8_t m_SavedBecctl[kMaxSubNodes + 1] = {};  ///< Each node's BECCTL before the watch.
+  uint8_t m_SavedMainIntmsk0 = 0;                ///< The main node's INTMSK0 before the watch.
+  uint32_t m_BecntSum[kMaxSubNodes + 1] = {};    ///< Each node's BECNT, summed while watching.
+  ErrorReport m_Report;                          ///< The last report.
 };
 
 }  // namespace a2b

@@ -100,6 +100,7 @@ Result Transport::WriteRegs(NodeAddr node, uint16_t reg, const uint8_t* data, si
     return Result::kInvalidArgument;
   }
   LockGuard lock(m_Platform);
+  const uint32_t startMs = m_Platform.NowMs();
   Result result = SelectPage(node, PageOf(reg));
   if (result == Result::kOk && node != kMainNode) {
     result = SelectNodeadr(static_cast<uint8_t>(node));
@@ -110,7 +111,7 @@ Result Transport::WriteRegs(NodeAddr node, uint16_t reg, const uint8_t* data, si
     result = WriteChunk(addr, static_cast<uint8_t>(LowByte(reg) + done), data + done, chunk);
   }
   NoteRegisterWrites(node, reg, len);
-  return result;
+  return NoteResult(result, node, reg, true, startMs);
 }
 
 /**
@@ -126,16 +127,17 @@ Result Transport::ReadRegs(NodeAddr node, uint16_t reg, uint8_t* data, size_t le
     return Result::kInvalidArgument;
   }
   LockGuard lock(m_Platform);
+  const uint32_t startMs = m_Platform.NowMs();
   Result result = SelectPage(node, PageOf(reg));
   if (result == Result::kOk && node != kMainNode) {
     result = SelectNodeadr(static_cast<uint8_t>(node));
   }
-  if (result != Result::kOk) {
-    return result;
+  if (result == Result::kOk) {
+    const uint8_t addr = (node == kMainNode) ? m_MainAddr : m_BusAddr;
+    const uint8_t regLow = LowByte(reg);
+    result = m_Platform.I2cWriteRead(addr, &regLow, 1, data, len);
   }
-  const uint8_t addr = (node == kMainNode) ? m_MainAddr : m_BusAddr;
-  const uint8_t regLow = LowByte(reg);
-  return m_Platform.I2cWriteRead(addr, &regLow, 1, data, len);
+  return NoteResult(result, node, reg, false, startMs);
 }
 
 /**
@@ -151,6 +153,7 @@ Result Transport::BroadcastWrite(uint16_t reg, const uint8_t* data, size_t len) 
     return Result::kInvalidArgument;
   }
   LockGuard lock(m_Platform);
+  const uint32_t startMs = m_Platform.NowMs();
   Result result = Result::kOk;
   for (NodeAddr node = 0; result == Result::kOk && node < kMaxSubNodes; ++node) {
     result = SelectPage(node, 0);
@@ -165,7 +168,7 @@ Result Transport::BroadcastWrite(uint16_t reg, const uint8_t* data, size_t len) 
   for (NodeAddr node = 0; node < kMaxSubNodes; ++node) {
     NoteRegisterWrites(node, reg, len);
   }
-  return result;
+  return NoteResult(result, kNoNode, reg, true, startMs);
 }
 
 /**
@@ -330,6 +333,22 @@ Result Transport::WriteChunk(uint8_t i2cAddr, uint8_t regLow, const uint8_t* dat
   buf[0] = regLow;
   std::memcpy(&buf[1], data, len);
   return m_Platform.I2cWrite(i2cAddr, buf, len + 1);
+}
+
+/**
+ * Keeps a failed register access as LastFailure().
+ * @return @p result.
+ */
+Result Transport::NoteResult(Result result, NodeAddr node, uint16_t reg, bool write,
+                             uint32_t startMs) {
+  if (result == Result::kI2cError) {
+    m_LastFailure.node = node;
+    m_LastFailure.reg = reg;
+    m_LastFailure.write = write;
+    m_LastFailure.tries = 1;
+    m_LastFailure.elapsedMs = m_Platform.NowMs() - startMs;
+  }
+  return result;
 }
 
 /** Forgets a cached NODEADR, CHIP or MMRPAGE that a register write just covered. */

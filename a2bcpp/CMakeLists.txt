@@ -38,6 +38,7 @@ add_library(a2bcpp STATIC
     src/module_script.cpp
     src/network.cpp
     src/network_chain.cpp
+    src/network_errors.cpp
     src/network_routing.cpp
     src/network_startup.cpp
     src/strings.cpp

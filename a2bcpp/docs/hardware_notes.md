@@ -194,11 +194,32 @@ From the AD2437 TRM ("Power on the Bus", "Power Configurations", Figures 7-2 and
   The TRMs apply a new structure within 5 superframes (0.1 ms at 48 kHz), and the main node holds
   off its own INTTYPE reads of the sub-nodes meanwhile, so an INTTYPE read inside the settle could
   give 0x80.
-- **Cable lengths.** Give the real length, or leave the 4 m default on short cables. A
-  declared length *longer* than the cable breaks discovery: 10 m declared on a 1 m link needed
-  several tries and rejected a node, and 15 m or 20 m found nothing past sub-node 0. The real
-  lengths (4 m, then 1 m) moved the main node's RESPCYCS window by one cycle and the sub-nodes'
-  values by one or two. 110 ft (33.5 m) of cable ran clean on an AD2428 chain with
+- **Cable lengths: give each link a length close to its real one** (`cable N` in the bench
+  console, `Network::SetCableLength()`, the B-side cable length in the upstream node's image,
+  or `routing.cableDm` for all). The length sets the response cycles, and a length well off
+  in either direction causes trouble, though the TRMs call the 4 m calculation adequate when
+  the lengths are unknown:
+  - *Declared too long:* discovery breaks. 10 m declared on a 1 m link needed several tries
+    and rejected a node, and 15 m or 20 m found nothing past sub-node 0.
+  - *Declared too short, or short cables left at the 4 m default:* nodes drop now and then. On
+    both sites' benches, links of 0.1 m (modules on one board) and short patch cables left at
+    4 m dropped a node at start-up or while idle: it stopped answering for under half a second,
+    and it and the nodes behind it were taken out and found again. On the Pi 2 to 8 of 10
+    starts dropped; on the USBi from twice in 110 s to about once an hour. The drop stayed at
+    one position whichever board sat there (in these chains, the node behind the first two-step
+    link). With the real lengths (0.1 m) each site's Pi bench ran 10 starts with no drop and no
+    failed transfer (not yet tried on the USBi): the response cycles moved by one or two per node (the probes' DISCVRY 0xB9 B5 B5
+    B1 B1 AD against B9 B4 B4 B0 B0 AB at 4 m). A routing plan, which writes every node's
+    RESPCYCS again, also stopped them (no drop in 10 starts).
+  - *What a wrong length looks like:* "probe for sub-node N failed; checking the chain" or a
+    failed chain-check read, then "sub-node M dropped", and the same nodes back within about a
+    second; always at the same position, whichever board is there, with no cable touched. With
+    the error watch on, the report shows the node before it as the last node (NODE.LAST) and
+    nothing else: no power or switch fault, no bit errors (BECNT 0), and no answer from the
+    dropped node to the late read.
+
+  The real lengths (4 m, then 1 m) on an earlier bench moved the main node's RESPCYCS window by
+  one cycle and the sub-nodes' values by one or two. 110 ft (33.5 m) of cable ran clean on an AD2428 chain with
   SigmaStudio+, past the data sheets' 15 m (AD242x) and 30 m (AD2437), so the stack enforces
   no limit: it refuses only a length whose response cycles can't be written. A length changed
   on a running, routed bus replans at once; with a wrong length that plan's write once failed

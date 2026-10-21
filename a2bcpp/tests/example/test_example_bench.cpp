@@ -633,6 +633,51 @@ A2B_TEST(LastNodeOpenLineInterruptsHidden) {
   A2B_CHECK(Has(Run(console, "interrupts loud"), "interrupts quiet|all"));
 }
 
+A2B_TEST(ErrorsCommandAndDropReport) {
+  // The error watch is on from the start: `errors` reads every node, a pulled cable prints
+  // the report before the drop, and interrupts are named.
+  sim::Simulator sim;
+  sim::Bus& bus = sim.AddBus(0x68, 0x69, Ad2437());
+  bus.StartRunning();
+  PlugBlank(bus, Chip(0x37, 1), true);
+  PlugBlank(bus, Chip(0x37, 2), true);
+  PlugBlank(bus, Chip(0x37, 3), true);
+  BenchConsole console(sim);
+  Run(console, "board ref");
+  Run(console, "link all board");
+  Run(console, "ignoreEEPROM 1");
+  Run(console, "start");
+  RunFor(sim, console, 2000);
+  A2B_CHECK_EQ(console.Bus().SubNodeCount(), 3);
+  A2B_CHECK(console.Bus().ErrorWatch());
+  const std::string table = Run(console, "errors");
+  A2B_CHECK(Has(table, "Error watch: on"));
+  A2B_CHECK(Has(table, "  main node: BECNT 0 (sum 0), INTPND0 0x00, INTPND2"));
+  A2B_CHECK(Has(table, "  sub-node 2: BECNT 0 (sum 0), INTPND0 0x00, SWSTAT"));
+  A2B_CHECK(Has(Run(console, "errors report"), "no report yet"));
+  // SWSTAT.FAULT_CODE by name: 4 and 5 are the AD242x's codes, 6 the AD243x's.
+  Run(console, "wrs 0 0x14 0x43");
+  A2B_CHECK(Has(Run(console, "errors"), "SWSTAT 0x43 FIN FAULT open line"));
+  Run(console, "wrs 0 0x14 0x53");
+  A2B_CHECK(Has(Run(console, "errors"), "SWSTAT 0x53 FIN FAULT reversed"));
+  Run(console, "wrs 0 0x14 0x63");
+  A2B_CHECK(Has(Run(console, "errors"), "SWSTAT 0x63 FIN FAULT open line or reversed"));
+  Run(console, "wrs 0 0x14 0x01");
+  bus.Unplug(2);
+  const std::string drop = RunFor(sim, console, 100);
+  A2B_CHECK(Has(drop, "interrupt from sub-node 1: type 5 (SRF missed)"));
+  A2B_CHECK(Has(drop, "error report at "));
+  A2B_CHECK(Has(drop, "sub-node 2 failed the chain check (sub-node 2, 0x02 read, 3 tries"));
+  A2B_CHECK(Has(drop, "no answer after that either"));
+  A2B_CHECK(Has(drop, "SRF-missed"));
+  A2B_CHECK(Has(drop, " LAST"));
+  A2B_CHECK(Has(drop, "sub-node 2 removed"));
+  A2B_CHECK(Has(Run(console, "errors report"), "sub-node 2 failed the chain check"));
+  A2B_CHECK(Has(Run(console, "errors off"), "Error watch: off"));
+  A2B_CHECK(Has(Run(console, "errors clear"), "cleared"));
+  A2B_CHECK(Has(Run(console, "errors maybe"), "errors [on|off|clear|report]"));
+}
+
 A2B_TEST(WrongMainNodeIsReported) {
   sim::Simulator sim;
   sim::ChipSpec main;

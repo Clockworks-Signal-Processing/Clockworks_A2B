@@ -12,27 +12,27 @@ A lot of the work here was done by Claude Code, including creation of the docume
 
 This is also very much a work in progress but even in its semi-incomplete state offers a fair amount of useful functionality.
 
-The apps and the library itself are meant to be examples, not production ready code.  It's unsupported as-is code. If you find a bug and figure out how to fix it let Clockworks know.  We're pretty clueless about how we might maintain this so that others can contribute to it.  
+The apps and the library itself are meant to be examples, not production ready code.  It's unsupported as-is code. If you find a bug and figure out how to fix it let Clockworks know.  Eventually we'll get Git sorted and work out a process for PRs.  The concern is changes need to be tested across a large number of platforms (both chips and boards) and hosts and we're guessing most people won't have that.
 
 See `ROADMAP.md` for current code status.
 
 # What is it?
 
-There are three types of software here.  The first is an A^2^B stack for controlling a network of ADI A2B devices: AD2427, AD2428, AD2433, and AD2437 at present.  It's generic C/C++ code intended for 32 bit (embedded ARM) and 64 bit (Windows, embedded Linux) use.  You normally would not change this unless you need some feature that's not supported.  We intentionally don't call this a driver as it's intended to be compiled directly into your application.
+There are three types of software here.  The first is an A2B stack for controlling a network of ADI A2B devices: AD2427, AD2428, AD2433, and AD2437 at present.  It's generic C/C++ code intended for 32 bit (embedded ARM) and 64 bit (Windows, embedded Linux) use.  You normally would not change this unless you need some feature that's not supported.  We intentionally don't call this a driver as it's intended to be compiled directly into your application.
 
 The second piece are some console programs that show how to use the stack and can also be useful during development and testing.  These might be the basis for your own host application.
 
 The last piece (not available yet) are utility programs, at the moment they generate the file(s) needed to program the per node EPPROM that's used as part of the discovery process to tell the main node what the hardware is. You normally would not change this unless you need some feature that's not supported.
 
-## Why should I use the Clockworks A^2^B software?
+## Why should I use the Clockworks A2B software?
 
-The currently released Analog Devices (ADI) software for A^2^B only allows for fixed hardware configurations and is heavily dependent on using SigmaStudio+ (SS+) to set up the files used to describe the configuration.  There was a version of that ADI A^2^B software called the Plug-and-Play stack which instead discovered the network at run time.  Clockworks took that code and created a package with support for the code running on the same three hosts that  this package uses.  The actual A^2^B software was left unchanged. You can find that package at: https://github.com/Clockworks-Signal-Processing/PnP_A2B
+The currently released Analog Devices (ADI) software for A2B only allows for fixed hardware configurations and is heavily dependent on using SigmaStudio+ (SS+) to set up the files used to describe the configuration.  There was a version of that ADI A2B software called the Plug-and-Play stack which instead discovered the network at run time.  Clockworks took that code and created a package with support for the code running on the same three hosts that this package uses.  The ADI A2B software in that PnP package was left unchanged. You can find that ADI-based package at: https://github.com/Clockworks-Signal-Processing/PnP_A2B
 
-That PnP package used the concept of a config EEPROM to allow the host software to figure out what a discovered A^2^B node does and has for peripherals. In the PnP package that was not fully implemented and there were no separate utilities to set the fields.  ADI does have a doc to describe the fields.
+That PnP package used the concept of a configuration EEPROM to allow the host software to determine what a discovered A2B node does and has for peripherals. In the PnP package that was not fully implemented and there were no separate utilities to set the fields.  ADI does have a doc to describe the fields.
 
-The ADI PnP package also had a host console program to serve as an example of using the stack as well as being useful to set up and run an A^2^B network not using SS+.
+The ADI PnP package also had a host console program to serve as an example of using the stack as well as being useful to set up and run an A2B network not using SS+.
 
-The Clockworks A^2^B software borrows heavily from the ADI PnP one.  Mostly the Clockworks software was a chance to look at what was done, see what useful, and focus on some specific use cases and not try and solve all potential ones.
+The Clockworks A2B software borrows heavily from the ADI PnP one.  Mostly the Clockworks software was a chance to look at what was done, see what useful, and focus on some specific use cases and not try and solve all potential ones.
 
 One architectural change was to use C++ in an effort to keep the code simpler and easier to work with.
 
@@ -46,13 +46,13 @@ For the RP2040 host the AB0310 board is assumed by the console programs.
 
 For the RPi Pi Zero (or any other RPi board intended to run Linux) it's assumed to connect to I2C1 and may optionally have a reset line, IRQ line, and SPI connections.
 
-## How can I make it do something on some A^2^B hardware?
+## How can I make it do something on some A2B hardware?
 
 First of course you need to get some supported hardware, or make modifications to support your own hardware.  If your hardware has the configuration  EEPROM per node then you may not need to make any actual stack changes.  If your main node has peripheral chips then you'll need to use Sigma Studio+ to export the main node configuration, this software does not look for an EEPROM on the main node.
 
 See `bench_console.md` for how to use the console program - also referred to as the 'bench' example.
 
-Probably the most useful thing to read after this document (including the AI generated section below) is `quick_start.md`.  Don't get your hopes up based on the document being called *quick start.*  Understanding  A^2^B takes time. Using this package we hope it takes *less time* than the alternatives.
+Probably the most useful thing to read after this document (including the AI generated section below) is `quick_start.md`.  Don't get your hopes up based on the document being called *quick start.*  Understanding  A2B takes time. Using this package we hope it takes *less time* than the alternatives.
 
 
 
@@ -68,7 +68,7 @@ For full details see `a2bcpp\docs\cookbook.md`
 
 ------
 
-Written for Version 0.4.  19-Oct-2026.
+Written for Version 0.5.  20-Oct-2026.
 
 Copyright 2026 Clockworks Signal Processing LLC  https://clk.works
 
@@ -101,6 +101,13 @@ EEPROM provisioning works on the USBi and the Pi: the image tool, `tools/a2b_eep
 and reads module-info images (a GUI and a command line), and the bench console writes them to
 the sub-nodes' EEPROMs ([provisioning.md](a2bcpp/docs/provisioning.md)).
 
+New in 0.5, the error watch (`Network::SetErrorWatch()`, on in the bench console) says what
+the nodes saw when the chain drops a node: bit errors counted per node, the SRF-missed and
+BECOVF interrupts, and a report of every node's error registers before the drop
+([architecture.md](a2bcpp/docs/architecture.md#finding-the-chain), the console's `errors`
+command). It found the bench drops' cause: short links left at the 4 m default cable length
+([hardware_notes.md](a2bcpp/docs/hardware_notes.md#routing-and-audio)).
+
 Not included: power diagnostics, SPI, dual buses, spread spectrum, GPIO over distance and a
 C facade. The [roadmap](ROADMAP.md) lists
 them, what has been tested on hardware, the known issues and what still needs a test.
@@ -117,8 +124,9 @@ docs/             PROVENANCE.md, ADI_chips/ (data sheets and TRMs), ADI_PnP/ (AD
                   documents)
 ROADMAP.md        what is not included, the known issues and what is not yet tested
 tools/            a2b_eeprom/ (the EEPROM image tool: builds and reads module-info images);
-                  vscode-a2b-menu/ (VS Code A2B menu extension); SS+reference/ (the
-                  SigmaStudio+ projects and exports of the Clockworks boards)
+                  vscode-a2b-menu/ (VS Code A2B menu extension); drop_test/ (repeated
+                  start-ups to catch a chain drop); SS+reference/ (the SigmaStudio+
+                  projects and exports of the Clockworks boards)
 ```
 
 ## Documentation
