@@ -13,7 +13,7 @@ find_package(Threads REQUIRED)
 # (examples/clockworks.cmake).
 a2b_check_ss_reference()
 a2b_add_clockworks_boards()
-add_library(a2b_bench_console STATIC bench_console.cpp bench_console_files.cpp console_text.cpp
+add_library(a2b_bench_console STATIC bench_console.cpp bench_console_files.cpp bench_console_spi.cpp console_text.cpp spi_job.cpp
                                      eeprom_image.cpp eeprom_job.cpp trace_platform.cpp
                                      board_ref.c board_ab0020.c board_ab0020_2428.c board_ab0310.c)
 target_include_directories(a2b_bench_console PUBLIC .)
@@ -26,7 +26,7 @@ set_source_files_properties(board_ref.c board_ab0020.c board_ab0020_2428.c board
 # The console as the RP2040 builds it (A2B_BENCH_FILES 0: no file commands;
 # examples/bench/rp2040), compiled here as well, so that a change to the console that breaks
 # that build shows without the Pico SDK. Nothing links it.
-add_library(a2b_bench_console_no_files OBJECT bench_console.cpp console_text.cpp)
+add_library(a2b_bench_console_no_files OBJECT bench_console.cpp bench_console_spi.cpp console_text.cpp spi_job.cpp)
 target_compile_definitions(a2b_bench_console_no_files PRIVATE A2B_BENCH_FILES=0)
 target_include_directories(a2b_bench_console_no_files PRIVATE .)
 target_link_libraries(a2b_bench_console_no_files PRIVATE a2bcpp_ss_plus a2b_clockworks_boards

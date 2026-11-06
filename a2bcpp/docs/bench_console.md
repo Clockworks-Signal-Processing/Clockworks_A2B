@@ -17,7 +17,9 @@ It can do the following:
 - trace the I2C to a file;
 - read and write any node's registers and peripherals;
 - pause and resume discovery, and reject a node;
-- connect and route channel groups, and mute.
+- connect and route channel groups, and mute;
+- reach a sub-node's SPI devices through the SPI data tunnel, a flash's ID, read, erase,
+  program and verify among them (on the Pi; [SPI](../../docs/SPI.md#5-the-bench-console)).
 
 Not included: GPIO over distance, and the other features in the
 [roadmap](../../ROADMAP.md)'s list.
@@ -114,6 +116,8 @@ a2b_bench [--usbi | --i2c DEVICE] [--board NAME|FILE] [--ignore-eeprom] [--trace
 | `--board X` | `board X` |
 | `--ignore-eeprom` | `ignoreEEPROM 1` |
 | `--trace FILE` | `i2cTrace on FILE` |
+| `--spi DEVICE`, `--spi-hz HZ` | The host's SPI to the main node, on Linux: spidev, `/dev/spidev0.1` if it opens (`none`: no SPI), 8 MHz ([SPI](../../docs/SPI.md#3-wiring-per-host)) |
+| `--spi-flash-check N[=ID]` | After the rest: the SPI tunnel to sub-node N, its flash's JEDEC ID, quit; exit code 1 if a step failed ([SPI](../../docs/SPI.md#5-the-bench-console)) |
 | `--commands=LIST` | Each command in LIST, separated by `;` (spaces around them ignored; none if LIST is empty), e.g. `"--commands=ignoreEEPROM 1; link 2 custom"`. One argument for several commands, as VS Code passes the `a2b.windowsBenchArgs` setting |
 | `COMMAND` | Any command; quote it if it has spaces, e.g. `"link 5 utp"` |
 
@@ -201,6 +205,8 @@ Command names ignore case. `help` lists them.
 | `pause` | No new probes for sub-nodes; the nodes in the bus stay, and the chain is still checked for drops (as ADI's `pause`) |
 | `resume` | Probes again at the end of the chain (as ADI's `resume`) |
 | `reject N` | Takes sub-node N and every node after it out of the bus (their switch opened). The same node found there again is switched off again; another module is reviewed as usual. `status` shows "Last rejection: by the app" |
+| `spi ...`, `spiflash ...` | SPI over A2B: `spi check` (the wiring), `spi open N` (the data tunnel), the raw transactions, `spi dump` and `spi send`; a SPI NOR flash's `id`, `erase`, `read`, `program` and `verify`. Listed in [SPI](../../docs/SPI.md#5-the-bench-console) |
+| `wait node N\|spi\|running [S]`, `wait S` | Holds the commands queued (a command line's) until a node is in the bus, the SPI tunnel is open or the bus runs, or S seconds (default 10); not met: the exit code is 1 |
 | `quit` | Stops the bus and leaves (on the RP2040 the console keeps running). Taken at once, even while an EEPROM job runs |
 
 The names follow ADI's console where it has the command (`start`, `ignoreEEPROM`,

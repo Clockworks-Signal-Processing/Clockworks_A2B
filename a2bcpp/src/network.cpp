@@ -397,12 +397,18 @@ Result Network::RejectNode(NodeAddr position) { return m_Impl->RejectNode(positi
  * listener's OnEvent() or from a ModuleInfoSource. It doesn't wait for the bus to be
  * idle: a transfer to a sub-node during its set-up lands between the stack's own.
  * @param node #kMainNode, or a sub-node in the bus (or the one being identified).
- * @param addr The peripheral: PeripheralAddress::I2c(addr) (an SPI address is refused).
+ * @param addr The peripheral: PeripheralAddress::I2c(addr), or PeripheralAddress::Spi(select)
+ *        on the far end of the SPI data tunnel (OpenSpiTunnel()): the tunnel's atomic write,
+ *        up to #kSpiMaxData bytes under one slave select (docs/SPI.md).
  * @param data Bytes to write (a sub-address first, if the peripheral has one).
  * @param len Number of bytes, at least 1.
  * @return Result::kOk; Result::kInvalidArgument if @p node is not in the bus or an
- *         argument is out of range; Result::kNotSupported for an SPI peripheral (not supported
- * yet); Result::kI2cError if the transfer failed (e.g. no device answered).
+ *         argument is out of range (for SPI: no tunnel ready to @p node, or a slave select
+ *         it doesn't enable); Result::kI2cError if the transfer failed (e.g. no device
+ *         answered); for SPI, Result::kNotSupported (no SPI on the host or the main node),
+ *         Result::kSpiError (LastSpiStatus() says why), or Result::kBusy (nothing sent: a
+ *         node is joining behind the far end, or the tunnel's plan is due; try again at a
+ *         later poll). A probe for a new node that nothing has answered yet is ended first.
  */
 Result Network::PeripheralWrite(NodeAddr node, PeripheralAddress addr, const uint8_t* data,
                                 size_t len) {
@@ -410,11 +416,12 @@ Result Network::PeripheralWrite(NodeAddr node, PeripheralAddress addr, const uin
 }
 
 /**
- * Reads from a peripheral of a node, in one transfer, at once. As PeripheralWrite().
+ * Reads from a peripheral of a node, in one transfer, at once. As PeripheralWrite(); an SPI
+ * peripheral is read with the tunnel's atomic read, nothing written first.
  * @param node #kMainNode, or a sub-node in the bus (or the one being identified).
  * @param addr The peripheral.
  * @param data Buffer for the bytes.
- * @param len Number of bytes, at least 1.
+ * @param len Number of bytes, at least 1 (SPI: up to #kSpiMaxData).
  * @return As PeripheralWrite().
  */
 Result Network::PeripheralRead(NodeAddr node, PeripheralAddress addr, uint8_t* data, size_t len) {
@@ -423,7 +430,9 @@ Result Network::PeripheralRead(NodeAddr node, PeripheralAddress addr, uint8_t* d
 
 /**
  * Writes then reads a peripheral of a node, joined by a repeated start (e.g. a
- * sub-address, then its data), at once. As PeripheralWrite().
+ * sub-address, then its data), at once. As PeripheralWrite(). An SPI peripheral gets the
+ * tunnel's atomic read: up to 255 bytes written, then @p readLen (up to #kSpiMaxData) read,
+ * under one slave select (e.g. a flash's read command and address, then its data).
  * @param node #kMainNode, or a sub-node in the bus (or the one being identified).
  * @param addr The peripheral.
  * @param writeData Bytes to write.
@@ -1004,8 +1013,8 @@ Result Network::Impl::RejectNode(NodeAddr position) {
 Result Network::Impl::PeripheralAccess(NodeAddr node, PeripheralAddress addr,
                                        const uint8_t* writeData, size_t writeLen, uint8_t* readData,
                                        size_t readLen) {
-  if (addr.kind != PeripheralAddress::Kind::kI2c) {
-    return Result::kNotSupported;  // SPI peripherals are not supported yet.
+  if (addr.kind == PeripheralAddress::Kind::kSpi) {
+    return SpiAtomic(node, addr.spiSelect, writeData, writeLen, readData, readLen);
   }
   if (!IsReachable(node)) {
     return Result::kInvalidArgument;

@@ -40,6 +40,7 @@
 using bench::Hex;
 using bench::Same;
 using bench::Split;
+using bench::ToBytes;
 using bench::ToNumber;
 
 extern "C" {
@@ -159,19 +160,6 @@ bool ToNode(const std::string& text, a2b::NodeAddr& node) {
     return false;
   }
   node = static_cast<a2b::NodeAddr>(position);
-  return true;
-}
-
-/** Reads the bytes in @p args from @p first on, each 0-255; false if one isn't. */
-bool ToBytes(const std::vector<std::string>& args, size_t first, std::vector<uint8_t>& bytes) {
-  bytes.clear();
-  for (size_t i = first; i < args.size(); ++i) {
-    long value = 0;
-    if (!ToNumber(args[i], 0xFF, value)) {
-      return false;
-    }
-    bytes.push_back(static_cast<uint8_t>(value));
-  }
   return true;
 }
 
@@ -361,8 +349,9 @@ const std::vector<BenchConsole::BuiltInBoard>& BenchConsole::BuiltInBoards() {
 }
 
 /**
- * Tells whether a host should run @p line at once while an `eeprom` job runs, ahead of the
- * lines queued before it: `eeprom abort`, `quit` and `exit`. Other lines wait for the job.
+ * Tells whether a host should run @p line at once while a job runs or `wait` holds, ahead
+ * of the lines queued before it: `eeprom abort`, `spi abort`, `spiflash abort`, `wait abort`,
+ * `quit` and `exit`. Other lines wait for the job.
  * @param line A command line.
  * @return True for those commands.
  */
@@ -371,7 +360,19 @@ bool BenchConsole::RunsWhileBusy(const char* line) {
   if (args.size() == 1) {
     return Same(args[0], "quit") || Same(args[0], "exit");
   }
-  return args.size() == 2 && Same(args[0], "eeprom") && Same(args[1], "abort");
+  return args.size() == 2 && Same(args[1], "abort") &&
+         (Same(args[0], "eeprom") || Same(args[0], "spi") || Same(args[0], "spiflash") ||
+          Same(args[0], "wait"));
+}
+
+/** True while a job runs or `wait` holds: the host's queued commands wait for it. */
+bool BenchConsole::Busy() const {
+#if A2B_BENCH_FILES
+  if (m_EepromJob.Running()) {
+    return true;
+  }
+#endif
+  return m_SpiJob.Running() || m_WaitFor != 0;
 }
 
 /**
@@ -387,14 +388,23 @@ bool BenchConsole::Execute(const char* line) {
   }
   const std::string& command = args[0];
 #if A2B_BENCH_FILES
-  if (Busy() && (Same(command, "start") || Same(command, "stop") || Same(command, "board") ||
-                 Same(command, "reject") ||
-                 (Same(command, "eeprom") && args.size() > 1 && !Same(args[1], "abort")))) {
+  if (m_EepromJob.Running() &&
+      (Same(command, "start") || Same(command, "stop") || Same(command, "board") ||
+       Same(command, "reject") ||
+       (Same(command, "eeprom") && args.size() > 1 && !Same(args[1], "abort")))) {
     Print("An EEPROM job is running on sub-node %u (eeprom abort stops it)\n",
           static_cast<unsigned>(m_EepromJob.Node()));
     return true;
   }
 #endif
+  if (m_SpiJob.Running() && (Same(command, "start") || Same(command, "stop") ||
+                             Same(command, "board") || Same(command, "reject") ||
+                             ((Same(command, "spi") || Same(command, "spiflash")) &&
+                              !(args.size() == 2 && Same(args[1], "abort"))))) {
+    Print("An SPI job is running on sub-node %u (spi abort stops it)\n",
+          static_cast<unsigned>(m_SpiJob.Node()));
+    return true;
+  }
   if (Same(command, "help") || command == "?") {
     Help();
   } else if (Same(command, "board")) {
@@ -422,6 +432,12 @@ bool BenchConsole::Execute(const char* line) {
   } else if (Same(command, "i2cTrace")) {
     Trace(args);
 #endif
+  } else if (Same(command, "spi")) {
+    Spi(args);
+  } else if (Same(command, "spiflash")) {
+    SpiFlash(args);
+  } else if (Same(command, "wait")) {
+    Wait(args);
   } else if (Same(command, "interrupts")) {
     Interrupts(args);
   } else if (Same(command, "errors")) {
@@ -466,6 +482,8 @@ bool BenchConsole::Execute(const char* line) {
   } else if (Same(command, "group")) {
     SetGroup(args);
   } else if (Same(command, "quit") || Same(command, "exit")) {
+    m_SpiJob.Abort();
+    m_WaitFor = 0;
 #if !A2B_BENCH_FILES
     m_Network.Stop();
 #else
@@ -481,11 +499,16 @@ bool BenchConsole::Execute(const char* line) {
 }
 
 /**
- * Polls the bus once at the host's time (the events are printed at the end of it), then
- * runs an `eeprom` job on by a transfer, and reports it when it ends.
+ * Polls the bus once at the host's time (the events are printed at the end of it), ends a
+ * `wait` that is met, then runs an `spi` or `spiflash` job on by a transaction and an
+ * `eeprom` job by a transfer, and reports a job when it ends.
  */
 void BenchConsole::Poll() {
   m_Network.Poll(m_Trace.NowMs());
+  PollWait();
+  if (m_SpiJob.Running() && m_SpiJob.Poll(m_Network, m_Trace.NowMs()) != SpiJob::State::kRunning) {
+    SpiJobFinished();
+  }
 #if A2B_BENCH_FILES
   if (m_EepromJob.Running() &&
       m_EepromJob.Poll(m_Network, m_Trace.NowMs()) != EepromJob::State::kRunning) {
@@ -580,6 +603,12 @@ void BenchConsole::OnEvent(a2b::Network& network, const a2b::Event& event) {
       Print("routing failed: %s%s\n", a2b::ToString(event.routingError), where.c_str());
       return;
     }
+    case a2b::EventType::kSpiTunnelOpened:
+      Print("SPI tunnel open to %s\n", NodeName(event.node).c_str());
+      return;
+    case a2b::EventType::kSpiTunnelClosed:
+      Print("SPI tunnel to %s closed\n", NodeName(event.node).c_str());
+      return;
   }
 }
 
@@ -671,6 +700,38 @@ void BenchConsole::Help() {
       "i2cTrace on FILE         write every I2C transfer to FILE (I2CT lines)\n"
       "i2cTrace off|status      stop tracing / show the trace\n"
 #endif
+      "spi                      the SPI tunnel and the last SPI transaction (docs/SPI.md)\n"
+      "spi check                read the main node's IDs over SPI and over I2C: checks the\n"
+      "                         host's SPI wiring to the main node (no A2B link involved)\n"
+      "spi open N [ss S] [div D] [mode M] [slots T] [stretch]\n"
+      "                         the SPI data tunnel to sub-node N (an AD2433/AD2437): its\n"
+      "                         slave select S (0 ADR1, 1 SIO2, 2 ADR2; default 0), SCK\n"
+      "                         49.152 MHz / (D + 1) (default 4: 9.8 MHz), SPI mode M (0-3),\n"
+      "                         T slots each way (2-12, default 4), stretch: ENFDCS\n"
+      "spi close                take the tunnel off the bus\n"
+      "spi write BYTE...        atomic write: the bytes in one transfer (up to 256)\n"
+      "spi read LEN [BYTE...]   atomic read: the bytes, then LEN (1-256) read\n"
+      "spi fd BYTE...           full duplex: prints the last one's data and this one's\n"
+      "spi bulk BYTE...         bulk write (the far end starts before it has them all)\n"
+#if A2B_BENCH_FILES
+      "spi dump FILE LEN [BYTE...]\n"
+      "                         the bytes, then LEN bytes read into FILE, in one transfer\n"
+      "                         (extended full duplex, 256 a transaction)\n"
+      "spi send FILE [BYTE...]  the bytes, then FILE's, in one transfer (extended bulk)\n"
+#endif
+      "spi abort                the SPI abort; stops an spi or spiflash job\n"
+      "spiflash id [ID]         a SPI NOR flash's JEDEC ID (0x9F); ID (6 hex digits, e.g.\n"
+      "                         EF4018, a W25Q128JV) must match, or the exit code is 1\n"
+      "spiflash erase ADDR LEN  erase the 4 KB sectors that hold LEN bytes from ADDR\n"
+#if A2B_BENCH_FILES
+      "spiflash read ADDR LEN FILE    read into FILE (0x03, one transfer)\n"
+      "spiflash program ADDR FILE     program FILE (erase first), page by page\n"
+      "spiflash verify ADDR FILE      compare the flash with FILE\n"
+#endif
+      "wait node N [S]          hold the commands queued until sub-node N is in the bus\n"
+      "wait spi [S]             ... until the SPI tunnel is open; wait running [S]: the bus\n"
+      "                         is running; wait S: S seconds. A wait not met within S\n"
+      "                         (default 10) seconds makes the exit code 1\n"
       "interrupts quiet|all     hide (the default) or show the open-line interrupts (types\n"
       "                         12, 13) of the last sub-node, which each probe behind it\n"
       "                         gives when nothing is plugged in there\n"
@@ -982,6 +1043,7 @@ void BenchConsole::Status() {
 #endif
   Print("Interrupts: %s, %u open-line interrupt(s) of the last sub-node hidden\n",
         m_ShowAllInterrupts ? "all shown" : "quiet", static_cast<unsigned>(m_HiddenInterrupts));
+  SpiShowStatus();
 #if A2B_BENCH_FILES
   if (m_Trace.Tracing()) {
     Print("I2C trace: %s, %u transfer(s)\n", m_TraceFile.c_str(),

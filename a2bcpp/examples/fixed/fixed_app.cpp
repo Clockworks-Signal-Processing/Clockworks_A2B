@@ -161,6 +161,9 @@ void FixedApp::OnEvent(a2b::Network& network, const a2b::Event& event) {
       return;
     case a2b::EventType::kErrorReport:
       return;  // The error watch is never turned on here.
+    case a2b::EventType::kSpiTunnelOpened:
+    case a2b::EventType::kSpiTunnelClosed:
+      return;  // No SPI tunnel is opened here.
   }
 }
 

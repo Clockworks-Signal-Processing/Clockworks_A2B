@@ -21,6 +21,7 @@ these recipes plug into, is in the [architecture guide](architecture.md).
 | Route audio between nodes | channel groups, `AddConnection()`, `ApplyRouting()` | Routing |
 | Change periods and limits | `BoardTimings`, `BoardPolicy` | Timings and policy |
 | Run several buses | one `Network` each | Several buses |
+| Reach a sub-node's SPI device | `OpenSpiTunnel()`, `PeripheralAddress::Spi()` | [SPI](../../docs/SPI.md#4-the-api) |
 
 ## Module classes
 
@@ -792,5 +793,5 @@ both threads.
 
 The [roadmap](../../ROADMAP.md#features-not-included) lists what the stack
 doesn't do, with the calls that are there for it and return `Result::kNotSupported`: power
-diagnostics, dual buses, the C facade, SPI, spread spectrum, GPIO over distance and the
+diagnostics, dual buses, the C facade, SPI beyond the data tunnel, spread spectrum, GPIO over distance and the
 others.

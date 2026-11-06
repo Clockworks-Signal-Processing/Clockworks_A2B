@@ -5,7 +5,9 @@
 add_library(a2bcpp_sim STATIC
     eeprom.cpp
     module_info.cpp
+    sim_spi.cpp
     simulator.cpp
+    spi_flash.cpp
 )
 # Includes are "sim/<name>.h"; the simulator also uses the stack's internal headers.
 target_include_directories(a2bcpp_sim PUBLIC ${PROJECT_SOURCE_DIR} ${PROJECT_SOURCE_DIR}/src)

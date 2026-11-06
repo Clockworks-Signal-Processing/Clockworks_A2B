@@ -76,6 +76,8 @@ again.
    sudo usermod -aG i2c $USER
    ```
 3. For debugging only: `sudo apt install gdbserver`.
+4. For SPI over A2B only: `dtparam=spi=on` in `config.txt` and the user in the `spi` group
+   ([SPI](../../docs/SPI.md#3-wiring-per-host)).
 
 The Pi platform drives no reset or IRQ line: the stack resets the main node in software
 and polls its interrupt registers.

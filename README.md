@@ -68,7 +68,7 @@ For full details see `a2bcpp\docs\cookbook.md`
 
 ------
 
-Written for Version 0.5.  20-Oct-2026.
+Written for Version 0.6.  5-Nov-2026.
 
 Copyright 2026 Clockworks Signal Processing LLC  https://clk.works
 
@@ -76,7 +76,11 @@ The remainder of the documentation, unless noted otherwise, was created by Claud
 
 ------
 
+#### History summary:
 
+0.5 - first public release
+
+0.6 - added SPI support to A2B library with RPi (Linux) console app updated and tested to support SPI use
 
 ------
 
@@ -108,7 +112,13 @@ BECOVF interrupts, and a report of every node's error registers before the drop
 command). It found the bench drops' cause: short links left at the 4 m default cable length
 ([hardware_notes.md](a2bcpp/docs/hardware_notes.md#routing-and-audio)).
 
-Not included: power diagnostics, SPI, dual buses, spread spectrum, GPIO over distance and a
+New in this version, SPI over A2B: the SPI data tunnel from an AD2433 or AD2437 main node to a
+sub-node's SPI devices, its six transaction types, and the bench console's `spi` and
+`spiflash` commands, on the Pi's spidev (not on the USBi or the RP2040 yet). Tested on the
+simulator, not yet on hardware: [docs/SPI.md](docs/SPI.md) has the wiring, the slots it takes
+and the bench check.
+
+Not included: power diagnostics, dual buses, spread spectrum, GPIO over distance and a
 C facade. The [roadmap](ROADMAP.md) lists
 them, what has been tested on hardware, the known issues and what still needs a test.
 
@@ -120,8 +130,9 @@ a2bcpp/           the C++ stack: include/ (public API), src/, sim/ (simulator), 
                   the Clockworks board profiles they share), tests/, tools/, docs/
 adi/              the ADI files the build still needs: stack headers, SigmaStudio+ exports,
                   module-info images (see docs/PROVENANCE.md)
-docs/             PROVENANCE.md, ADI_chips/ (data sheets and TRMs), ADI_PnP/ (ADI's PnP
-                  documents)
+docs/             PROVENANCE.md, RELEASE.md (tagging, and the snapshot that goes to the
+                  public repository), SPI.md (SPI over A2B), ADI_chips/ (data sheets and TRMs), ADI_PnP/ (ADI's
+                  PnP documents)
 ROADMAP.md        what is not included, the known issues and what is not yet tested
 tools/            a2b_eeprom/ (the EEPROM image tool: builds and reads module-info images);
                   vscode-a2b-menu/ (VS Code A2B menu extension); drop_test/ (repeated
@@ -145,6 +156,7 @@ In `a2bcpp/docs/`, in a reading order:
 | 8 | [main_node_config.md](a2bcpp/docs/main_node_config.md), [timing.md](a2bcpp/docs/timing.md), [porting.md](a2bcpp/docs/porting.md) | The main node's settings in full; every wait; a `Platform` for another host |
 | 9 | [decisions.md](a2bcpp/docs/decisions.md), [testing.md](a2bcpp/docs/testing.md), [ram.md](a2bcpp/docs/ram.md) | Requirements, rationale, policies and the designs not built; the tests and the simulator; RAM on the RP2040 |
 | - | [setup_pi.md](a2bcpp/docs/setup_pi.md), [setup_windows.md](a2bcpp/docs/setup_windows.md) | Setting up a PC for the Pi and for Windows |
+| - | [docs/SPI.md](docs/SPI.md) | SPI over A2B: the data tunnel, its slots, each host's wiring, the API and console commands |
 
 The API reference is Doxygen's (`cd a2bcpp && doxygen`; [testing.md](a2bcpp/docs/testing.md#doxygen)).
 

@@ -1,7 +1,8 @@
 /**
  * @file trace_platform.h
  * @brief A Platform that passes everything to another one and can write each I2C transfer
- *        to a file, as I2CT lines (the trace format of tools/README.md, for trace_decode.py).
+ *        to a file, as I2CT lines (the trace format of tools/README.md, for trace_decode.py),
+ *        and each SPI transfer as an SPIT line.
  *
  * Copyright 2026 by ClockWorks Signal Processing LLC
  * Licensed under the terms found in CLOCKWORKS_SOFTWARE_LICENSE.txt and included here by reference.
@@ -35,6 +36,7 @@ class TracePlatform : public a2b::Platform {
   a2b::Result I2cRead(uint8_t addr, uint8_t* data, size_t len) override;
   a2b::Result I2cWriteRead(uint8_t addr, const uint8_t* writeData, size_t writeLen,
                            uint8_t* readData, size_t readLen) override;
+  a2b::Result SpiTransfer(uint8_t bus, const uint8_t* tx, uint8_t* rx, size_t len) override;
   uint32_t NowMs() override;
   a2b::Result SetMainNodeReset(uint8_t bus, bool asserted) override;
   bool IrqPending(uint8_t bus) override;

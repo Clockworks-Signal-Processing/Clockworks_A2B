@@ -104,6 +104,12 @@ enum class EventType : uint8_t {
       Event::node failed, or sub-node Event::node failed a chain check and its kNodeRemoved
       events follow. Network::LastErrorReport() has what the nodes held. */
   kErrorReport,
+  /** The SPI data tunnel to sub-node Event::node is set up (its plan written): the SPI
+      transactions can run (Network::OpenSpiTunnel(); docs/SPI.md). */
+  kSpiTunnelOpened,
+  /** The SPI data tunnel to sub-node Event::node is gone: closed, or its node left the bus
+      (it opens again when the module is back). */
+  kSpiTunnelClosed,
 };
 
 /**

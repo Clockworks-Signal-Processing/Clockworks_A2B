@@ -16,6 +16,13 @@ rows may well be right, but the 32-bit figures have not been remeasured since to
 Eight bytes change nothing that matters, so settle it with the next version's
 `ram_report.py` run rather than before this release.
 
+**Also to rerun: SPI over A2B** ([SPI](../../docs/SPI.md)) added 56 bytes to the Impl on a 64-bit host
+(17,320 to 17,376 of 17,408: the tunnel's settings and state, each routing plan's
+`TunnelPlan`, and when SPI was last used, for the probe hold); the 32-bit figure should be a
+little less, inside the 408 left. The SPI calls
+keep their command on the stack (up to 259 bytes plus the frame), on the app's call path, not on
+`Poll()`'s.
+
 | What | Bytes |
 |---|---:|
 | Static RAM (`.data` + `.bss`) | 0 |

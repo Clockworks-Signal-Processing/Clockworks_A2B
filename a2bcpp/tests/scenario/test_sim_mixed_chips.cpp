@@ -240,11 +240,11 @@ A2B_TEST(Ad2427IsNotAMainNode) {
   A2B_CHECK_EQ(bench.sim.TransferCount(), 0);
 }
 
-A2B_TEST(SpiPeripheralsRefusedOnEveryMainNode) {
+A2B_TEST(SpiPeripheralsRefusedWithoutATunnel) {
   // Scenario 11's SPI clause: an SPI call on a main node without SPI (AD2428) returns an
-  // error. For now every SPI call does, on every main node and sub-node.
-  PeripheralAddress spi;
-  spi.kind = PeripheralAddress::Kind::kSpi;
+  // error (not supported). On an AD2433 or AD2437 main node an SPI peripheral needs the data
+  // tunnel open to its node (test_sim_spi): without it, refused. Nothing is sent either way.
+  const PeripheralAddress spi = PeripheralAddress::Spi(0);
   const uint8_t data[2] = {0x00, 0x01};
   uint8_t readBack[2] = {};
   for (uint8_t main : kMainChips) {
@@ -252,11 +252,12 @@ A2B_TEST(SpiPeripheralsRefusedOnEveryMainNode) {
     bench.bus.Plug(SubOf(0x37, 0x10));
     A2B_CHECK(bench.StartWith(1));
     bench.sim.ClearTrace();
-    A2B_CHECK(bench.network.PeripheralWrite(kMainNode, spi, data, 2) == Result::kNotSupported);
-    A2B_CHECK(bench.network.PeripheralRead(0, spi, readBack, 2) == Result::kNotSupported);
-    A2B_CHECK(bench.network.PeripheralWriteRead(kMainNode, spi, data, 1, readBack, 1) ==
-              Result::kNotSupported);
+    const Result refused = (main == 0x28) ? Result::kNotSupported : Result::kInvalidArgument;
+    A2B_CHECK(bench.network.PeripheralWrite(kMainNode, spi, data, 2) == refused);
+    A2B_CHECK(bench.network.PeripheralRead(0, spi, readBack, 2) == refused);
+    A2B_CHECK(bench.network.PeripheralWriteRead(kMainNode, spi, data, 1, readBack, 1) == refused);
     A2B_CHECK_EQ(bench.sim.TransferCount(), 0);
+    A2B_CHECK_EQ(bench.sim.SpiTransferCount(), 0);
   }
 }
 

@@ -83,4 +83,17 @@ std::string Hex(const uint8_t* data, size_t len) {
   return text;
 }
 
+/** Reads the bytes in @p args from @p first on, each 0-255; false if one isn't. */
+bool ToBytes(const std::vector<std::string>& args, size_t first, std::vector<uint8_t>& bytes) {
+  bytes.clear();
+  for (size_t i = first; i < args.size(); ++i) {
+    long value = 0;
+    if (!ToNumber(args[i], 0xFF, value)) {
+      return false;
+    }
+    bytes.push_back(static_cast<uint8_t>(value));
+  }
+  return true;
+}
+
 }  // namespace bench

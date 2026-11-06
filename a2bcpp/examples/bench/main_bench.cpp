@@ -1,13 +1,16 @@
 /**
  * @file main_bench.cpp
  * @brief The bench console on a desktop host:
- *        `a2b_bench [--usbi | --i2c DEVICE] [--board NAME|FILE] [--ignore-eeprom]
- *        [--trace FILE] [--commands=LIST] [COMMAND]...`.
+ *        `a2b_bench [--usbi | --i2c DEVICE] [--spi DEVICE] [--spi-hz HZ] [--board NAME|FILE]
+ *        [--ignore-eeprom] [--trace FILE] [--commands=LIST] [--spi-flash-check N[=ID]]
+ *        [COMMAND]...`.
  *
  * Windows reaches the A2B board through the ADI USBi (libusb, WinUSB driver). Linux uses
  * the host's I2C through i2c-dev (/dev/i2c-1 on the Pi), or the USBi with `--usbi` when
  * the console was built with libusb (a USBi on a Linux host is untried: it may need the
- * USBi's firmware loaded and a udev rule). The options are shorthands for the first
+ * USBi's firmware loaded and a udev rule). On Linux the host's SPI to the main node (the SPI
+ * data tunnel, docs/SPI.md) is spidev, /dev/spidev0.1 unless `--spi` names another; without
+ * it the `spi` commands say so. The options are shorthands for the first
  * commands; each COMMAND argument (quoted if it has spaces, e.g. "link 5 utp") runs next,
  * then the console reads commands from the keyboard. Commands are read on their own
  * thread, so the bus is polled every millisecond whatever is typed; while an `eeprom` job
@@ -15,6 +18,10 @@
  * abort` and `quit`, which run at once (BenchConsole::RunsWhileBusy()). `--commands=LIST` is
  * several commands in one argument, separated by ';' (none if LIST is empty), for a
  * launcher that passes a setting as one argument: VS Code's "a2b.windowsBenchArgs".
+ * `--spi-flash-check N[=ID]` runs, after them, the SPI tunnel's hello-world on sub-node N's
+ * flash and exits: `start` (unless a command started the bus), `wait node N`, `spi open N`,
+ * `wait spi`, `spiflash id [ID]`, `quit`. The exit code is 0, or 1 if a step failed or the ID
+ * doesn't match (docs/SPI.md).
  *
  * Copyright 2026 by ClockWorks Signal Processing LLC
  * Licensed under the terms found in CLOCKWORKS_SOFTWARE_LICENSE.txt and included here by reference.
@@ -23,6 +30,7 @@
 
 #include <chrono>
 #include <cstdio>
+#include <cstdlib>
 #include <cstring>
 #include <deque>
 #include <iostream>
@@ -102,15 +110,23 @@ void Flush(BenchConsole& console, bool prompt) {
 /** Prints the usage. */
 void Usage() {
   std::fprintf(stderr,
-               "a2b_bench [--usbi | --i2c DEVICE] [--board NAME|FILE] [--ignore-eeprom] "
-               "[--trace FILE] [--commands=LIST] [COMMAND]...\n"
+               "a2b_bench [--usbi | --i2c DEVICE] [--spi DEVICE] [--spi-hz HZ] "
+               "[--board NAME|FILE] [--ignore-eeprom] [--trace FILE] [--commands=LIST] "
+               "[COMMAND]...\n"
                "  --usbi           the ADI USBi (the default on Windows)\n"
                "  --i2c DEVICE     the host's I2C, e.g. /dev/i2c-1 (the default on Linux)\n"
+               "  --spi DEVICE     the host's SPI to the main node (Linux; default\n"
+               "                   /dev/spidev0.1, used if it opens; none: no SPI)\n"
+               "  --spi-hz HZ      its clock (default 8000000, at most 15000000)\n"
                "  --board X        board X: a built-in board or an export's C file\n"
                "  --ignore-eeprom  ignoreEEPROM 1\n"
                "  --trace FILE     i2cTrace on FILE\n"
                "  --commands=LIST  console commands separated by ';', e.g.\n"
                "                   \"--commands=ignoreEEPROM 1; link 2 custom\" (none if empty)\n"
+               "  --spi-flash-check N[=ID]\n"
+               "                   after the commands: open the SPI tunnel to sub-node N, read\n"
+               "                   its flash's JEDEC ID (and match it with ID, e.g. EF4018),\n"
+               "                   then quit; exit code 1 if anything failed\n"
                "  COMMAND          a console command, e.g. start or \"link 5 utp\"\n");
 }
 
@@ -190,10 +206,28 @@ int Fail() {
   return 1;
 }
 
+/**
+ * Ends the program after `quit`: prints what is left, closes the host (@p closeHost), and
+ * exits with _Exit(), skipping the exit-time clean-up. That clean-up waits on stdin while the
+ * reader thread is blocked reading it: on a stdin that never ends (a pipe a shell or ssh
+ * holds open), a plain return from main() never finished. `quit` has stopped the bus and
+ * closed the trace already; the statics are left as they are.
+ * @param console The console; its exit code is the program's.
+ * @param closeHost Closes the host's I2C (and SPI) or the USBi.
+ */
+[[noreturn]] void Quit(BenchConsole& console, void (*closeHost)()) {
+  Flush(console, false);
+  std::fflush(stdout);
+  std::fflush(stderr);
+  closeHost();
+  std::_Exit(console.ExitCode());
+}
+
 }  // namespace
 
 /**
- * Opens the host's I2C, runs the commands given, then reads commands until `quit`.
+ * Opens the host's I2C, runs the commands given, then reads commands until `quit` (which
+ * exits through Quit()).
  * @param argc Argument count.
  * @param argv The options and commands (see the file's description).
  * @return 1 if the host's I2C can't be opened or an option is wrong (Fail()).
@@ -208,6 +242,10 @@ int main(int argc, char** argv) {
   bool useUsbi = false;
 #endif
   const char* device = "/dev/i2c-1";
+  const char* spiDevice = "/dev/spidev0.1";
+  bool spiNamed = false;  // --spi given: failing to open it is an error.
+  long spiHz = 8000000;
+  std::string flashCheck;  // --spi-flash-check: "N" or "N=ID".
   std::deque<std::string> commands;
   for (int i = 1; i < argc; ++i) {
     const char* arg = argv[i];
@@ -222,6 +260,30 @@ int main(int argc, char** argv) {
       }
       useUsbi = false;
       device = value;
+    } else if (std::strcmp(arg, "--spi") == 0) {
+      value = OptionValue(argc, argv, i, "an SPI device, e.g. /dev/spidev0.1, or none");
+      if (value == nullptr) {
+        Usage();
+        return Fail();
+      }
+      spiDevice = value;
+      spiNamed = true;
+    } else if (std::strcmp(arg, "--spi-hz") == 0) {
+      value = OptionValue(argc, argv, i, "a clock in Hz, e.g. 8000000");
+      char* end = nullptr;
+      spiHz = (value != nullptr) ? std::strtol(value, &end, 0) : 0;
+      if (value == nullptr || *end != '\0' || spiHz < 1000 || spiHz > 15000000) {
+        std::fprintf(stderr, "a2b_bench: --spi-hz needs 1000 to 15000000\n");
+        Usage();
+        return Fail();
+      }
+    } else if (std::strncmp(arg, "--spi-flash-check", 17) == 0) {
+      value = (arg[17] == '=') ? arg + 18 : OptionValue(argc, argv, i, "a sub-node, e.g. 0=EF4018");
+      if (value == nullptr || *value == '\0') {
+        Usage();
+        return Fail();
+      }
+      flashCheck = value;
     } else if (std::strcmp(arg, "--board") == 0) {
       value = OptionValue(argc, argv, i, "a built-in board or an export's C file");
       if (value == nullptr) {
@@ -249,6 +311,24 @@ int main(int argc, char** argv) {
     }
   }
 
+  if (!flashCheck.empty()) {
+    const size_t equals = flashCheck.find('=');
+    const std::string node = flashCheck.substr(0, equals);
+    const std::string id = (equals == std::string::npos) ? "" : " " + flashCheck.substr(equals + 1);
+    bool started = false;
+    for (const std::string& command : commands) {
+      started = started || command == "start";
+    }
+    if (!started) {
+      commands.push_back("start");
+    }
+    commands.push_back("wait node " + node + " 15");
+    commands.push_back("spi open " + node);
+    commands.push_back("wait spi 5");
+    commands.push_back("spiflash id" + id);
+    commands.push_back("quit");
+  }
+
   a2b::Platform* host = nullptr;
 #ifdef A2B_CPP_USBI
   static a2b::LibusbLink link;
@@ -271,9 +351,24 @@ int main(int argc, char** argv) {
     }
     std::printf("I2C %s open\n", device);
     host = &linuxI2c;
+    if (std::strcmp(spiDevice, "none") != 0) {
+      if (linuxI2c.OpenSpi(spiDevice, static_cast<uint32_t>(spiHz), 0) == a2b::Result::kOk) {
+        std::printf("SPI %s open at %ld Hz\n", spiDevice, spiHz);
+      } else if (spiNamed) {
+        std::fprintf(stderr, "Cannot open %s (is SPI enabled, and may this user use it?)\n",
+                     spiDevice);
+        return Fail();
+      } else {
+        std::printf("No SPI (%s doesn't open): the spi commands are unavailable\n", spiDevice);
+      }
+    }
   }
 #else
   (void)device;
+  (void)spiNamed;
+  if (std::strcmp(spiDevice, "/dev/spidev0.1") != 0 || spiHz != 8000000) {
+    std::printf("--spi and --spi-hz do nothing here: this host has no SPI to the main node\n");
+  }
 #endif
   if (host == nullptr) {
     std::fprintf(stderr, "%s is not built into this console\n",
@@ -282,6 +377,15 @@ int main(int argc, char** argv) {
   }
 
   static BenchConsole console(*host);
+  void (*const closeHost)() = [] {
+#ifdef A2B_CPP_USBI
+    link.Close();
+#endif
+#ifdef __linux__
+    linuxI2c.CloseSpi();
+    linuxI2c.Close();
+#endif
+  };
   std::printf("A2B bench console: help lists the commands\n");
   // Typed lines are read from the start, so `eeprom abort` reaches a start-up command's job.
   static Input input;
@@ -303,7 +407,7 @@ int main(int argc, char** argv) {
     }
   }
   if (!running) {
-    return 0;
+    Quit(console, closeHost);
   }
   Flush(console, true);
 
@@ -318,5 +422,5 @@ int main(int argc, char** argv) {
     Flush(console, busy && !console.Busy());  // The prompt again when a job ends.
     std::this_thread::sleep_for(std::chrono::milliseconds(1));
   }
-  return 0;
+  Quit(console, closeHost);
 }

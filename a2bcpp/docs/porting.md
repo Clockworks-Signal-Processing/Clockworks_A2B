@@ -29,6 +29,7 @@ RP2040.
 | `SetMainNodeReset(bus, asserted)` | no | Drives the main node's reset line (RESETn, active low) |
 | `IrqPending(bus)` | no | Reads the main node's IRQ line |
 | `PowerGood(bus)` | no | Reads the main node's board's power-good, checked before each first step of a two-step link into sub-node 0 (a sub-node's comes from its GPIO). The default says it is good |
+| `SpiTransfer(bus, tx, rx, len)` | no | One full-duplex transfer under one slave select, to the main node's SPI port: SPI over A2B only ([SPI](../../docs/SPI.md#3-wiring-per-host)). The default says not supported |
 | `Log(level, text)` | no | Writes a log message |
 | `Lock()` / `Unlock()` | no | Guards an I2C controller shared between threads |
 

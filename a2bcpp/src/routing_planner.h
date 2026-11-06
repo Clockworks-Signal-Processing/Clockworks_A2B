@@ -42,6 +42,10 @@ class RoutingPlanner {
     const ChannelGroups* groups[kMaxNodes] = {};  ///< Each node's channel groups.
     Route routes[kMaxConnections];                ///< The connections to carry.
     size_t routeCount = 0;                        ///< How many.
+    /** The SPI data tunnel's far end, by node index (a sub-node); 0 for no tunnel. */
+    uint8_t tunnelNode = 0;
+    uint8_t tunnelDn = 0;  ///< Its slots down from the main node.
+    uint8_t tunnelUp = 0;  ///< Its slots up to the main node.
   };
 
   /** @brief The TX frame buffer location the plan points unused TX channels at. */
@@ -69,7 +73,8 @@ class RoutingPlanner {
                     size_t at);  ///< Appends a node's slots to m_Out.
   bool Consume(size_t index, uint16_t signal, size_t location);  ///< Maps a played slot.
   bool Needed(uint16_t signal, size_t from, size_t to) const;    ///< A sink in a range wants it.
-  NodeRouting& Regs(size_t index);                               ///< A node's registers.
+  bool Tunnel(uint16_t signal) const;  ///< The slot is one of the SPI data tunnel's.
+  NodeRouting& Regs(size_t index);     ///< A node's registers.
   bool Crossbar(size_t index) const { return m_Input->map[index].crossbar; }  ///< Has one.
 
   const Input* m_Input = nullptr;

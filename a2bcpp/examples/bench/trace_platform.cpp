@@ -10,6 +10,9 @@
  * platform's millisecond clock, too coarse for a trace); status 1 is a failed transfer.
  * Lines end in "\n" on Windows too, so traces from every host compare byte for byte.
  *
+ * An SPI transfer (the SPI data tunnel, docs/SPI.md) is one line in the same sequence:
+ * `SPIT,<seq>,<t_us>,<bus>,<status>,<len>,<txHex>,<rxHex>`, as LinuxPlatform writes it.
+ *
  * Copyright 2026 by ClockWorks Signal Processing LLC
  * Licensed under the terms found in CLOCKWORKS_SOFTWARE_LICENSE.txt and included here by reference.
  * SPDX-License-Identifier: BSD-3-Clause
@@ -18,6 +21,7 @@
 #include "trace_platform.h"
 
 #include <chrono>
+#include <vector>
 
 namespace {
 
@@ -108,6 +112,38 @@ a2b::Result TracePlatform::I2cWriteRead(uint8_t addr, const uint8_t* writeData, 
   const uint64_t startUs = NowUs();
   const a2b::Result result = m_Host.I2cWriteRead(addr, writeData, writeLen, readData, readLen);
   Write(startUs, addr, "WR", result, writeData, writeLen, readData, readLen);
+  return result;
+}
+
+/**
+ * One SPI transfer through the host, then traced.
+ * @param bus Bus index.
+ * @param tx Bytes to send.
+ * @param rx Buffer for the bytes received (may be @p tx).
+ * @param len Number of bytes.
+ * @return The host's result.
+ */
+a2b::Result TracePlatform::SpiTransfer(uint8_t bus, const uint8_t* tx, uint8_t* rx, size_t len) {
+  if (m_File == nullptr) {
+    return m_Host.SpiTransfer(bus, tx, rx, len);
+  }
+  const std::vector<uint8_t> sent(tx, tx + len);  // rx may be tx's buffer.
+  const uint64_t startUs = NowUs();
+  const a2b::Result result = m_Host.SpiTransfer(bus, tx, rx, len);
+  if (result == a2b::Result::kNotSupported) {
+    return result;
+  }
+  const bool ok = (result == a2b::Result::kOk);
+  std::fprintf(m_File, "SPIT,%u,%llu,%u,%u,%u,", static_cast<unsigned>(m_Seq++),
+               static_cast<unsigned long long>(startUs - m_StartUs), static_cast<unsigned>(bus),
+               ok ? 0u : 1u, static_cast<unsigned>(len));
+  PutHex(m_File, sent.data(), len);
+  std::fputc(',', m_File);
+  if (ok) {
+    PutHex(m_File, rx, len);
+  }
+  std::fputc('\n', m_File);
+  std::fflush(m_File);
   return result;
 }
 

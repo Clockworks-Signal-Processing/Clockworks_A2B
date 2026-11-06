@@ -72,8 +72,10 @@ Provisioning, as built ([provisioning.md](provisioning.md)):
   hardware: the whole chain joins, then each EEPROM is written.
 
 ### Peripherals
-The stack provides read, write and write-read only. I2C works; SPI is not yet supported, but
-the address type reserves room for it (slave-select on one or more node GPIO lines).
+The stack provides read, write and write-read only, on I2C, and on SPI through the data tunnel
+from the main node to one sub-node ([SPI](../../docs/SPI.md)): I2C stays the control path, and the host's
+SPI to the main node carries only the tunnel's transactions. SPI on node GPIO slave selects
+stays reserved.
 
 ### Several buses
 One `Network` object per bus, N independent buses per host. The code and the simulator tests
@@ -221,7 +223,7 @@ Everything a user touches or derives from. The last column names ADI's counterpa
 | `NodeFactory` | Keys are module vendor/product IDs from module info, plus one optional app function (which may use position or CHIPID). `Make<T>` builds the node in a fixed slot, with a `static_assert` on its size. | plugin `open()` polling |
 | `ModuleInfoSource` | Interface. The default `EepromModuleInfoSource` scans 0x50-0x54, validates the 0xAA marker and the header CRC-8 at 0x1F, and parses. "Ignore EEPROM" means the app installs its own source. The app may return a raw module-info image, which goes through the same parser; `ImageModuleInfoSource` gives images held in memory (a file read, or an array compiled in). | `a2b_ReadVerify_ModuleInfo` |
 | `LinkProfile` | Discovery `Single`/`TwoStep`/`Unsupported`, power `OnA2BPair`/`SeparateWires`/`None`, `BSideInverted` (XCVRBINV), the PG check and which sub-node GPIO carries PG (default GPIO7), the high-voltage check. Presets `Utp`, `Rj45`, `Xlr`, `Custom`; `ForBPort()`, the link an image's B port type gives on a chip. **Precedence:** `Network::SetLinkProfile(position)`, then the upstream node's `DownstreamLink()` (by default its image's B port), then the board default (the main node's link). ADI's stack never read the EEPROM cable-type byte, and ADI's images number it differently from the specification; the specification's numbering is used. | `bTwoStepDisc`, `mainXcvrBInv`/`subXcvrBInv` |
-| `PeripheralAddress` | `Network::PeripheralWrite`/`Read`/`WriteRead(Node, Addr, ...)`: main node over the host I2C, sub-node through the CHIP register. `Addr` is I2C 7-bit, with an SPI form reserved. | `a2b_i2cPeriph*`, `a2b_pnp_I2CReadPeri`/`I2CWritePeri` |
+| `PeripheralAddress` | `Network::PeripheralWrite`/`Read`/`WriteRead(Node, Addr, ...)`: main node over the host I2C, sub-node through the CHIP register. `Addr` is I2C 7-bit, or an SPI slave select through the data tunnel (`Spi(select)`). | `a2b_i2cPeriph*`, `a2b_pnp_I2CReadPeri`/`I2CWritePeri` |
 | `RoutingPolicy` | Hooks `RespCycles()` and `MapGroups()`, which gives each node's `ChannelMap` (a crossbar or TDM order, and the channels its port carries). The plan is a `RoutingPlan` (a `NodeRouting` per node), built by the internal `RoutingPlanner` (AD243x crossbars, AD242x TDM order). | `AutoCalcSlot`, `crossbarCalc`, `calcMstrRespCycs`, `UpdateSlots` |
 | `ConnectionTable` | The connections, by chip ID or position, 32 at most; a sink takes one source; kept through `Start()`; two modules with one chip ID (blank: zeros) are told apart by position. | `a2bpnp_conn_mng.cpp` |
 

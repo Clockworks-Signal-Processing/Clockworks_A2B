@@ -18,6 +18,7 @@
 
 #include "a2b/routing.h"
 #include "chip_caps.h"
+#include "detail/regdefs.h"
 #include "routing_planner.h"
 #include "test_harness.h"
 
@@ -501,6 +502,128 @@ A2B_TEST(PlaysOverThirtyTwoChannels) {
   chain.Route(3, 0, 2, 1);
   A2B_CHECK(chain.Build() == RoutingError::kTooManyChannels);
   A2B_CHECK_EQ(chain.node, 1);
+}
+
+A2B_TEST(TunnelAloneToTheLastNode) {
+  // An SPI data tunnel of 4 slots each way to sub-node 0, no audio: the main node sends the
+  // tunnel's 4 slots first (DTDNOFFS 0, DNSLOTS 0), sub-node 0 takes them at slot 0 and,
+  // as the chain's last node, has no DNMASKEN; up, it sends them before its own (none).
+  Chain chain(1);
+  chain.input.tunnelNode = 1;
+  chain.input.tunnelDn = 4;
+  chain.input.tunnelUp = 4;
+  A2B_CHECK(chain.Build() == RoutingError::kNone);
+  const RoutingPlan& plan = chain.plan;
+  A2B_CHECK_EQ(plan.tunnel.node, 0);
+  A2B_CHECK_EQ(plan.tunnel.dnSlots, 4);
+  A2B_CHECK_EQ(plan.tunnel.upSlots, 4);
+  A2B_CHECK_EQ(plan.main.dnSlots, 0);
+  A2B_CHECK_EQ(plan.main.upSlots, 0);
+  A2B_CHECK_EQ(plan.linkDnSlots[0], 4);
+  A2B_CHECK_EQ(plan.linkUpSlots[0], 4);
+  A2B_CHECK_EQ(chain.Sub(0).ldnSlots, 0x00);  // No DNMASKEN; takes no audio slot.
+  A2B_CHECK_EQ(chain.Sub(0).dnMask, 0u);
+  A2B_CHECK_EQ(chain.Sub(0).lupSlots, 0);
+  A2B_CHECK(plan.tunnel.mainDnOffset == 0 && plan.tunnel.nodeDnOffset == 0 &&
+            plan.tunnel.nodeUpOffset == 0 && plan.tunnel.mainUpOffset == 0);
+  // Without a tunnel: none in the plan.
+  Chain none(1);
+  A2B_CHECK(none.Build() == RoutingError::kNone);
+  A2B_CHECK_EQ(none.plan.tunnel.node, kNoNode);
+  A2B_CHECK_EQ(none.plan.linkDnSlots[0], 0);
+}
+
+A2B_TEST(TunnelAsTheTrmsRtmUseCase) {
+  // The AD2437 TRM's RTM use case (Figure 5-62): the main node owns a 2-slot tunnel to
+  // sub-node 1, the last; sub-node 0 doesn't enable it. Audio: two channels down to
+  // sub-node 0, two up from each sub-node. The TRM's registers: main DNSLOTS 2, DTDNOFFS 0,
+  // UPSLOTS 4, DTUPOFFS 0; sub-node 0 UPSLOTS 4, LUPSLOTS 2; sub-node 1 LUPSLOTS 2,
+  // DTDNOFFS 0, DTUPOFFS 0.
+  Chain chain(2);
+  chain.groups[0].AddRx(0, 0x3);
+  chain.groups[0].AddTx(0, 0x3);
+  chain.groups[0].AddTx(1, 0xC);
+  chain.groups[1].AddRx(0, 0x3);
+  chain.groups[1].AddTx(0, 0x3);
+  chain.groups[2].AddRx(0, 0x3);
+  chain.Route(0, 0, 1, 0);
+  chain.Route(1, 0, 0, 0);
+  chain.Route(2, 0, 0, 1);
+  chain.input.tunnelNode = 2;
+  chain.input.tunnelDn = 2;
+  chain.input.tunnelUp = 2;
+  A2B_CHECK(chain.Build() == RoutingError::kNone);
+  const RoutingPlan& plan = chain.plan;
+  A2B_CHECK_EQ(plan.main.dnSlots, 2);
+  A2B_CHECK_EQ(plan.tunnel.mainDnOffset, 0);
+  A2B_CHECK_EQ(plan.main.upSlots, 4);
+  A2B_CHECK_EQ(plan.tunnel.mainUpOffset, 0);
+  A2B_CHECK_EQ(chain.Sub(0).upSlots, 4);
+  A2B_CHECK_EQ(chain.Sub(0).lupSlots, 2);
+  A2B_CHECK_EQ(chain.Sub(1).lupSlots, 2);
+  A2B_CHECK_EQ(plan.tunnel.nodeDnOffset, 0);
+  A2B_CHECK_EQ(plan.tunnel.nodeUpOffset, 0);
+  // Down: the tunnel's 2 then the main node's 2 into sub-node 0, which plays slots 2-3 and
+  // passes the tunnel's on.
+  A2B_CHECK_EQ(plan.linkDnSlots[0], 4);
+  A2B_CHECK_EQ(chain.Sub(0).dnMask, 0xCu);
+  A2B_CHECK_EQ(chain.Sub(0).dnSlots, 2);
+  A2B_CHECK_EQ(plan.linkDnSlots[1], 2);
+  A2B_CHECK_EQ(chain.Sub(1).ldnSlots, 0x00);
+  // Up: the tunnel's, sub-node 1's pair, sub-node 0's pair; the main node plays its two
+  // groups from the slots it takes (the tunnel's left out).
+  A2B_CHECK_EQ(plan.linkUpSlots[1], 4);
+  A2B_CHECK_EQ(plan.linkUpSlots[0], 6);
+  A2B_CHECK(plan.main.txXbar[0] == 2 && plan.main.txXbar[1] == 3);  // Sub-node 0's pair.
+  A2B_CHECK(plan.main.txXbar[2] == 0 && plan.main.txXbar[3] == 1);  // Sub-node 1's pair.
+}
+
+A2B_TEST(TunnelToAMiddleNode) {
+  // A tunnel to sub-node 0 of two, with the main node's pair going to sub-node 1: the
+  // tunnel's slots come first and are passed on with the pair (the TRM's loosened
+  // restriction: DTDNOFFS 0 within DNSLOTS); sub-node 0 keeps its masks. Sub-node 1's pair
+  // up passes sub-node 0 before the tunnel's slots.
+  Chain chain(2);
+  chain.groups[0].AddRx(0, 0x3);
+  chain.groups[0].AddTx(0, 0x3);
+  chain.groups[2].AddRx(0, 0x3);
+  chain.groups[2].AddTx(0, 0x3);
+  chain.Route(0, 0, 2, 0);
+  chain.Route(2, 0, 0, 0);
+  chain.input.tunnelNode = 1;
+  chain.input.tunnelDn = 3;
+  chain.input.tunnelUp = 3;
+  A2B_CHECK(chain.Build() == RoutingError::kNone);
+  const RoutingPlan& plan = chain.plan;
+  A2B_CHECK_EQ(plan.linkDnSlots[0], 5);
+  A2B_CHECK_EQ(chain.Sub(0).dnSlots, 5);  // The tunnel's 3 go on with the pair.
+  A2B_CHECK_EQ(chain.Sub(0).ldnSlots, reg::kLdnslotsDnmasken);
+  A2B_CHECK_EQ(chain.Sub(1).dnMask, 0x18u);  // The pair at slots 3-4.
+  A2B_CHECK_EQ(plan.tunnel.nodeDnOffset, 0);
+  A2B_CHECK_EQ(chain.Sub(0).upSlots, 2);  // Sub-node 1's pair, then the tunnel's.
+  A2B_CHECK_EQ(plan.tunnel.nodeUpOffset, 2);
+  A2B_CHECK_EQ(plan.linkUpSlots[0], 5);
+  A2B_CHECK_EQ(plan.main.upSlots, 2);
+  A2B_CHECK_EQ(plan.tunnel.mainUpOffset, 2);
+  A2B_CHECK(plan.main.txXbar[0] == 0 && plan.main.txXbar[1] == 1);
+}
+
+A2B_TEST(TunnelLimits) {
+  // The tunnel's slots count in a link's 32.
+  Chain chain(1);
+  chain.groups[0].AddRx(0, 0xFFFFFFFFu);
+  chain.groups[1].AddTx(0, 0x3FFFFFFFu);  // 30 channels.
+  chain.Route(0, 0, 1, 0);
+  chain.input.tunnelNode = 1;
+  chain.input.tunnelDn = 2;
+  chain.input.tunnelUp = 2;
+  A2B_CHECK(chain.Build() == RoutingError::kNone);
+  chain.input.tunnelDn = 3;
+  A2B_CHECK(chain.Build() == RoutingError::kTooManySlots);
+  A2B_CHECK_EQ(chain.node, kMainNode);
+  // A far end past the chain.
+  chain.input.tunnelNode = 2;
+  A2B_CHECK(chain.Build() == RoutingError::kTunnelNode);
 }
 
 }  // namespace

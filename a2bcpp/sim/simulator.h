@@ -26,6 +26,7 @@
 #include "detail/regdefs.h"
 #include "sim/eeprom.h"
 #include "sim/i2c_device.h"
+#include "sim/spi_device.h"
 
 namespace a2b {
 namespace sim {
@@ -90,8 +91,11 @@ struct SubNodeSpec {
  *         from. */
 struct Signal {
   static constexpr int8_t kNone = -2;  ///< #node of a channel that carries nothing.
-  int8_t node = kNone;                 ///< -1 for the main node, 0-15 for a sub-node.
-  uint8_t channel = 0;                 ///< Its TDM channel on that node's DRXn pins.
+  /** #node of a downstream SPI data tunnel slot; #channel is its index in the tunnel. */
+  static constexpr int8_t kTunnelDown = -3;
+  static constexpr int8_t kTunnelUp = -4;  ///< #node of an upstream tunnel slot.
+  int8_t node = kNone;                     ///< -1 for the main node, 0-15 for a sub-node.
+  uint8_t channel = 0;                     ///< Its TDM channel on that node's DRXn pins.
 
   /** @brief A signal from @p from's RX channel @p rxChannel. */
   static Signal From(int8_t from, uint8_t rxChannel) {
@@ -121,6 +125,15 @@ struct AudioTrace {
       Its TDM channels run in sequence through the superframe, so at 2x channels 0 to
       2 * (channels per frame) - 1 are two sample frames. */
   std::vector<unsigned> rate;
+
+  /** The SPI data tunnel (DTCFG, DTSLOTS, DTDNOFFS, DTUPOFFS on its two ends; AD2437 TRM,
+      "SPI Data Tunnels"): the sub-node at its far end (DTLAST), or -1 for none. */
+  int tunnelNode = -1;
+  bool tunnelDown = false;  ///< The main node's tunnel slots reach that node where it takes them.
+  bool tunnelUp = false;    ///< Its tunnel slots reach the main node where it takes them.
+  /** Why the tunnel can't carry data (its registers, or its slots not getting through);
+      empty if it can, or if there is none. */
+  std::string tunnelError;
 
   /** @brief The rate multiple of node @p node (-1: main, always 1). */
   unsigned Rate(int node) const { return (node < 0) ? 1 : rate[static_cast<size_t>(node)]; }
@@ -172,6 +185,9 @@ class Node {
                     size_t size = Eeprom::kDefaultSize);  ///< Adds an EEPROM behind it.
   void AttachDevice(uint8_t i2cAddr, I2cDevice& device);  ///< Adds a test's device behind it.
   I2cDevice* FindDevice(uint8_t i2cAddr) const;           ///< Device at an address, or nullptr.
+  /// Puts @p device on the node's SPI port, at slave select @p select (0: ADR1, 1: SIO2, 2: ADR2).
+  void AttachSpiDevice(uint8_t select, SpiDevice& device);
+  SpiDevice* SpiDeviceAt(uint8_t select) const;  ///< Device on a slave select, or nullptr.
 
  private:
   friend class Bus;
@@ -204,6 +220,7 @@ class Node {
   size_t m_HighVoltageCount = 0;  ///< kTwoStep link: times the 24 V came on.
   std::vector<std::unique_ptr<Eeprom>> m_Eeproms;
   std::vector<std::pair<uint8_t, I2cDevice*>> m_Devices;
+  SpiDevice* m_SpiDevices[3] = {};  ///< On SPISSEL0-2.
 };
 
 /// One simulated A2B bus: a main node and a chain of plugged sub-nodes, powered on.
@@ -252,6 +269,12 @@ class Bus {
       XCVRBINV before ENSW, and kept by later CONTROL writes (scenario 10). */
   size_t OrderErrors() const { return m_OrderErrors; }
   AudioTrace TraceAudio() const;  ///< The audio its registers route.
+  /// Tunnel transactions (atomic, full duplex, bulk) that reached a remote SPI device.
+  size_t SpiRemoteTransfers() const { return m_SpiRemote; }
+  /// Commands refused with SPIINT.BADCMD (one sent while busy, or a bad one).
+  size_t SpiBadCommands() const { return m_SpiBadCommands; }
+  /** Tunnel commands aborted because a discovery ran behind the tunnel's far end. */
+  size_t SpiDiscoveryAborts() const { return m_SpiDiscoveryAborts; }
   /// Calls @p observer right after each CONTROL.NEWSTRCT has taken effect, so a test can look
   /// at the audio at the moment a new structure starts (a mute is there to cover it).
   void SetNewStructObserver(std::function<void()> observer) {
@@ -288,6 +311,13 @@ class Bus {
   void DropFrom(size_t position, bool powerFault);           ///< Sub-nodes from here drop out.
   void LoseChain();                                          ///< Every sub-node undiscovered.
   void CheckSettle();                                        ///< Counts an access in the settle.
+  void SpiCommand(const uint8_t* tx, uint8_t* rx, size_t len);  ///< The main node's SPI slave.
+  void SpiTunnelCommand(const uint8_t* tx, uint8_t* rx, size_t len);  ///< Tunnel commands.
+  bool SpiBusy() const;                                               ///< SPISTAT.SPIBUSY now.
+  void SpiError(uint8_t spiInt, uint8_t spiStat);  ///< Raises SPIINT and SPISTAT bits.
+  void SpiCloseRemote();                           ///< Ends an open remote transfer.
+  uint32_t SpiTunnelUs(size_t down, size_t up, size_t remote,
+                       bool overlapped) const;  ///< A tunnel transaction's duration.
 
   Simulator& m_Sim;
   const uint8_t m_MainAddr;
@@ -319,6 +349,17 @@ class Bus {
   size_t m_NewStructs = 0;                    ///< NEWSTRCT writes.
   size_t m_OrderErrors = 0;                   ///< See OrderErrors().
   std::function<void()> m_NewStructObserver;  ///< Called after each one took effect.
+  uint64_t m_SpiBusyUntilUs = 0;              ///< SPISTAT.SPIBUSY until then (Simulator::NowUs()).
+  std::vector<uint8_t> m_SpiReadFifo;         ///< The tunnel's read data FIFO.
+  std::vector<uint8_t> m_SpiDuplexRead;       ///< The last full duplex's read data.
+  bool m_SpiLastDuplex = false;               ///< The last tunnel transaction was full duplex.
+  /** An extended transaction left the remote slave select asserted: 0 none, 1 full duplex,
+      2 bulk. */
+  int m_SpiOpen = 0;
+  SpiDevice* m_SpiOpenDevice = nullptr;  ///< The device it is open on.
+  size_t m_SpiRemote = 0;                ///< See SpiRemoteTransfers().
+  size_t m_SpiBadCommands = 0;           ///< See SpiBadCommands().
+  size_t m_SpiDiscoveryAborts = 0;       ///< See SpiDiscoveryAborts().
 };
 
 /// A Platform backed by simulated buses and devices on one host I2C bus.
@@ -343,6 +384,14 @@ class Simulator : public Platform {
   void FailAddress(uint8_t i2cAddr, int count);  ///< Fails the next transfers to an address.
   void FailRegisterWrite(uint8_t i2cAddr, uint8_t reg,
                          int count);  ///< Fails the next writes of a register at an address.
+  /// The host has SPI to the main nodes (default); without it SpiTransfer() is not supported.
+  void SetHasSpi(bool present) { m_HasSpi = present; }
+  void SetSpiHz(uint32_t hz) { m_SpiHz = hz; }  ///< The host's SPI clock (default 8 MHz).
+  void FailSpiTransfers(int count) { m_FailSpi = count; }  ///< The next SPI transfers fail.
+  /// Microseconds of simulated time: the millisecond clock plus the SPI transfers' time.
+  uint64_t NowUs() const { return static_cast<uint64_t>(m_NowMs) * 1000u + m_UsCarry; }
+  std::string SpiTrace() const;  ///< The SPI transfers as SPIT lines.
+  size_t SpiTransferCount() const { return m_SpiTrace.size(); }  ///< SPI transfers made.
 
   std::string Trace() const;                               ///< Transfers as I2CT lines.
   size_t TransferCount() const { return m_Trace.size(); }  ///< Transfers recorded.
@@ -355,6 +404,7 @@ class Simulator : public Platform {
   Result I2cRead(uint8_t addr, uint8_t* data, size_t len) override;
   Result I2cWriteRead(uint8_t addr, const uint8_t* writeData, size_t writeLen, uint8_t* readData,
                       size_t readLen) override;
+  Result SpiTransfer(uint8_t bus, const uint8_t* tx, uint8_t* rx, size_t len) override;
   uint32_t NowMs() override { return m_NowMs; }
   Result SetMainNodeReset(uint8_t bus, bool asserted) override;
   bool IrqPending(uint8_t bus) override;
@@ -382,6 +432,15 @@ class Simulator : public Platform {
                size_t readLen);  ///< Hands a transfer to its target.
   bool InjectFailure(uint8_t addr, const uint8_t* writeData, size_t writeLen,
                      size_t readLen);  ///< This transfer is to fail.
+  void AdvanceUs(uint32_t us);         ///< Moves time on by microseconds (SPI transfers).
+
+  struct SpiEntry {
+    uint32_t timeMs;
+    uint8_t bus;
+    bool failed;
+    std::vector<uint8_t> sent;
+    std::vector<uint8_t> received;
+  };
 
   Timing m_Timing;
   uint32_t m_NowMs = 0;
@@ -398,6 +457,11 @@ class Simulator : public Platform {
   std::vector<std::string> m_LogLines;
   int m_LockDepth = 0;
   int m_UnlockedTransfers = 0;
+  bool m_HasSpi = true;
+  uint32_t m_SpiHz = 8000000;
+  int m_FailSpi = 0;
+  uint32_t m_UsCarry = 0;  ///< Microseconds past m_NowMs.
+  std::vector<SpiEntry> m_SpiTrace;
 };
 
 }  // namespace sim

@@ -59,6 +59,24 @@
  * offsets and crossbar indexes over from one node to the next, assumed a group's ID was its
  * index, and ignored the 32-slot limits.
  *
+ * **The SPI data tunnel** (Input::tunnelNode; AD2437 TRM, "SPI Data Tunnels" and "Data
+ * Tunnel Restrictions"). Its slots are planned as slots like any others, sent by the main
+ * node to the far end and back, passed on by the nodes between (which don't enable the
+ * tunnel: "the packets are treated like other bus slots that are not locally consumed"),
+ * played by no one:
+ * - Down, they come first in the main node's run (DTDNOFFS 0; its DNSLOTS counts only its
+ *   own slots), so every node between passes them as the first of its DNSLOTS, and they
+ *   reach the far end at its A side's slot 0 (DTDNOFFS 0). The far end's DNMASK and DNSLOTS
+ *   count them among the slots it receives. When it passes slots on, the tunnel's are among
+ *   them: the TRM's "Loosening Data Tunnel Restrictions" (DTDNOFFS <= DNSLOTS, the tunnel's
+ *   slots passed downstream at the cost of their bandwidth). The last node of the chain as
+ *   the far end has no DNMASKEN, as the TRM's "Last Subordinate Node" configuration asks:
+ *   its LDNSLOTS is the slots it takes, every one but the tunnel's, in order.
+ * - Up, the far end sends them after the slots it passes up, before its own (DTUPOFFS =
+ *   UPSLOTS, within UPSLOTS + LUPSLOTS; neither counts them), and the nodes between pass
+ *   them as any slot the main node needs. The main node's UPSLOTS counts the slots it takes
+ *   besides them, and its DTUPOFFS is how many of those come before them.
+ *
  * Limits are checked: 32 data slots on a link each way, 32 played channels per node (its
  * TX frame buffer). The response cycles (and with them the superframe's bit budget) are
  * Network's, through RoutingPolicy::RespCycles(); the channel maps too, through
@@ -80,6 +98,11 @@
 
 namespace a2b {
 namespace {
+
+/** The node index of the SPI data tunnel's slots down (from the main node). */
+constexpr size_t kTunnelDownNode = 0xFE;
+/** The node index of the SPI data tunnel's slots up (to the main node). */
+constexpr size_t kTunnelUpNode = 0xFF;
 
 /** A slot's content: the node index (high byte) and its RX channel (low byte). */
 uint16_t SignalOf(size_t index, unsigned channel) {
@@ -159,6 +182,14 @@ RoutingError RoutingPlanner::Build(const Input& input, RoutingPlan& plan, NodeAd
   plan.subNodeCount = input.subNodeCount;
   plan.routed = input.routeCount;
   node = kNoNode;
+  if (input.tunnelNode > input.subNodeCount) {
+    return RoutingError::kTunnelNode;
+  }
+  if (input.tunnelNode != 0) {
+    plan.tunnel.node = NodeOf(input.tunnelNode);
+    plan.tunnel.dnSlots = input.tunnelDn;
+    plan.tunnel.upSlots = input.tunnelUp;
+  }
   RoutingError error = Check(input, node);
   if (error == RoutingError::kNone) {
     error = Downstream(node);
@@ -186,6 +217,7 @@ void RoutingPlanner::Clear(RoutingPlan& plan) {
   std::memset(plan.linkUpSlots, 0, sizeof(plan.linkUpSlots));
   plan.respCycles = ResponseCycles();
   plan.bandwidth = BandwidthUsage();
+  plan.tunnel = TunnelPlan();
 }
 
 /**
@@ -305,17 +337,41 @@ RoutingError RoutingPlanner::Check(const Input& input, NodeAddr& node) {
  * it passes on (DNSLOTS) and adds (DNOFFSET, LDNSLOTS).
  */
 RoutingError RoutingPlanner::Downstream(NodeAddr& node) {
+  const size_t tunnel = m_Input->tunnelNode;
+  const size_t tunnelDn = (tunnel != 0) ? m_Input->tunnelDn : 0;
   uint8_t unusedOffset = 0;
-  m_InLen = Contribute(0, m_Used[0], unusedOffset, 0);  // All of them go down.
+  m_InLen = Contribute(0, m_Used[0], unusedOffset, tunnelDn);  // All of them go down.
+  for (size_t k = 0; k < tunnelDn; ++k) {
+    m_Out[k] = SignalOf(kTunnelDownNode, static_cast<unsigned>(k));  // The tunnel's, first.
+  }
+  if (m_InLen > kMaxSlots) {
+    node = kMainNode;
+    return RoutingError::kTooManySlots;
+  }
   std::memcpy(m_In, m_Out, m_InLen * sizeof(m_In[0]));
-  m_Plan->main.dnSlots = static_cast<uint8_t>(m_InLen);
+  m_Plan->main.dnSlots = static_cast<uint8_t>(m_InLen - tunnelDn);
   const size_t nodes = m_Input->subNodeCount + 1;
   for (size_t k = 1; k < nodes; ++k) {
     NodeRouting& regs = Regs(k);
     m_Plan->linkDnSlots[k - 1] = static_cast<uint8_t>(m_InLen);
+    // The tunnel's far end, as the chain's last node, takes every slot but the tunnel's, in
+    // order (no DNMASKEN); any other node plays the slots its DNMASK picks.
+    const bool takesAll = (k == tunnel && k + 1 == nodes);
     size_t needed = 0;
+    size_t taken = 0;
+    for (size_t i = 0; k == tunnel && i < m_InLen; ++i) {
+      if (Tunnel(m_In[i])) {
+        m_Plan->tunnel.nodeDnOffset = static_cast<uint8_t>(i);  // Where they arrive.
+        break;
+      }
+    }
     for (size_t i = 0; i < m_InLen; ++i) {
-      if (Consume(k, m_In[i], m_Played[k])) {
+      if (takesAll) {
+        if (!Tunnel(m_In[i])) {
+          (void)Consume(k, m_In[i], taken);
+          ++taken;
+        }
+      } else if (Consume(k, m_In[i], m_Played[k])) {
         regs.dnMask |= 1u << i;
         ++m_Played[k];
       }
@@ -330,7 +386,12 @@ RoutingError RoutingPlanner::Downstream(NodeAddr& node) {
     regs.dnSlots = static_cast<uint8_t>(needed);
     std::memcpy(m_Out, m_In, needed * sizeof(m_In[0]));
     const size_t len = Contribute(k, m_Down[k], regs.dnOffset, needed);
-    regs.ldnSlots = static_cast<uint8_t>(reg::kLdnslotsDnmasken | (len - needed));
+    if (takesAll) {
+      m_Played[k] = static_cast<uint8_t>(taken);
+      regs.ldnSlots = static_cast<uint8_t>(taken);  // Taken, not added: no DNMASKEN.
+    } else {
+      regs.ldnSlots = static_cast<uint8_t>(reg::kLdnslotsDnmasken | (len - needed));
+    }
     if (len > kMaxSlots) {
       node = NodeOf(k);
       return RoutingError::kTooManySlots;
@@ -343,10 +404,12 @@ RoutingError RoutingPlanner::Downstream(NodeAddr& node) {
 
 /**
  * Upstream, from the last sub-node: its played slots (UPMASK, after the downstream ones in
- * its TX frame buffer), the slots it passes on (UPSLOTS) and adds (UPOFFSET, LUPSLOTS); then
- * the main node's UPSLOTS and crossbar.
+ * its TX frame buffer), the slots it passes on (UPSLOTS), the tunnel's if it is the
+ * tunnel's far end (DTUPOFFS), and the slots it adds (UPOFFSET, LUPSLOTS); then the main
+ * node's UPSLOTS, DTUPOFFS and crossbar.
  */
 RoutingError RoutingPlanner::Upstream(NodeAddr& node) {
+  const size_t tunnel = m_Input->tunnelNode;
   m_InLen = 0;
   for (size_t k = m_Input->subNodeCount; k >= 1; --k) {
     NodeRouting& regs = Regs(k);
@@ -370,8 +433,15 @@ RoutingError RoutingPlanner::Upstream(NodeAddr& node) {
     }
     regs.upSlots = static_cast<uint8_t>(needed);
     std::memcpy(m_Out, m_In, needed * sizeof(m_In[0]));
-    const size_t len = Contribute(k, m_Up[k], regs.upOffset, needed);
-    regs.lupSlots = static_cast<uint8_t>(len - needed);
+    size_t at = needed;
+    if (k == tunnel) {
+      for (size_t u = 0; u < m_Input->tunnelUp; ++u) {
+        m_Out[at++] = SignalOf(kTunnelUpNode, static_cast<unsigned>(u));
+      }
+      m_Plan->tunnel.nodeUpOffset = static_cast<uint8_t>(needed);
+    }
+    const size_t len = Contribute(k, m_Up[k], regs.upOffset, at);
+    regs.lupSlots = static_cast<uint8_t>(len - at);
     if (len > kMaxSlots) {
       node = NodeOf(k);
       return RoutingError::kTooManySlots;
@@ -386,14 +456,22 @@ RoutingError RoutingPlanner::Upstream(NodeAddr& node) {
       received = i + 1;
     }
   }
+  size_t taken = 0;  // The main node's slots, but the tunnel's.
   for (size_t i = 0; i < received; ++i) {
-    (void)Consume(0, m_In[i], i);  // Every slot received takes a location.
+    if (Tunnel(m_In[i])) {
+      if (i == 0 || !Tunnel(m_In[i - 1])) {
+        m_Plan->tunnel.mainUpOffset = static_cast<uint8_t>(taken);
+      }
+      continue;
+    }
+    (void)Consume(0, m_In[i], taken);  // Every slot received takes a location.
+    ++taken;
   }
   if (m_Misplaced) {
     node = kMainNode;
     return RoutingError::kChannelOrder;
   }
-  m_Plan->main.upSlots = static_cast<uint8_t>(received);
+  m_Plan->main.upSlots = static_cast<uint8_t>(taken);
   return RoutingError::kNone;
 }
 
@@ -464,6 +542,12 @@ bool RoutingPlanner::Consume(size_t index, uint16_t signal, size_t location) {
  */
 bool RoutingPlanner::Needed(uint16_t signal, size_t from, size_t to) const {
   const size_t source = NodeOfSignal(signal);
+  if (source == kTunnelDownNode) {
+    return m_Input->tunnelNode >= from && m_Input->tunnelNode < to;  // Its far end.
+  }
+  if (source == kTunnelUpNode) {
+    return from == 0;  // The main node.
+  }
   const unsigned channel = ChannelOfSignal(signal);
   for (size_t r = 0; r < m_Input->routeCount; ++r) {
     const Route& route = m_Input->routes[r];
@@ -473,6 +557,12 @@ bool RoutingPlanner::Needed(uint16_t signal, size_t from, size_t to) const {
     }
   }
   return false;
+}
+
+/** True if a slot is one of the SPI data tunnel's (no node plays it). */
+bool RoutingPlanner::Tunnel(uint16_t signal) const {
+  const size_t source = NodeOfSignal(signal);
+  return source == kTunnelDownNode || source == kTunnelUpNode;
 }
 
 /** The registers of node @p index in the plan being built. */

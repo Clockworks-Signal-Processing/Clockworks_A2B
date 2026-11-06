@@ -26,7 +26,7 @@ a2b_rp2040_clockworks_boards()
 # the repository's exports, generated code: no warnings.
 set(A2B_BENCH_BOARDS ../board_ref.c ../board_ab0020.c ../board_ab0020_2428.c ../board_ab0310.c)
 set_source_files_properties(${A2B_BENCH_BOARDS} PROPERTIES COMPILE_OPTIONS "-w")
-add_executable(a2b_bench ../main_rp2040.cpp ../bench_console.cpp ../console_text.cpp
+add_executable(a2b_bench ../main_rp2040.cpp ../bench_console.cpp ../bench_console_spi.cpp ../console_text.cpp ../spi_job.cpp
                          ../eeprom_image.cpp ${A2B_BENCH_BOARDS})
 target_compile_definitions(a2b_bench PRIVATE A2B_BENCH_FILES=0)
 target_link_libraries(a2b_bench PRIVATE a2bcpp_ss_plus a2b_clockworks_boards)

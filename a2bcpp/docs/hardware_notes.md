@@ -70,7 +70,9 @@ run at `Start()`, not after a PLL relock). ADI's stack configured every host per
   it is not supported yet.
 - **SPI** needs an AD2433 or AD2437 main node. On the AB0020 the image must turn SPI **off**:
   CLKOUT2 is not functional when SPI is enabled with the default GPIO select, so CLKOUT2 never
-  reaches ADR2 and the codec gets no MCLK.
+  reaches ADR2 and the codec gets no MCLK (anomaly 18000047). An SPI tunnel to such a node gives
+  it GPIOSEL 2 while open, which keeps CLKOUT2. On the Pi main-node board the main node's SPI
+  slave select is ADR1, its I2C address strap too: see [SPI](../../docs/SPI.md#3-wiring-per-host).
 
 ## Links, power and discovery
 

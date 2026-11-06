@@ -40,6 +40,7 @@ add_library(a2bcpp STATIC
     src/network_chain.cpp
     src/network_errors.cpp
     src/network_routing.cpp
+    src/network_spi.cpp
     src/network_startup.cpp
     src/strings.cpp
     src/node_setup.cpp

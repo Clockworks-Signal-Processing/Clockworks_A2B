@@ -151,6 +151,13 @@ What the bench showed:
 The settle is two ticks because the clock is in milliseconds: a NEWSTRCT written just before a
 tick would have only part of a millisecond before the next tick.
 
+## SPI
+
+| Wait | Value | Kind | Source | Trace rule |
+|---|---|---|---|---|
+| While an SPI tunnel is open: the last SPI transaction to the next probe for a new node | at least `spiProbeHoldMs` (1000), then `probeIntervalMs` as before | Minimum | New, from the bench: a probe behind the tunnel's far end stops the tunnel (every transaction DTABORT); a transaction that comes during a probe nothing has answered ends it first ([SPI](../../docs/SPI.md#4-the-api)) | none |
+| An SPI transaction to SPISTAT.SPIBUSY clearing (read with the SPI status command, before and after each) | up to `spiTimeoutMs` (50) | Timeout | AD2437 TRM, "SPI Interface": no command while busy; a tunnel transaction takes a few superframes ([SPI](../../docs/SPI.md#2-bandwidth-the-tunnel-takes-data-slots)) | none (SPIT lines aren't compared) |
+
 ## Why a `mingap` rule for SUSTAIN
 
 ADI's stack writes two soft resets 12.6 ms apart at start-up (goldens `boot4` and G13). A `delay`

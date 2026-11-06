@@ -424,8 +424,8 @@ void Node::SoftResetRegisters() {
 }
 
 /**
- * A host write of one register: read-only registers ignore it, INTPNDn clear the bits
- * written as 1, and MMRPAGE selects the page (AD243x only).
+ * A host write of one register: read-only registers ignore it, INTPNDn, SPIINT and
+ * SPISTAT's error bits clear the bits written as 1, and MMRPAGE selects the page (AD243x only).
  */
 void Node::Write(uint16_t reg, uint8_t value) {
   const uint8_t page = PageOf(reg);
@@ -455,6 +455,12 @@ void Node::Write(uint16_t reg, uint8_t value) {
         return;
       case reg::kBecnt:
         m_Regs[0][low] = 0;  // Any write clears the count.
+        return;
+      case reg::kSpiint:
+        m_Regs[0][low] = static_cast<uint8_t>(m_Regs[0][low] & ~value);  // Write 1 to clear.
+        return;
+      case reg::kSpistat:  // Its error bits clear by a 1; SPIBUSY and DTACTIVE are read-only.
+        m_Regs[0][low] = static_cast<uint8_t>(m_Regs[0][low] & ~(value & reg::kSpistatErrors));
         return;
       default:
         if (low >= reg::kChipid0 && low < reg::kChipid0 + reg::kCountChipid) {
@@ -1207,36 +1213,127 @@ AudioTrace Bus::TraceAudio() const {
     }
   };
   std::vector<std::vector<Signal>> played(count + 1);  // TX frame buffers.
+  // The SPI data tunnel: its owner is the main node (DTEN and DTFRST), its far end the
+  // sub-node with DTEN and DTLAST; the nodes between pass its slots as any others.
+  size_t tunnelAt = 0;  // The far end's index; 0 for none.
+  size_t tunnelDn = 0;
+  size_t tunnelUp = 0;
+  const uint8_t mainDt = m_Main->Reg(reg::kDtcfg);
+  const bool owner = (mainDt & reg::kDtcfgDten) != 0;
+  if (owner) {
+    tunnelDn = m_Main->Reg(reg::kDtslots) & 0x0F;
+    tunnelUp = m_Main->Reg(reg::kDtslots) >> 4;
+    if ((mainDt & (reg::kDtcfgDtfrst | reg::kDtcfgDtlast)) != reg::kDtcfgDtfrst) {
+      trace.tunnelError = "the main node's DTCFG isn't a tunnel's first node";
+    }
+  }
+  for (size_t i = 1; i <= count; ++i) {
+    const uint8_t dt = nodeAt(i).Reg(reg::kDtcfg);
+    if ((dt & reg::kDtcfgDten) == 0) {
+      continue;
+    }
+    if ((dt & (reg::kDtcfgDtfrst | reg::kDtcfgDtlast)) != reg::kDtcfgDtlast || tunnelAt != 0) {
+      trace.tunnelError = "a sub-node's DTCFG isn't one the model follows (a far end, alone)";
+    } else {
+      tunnelAt = i;
+    }
+  }
+  if (owner && tunnelAt != 0) {
+    trace.tunnelNode = static_cast<int>(tunnelAt) - 1;
+    const Node& far = nodeAt(tunnelAt);
+    const auto bitsOf = [](unsigned code) { return (code > 6) ? 32u : 8u + 4u * code; };
+    const uint8_t format = m_Main->AppliedReg(reg::kSlotfmt);
+    const unsigned dnBits = bitsOf(format & 0x07);
+    const unsigned upBits = bitsOf((format >> 4) & 0x07);
+    const auto valid = [](size_t slots, unsigned bits) {
+      return slots >= 2 && slots <= 12 && bits != 8 && bits != 12 && bits != 28 &&
+             slots * bits / 8 >= 6 && slots * bits / 8 <= 48;
+    };
+    if (far.Reg(reg::kDtslots) != m_Main->Reg(reg::kDtslots)) {
+      trace.tunnelError = "the tunnel's two ends have different DTSLOTS";
+    } else if (!valid(tunnelDn, dnBits) || !valid(tunnelUp, upBits)) {
+      trace.tunnelError = "DTSLOTS gives a tunnel the slot size can't carry";
+    }
+  } else if (owner || tunnelAt != 0) {
+    trace.tunnelError =
+        (trace.tunnelError.empty()) ? "the tunnel has only one end" : trace.tunnelError;
+  }
+  const bool tunnel = owner && tunnelAt != 0;
+  const auto tunnelSlot = [](int8_t kind, size_t k) {
+    Signal signal;
+    signal.node = kind;
+    signal.channel = static_cast<uint8_t>(k);
+    return signal;
+  };
+  const auto isTunnel = [](const Signal& signal) {
+    return signal.node == Signal::kTunnelDown || signal.node == Signal::kTunnelUp;
+  };
   // Downstream.
   std::vector<Signal> slots = run(0, 0, m_Main->AppliedReg(reg::kDnslots) & 0x3F);
   if (!carries(0, false)) {
     blank(slots);
   }
+  if (tunnel) {
+    const size_t at = m_Main->Reg(reg::kDtdnoffs) & 0x3F;
+    if (at > slots.size()) {
+      trace.tunnelError = "the main node's DTDNOFFS is past its DNSLOTS";
+    } else {
+      for (size_t k = 0; k < tunnelDn; ++k) {
+        slots.insert(slots.begin() + static_cast<std::ptrdiff_t>(at + k),
+                     tunnelSlot(Signal::kTunnelDown, k));
+      }
+    }
+  }
   for (size_t i = 1; i <= count; ++i) {
     const Node& node = nodeAt(i);
     trace.dnSlots[i - 1] = slots.size();
-    const uint8_t ldnslots = node.AppliedReg(reg::kLdnslots);
-    if ((ldnslots & reg::kLdnslotsDnmasken) == 0 && (ldnslots & 0x3F) != 0) {
-      fail("LDNSLOTS without DNMASKEN (consumed slots) is not modelled");
-    }
-    uint32_t mask = 0;
-    for (int b = 0; b < 4; ++b) {
-      mask |= static_cast<uint32_t>(node.AppliedReg(static_cast<uint16_t>(reg::kDnmask0 + b)))
-              << (8 * b);
-    }
-    for (unsigned k = 0; k < 32; ++k) {
-      if ((mask >> k & 1) != 0) {
-        if (k >= slots.size()) {
-          fail("DNMASK selects a slot past the slots received");
-        }
-        played[i].push_back((k < slots.size() && carries(i, false)) ? slots[k] : Signal());
+    const bool farEnd = tunnel && i == tunnelAt;
+    if (farEnd) {
+      const size_t at = node.Reg(reg::kDtdnoffs) & 0x3F;
+      bool arrived = at + tunnelDn <= slots.size();
+      for (size_t k = 0; arrived && k < tunnelDn; ++k) {
+        arrived = slots[at + k] == tunnelSlot(Signal::kTunnelDown, k);
       }
+      trace.tunnelDown = arrived;
     }
+    const uint8_t ldnslots = node.AppliedReg(reg::kLdnslots);
+    // DNMASK picks the slots played with DNMASKEN, and (as the model always took it) with
+    // LDNSLOTS 0; LDNSLOTS without DNMASKEN captures slots instead.
+    const bool masks = (ldnslots & reg::kLdnslotsDnmasken) != 0 || (ldnslots & 0x3F) == 0;
     const size_t passed = node.AppliedReg(reg::kDnslots) & 0x3F;
     if (passed > slots.size()) {
       fail("DNSLOTS passes more slots than it receives");
     }
-    slots.resize(passed);
+    if (masks) {
+      uint32_t mask = 0;
+      for (int b = 0; b < 4; ++b) {
+        mask |= static_cast<uint32_t>(node.AppliedReg(static_cast<uint16_t>(reg::kDnmask0 + b)))
+                << (8 * b);
+      }
+      for (unsigned k = 0; k < 32; ++k) {
+        if ((mask >> k & 1) != 0) {
+          if (k >= slots.size()) {
+            fail("DNMASK selects a slot past the slots received");
+          }
+          played[i].push_back((k < slots.size() && carries(i, false)) ? slots[k] : Signal());
+        }
+      }
+    } else {
+      // Without DNMASKEN the node captures LDNSLOTS slots after those it passes on (the
+      // TRM's LDNSLOTS register); a tunnel's far end skips the tunnel's slots.
+      size_t captured = 0;
+      for (size_t k = passed; k < slots.size() && captured < (ldnslots & 0x3Fu); ++k) {
+        if (farEnd && slots[k].node == Signal::kTunnelDown) {
+          continue;
+        }
+        played[i].push_back(carries(i, false) ? slots[k] : Signal());
+        ++captured;
+      }
+      if (captured < (ldnslots & 0x3Fu)) {
+        fail("LDNSLOTS captures more slots than the node receives");
+      }
+    }
+    slots.resize(passed < slots.size() ? passed : slots.size());
     std::vector<Signal> own =
         run(i, node.AppliedReg(reg::kDnoffset) & 0x1F,
             ((ldnslots & reg::kLdnslotsDnmasken) != 0) ? (ldnslots & 0x3F) : 0);
@@ -1269,27 +1366,57 @@ AudioTrace Bus::TraceAudio() const {
     if (passed > slots.size()) {
       fail("UPSLOTS passes more slots than it receives");
     }
-    slots.resize(passed);
+    slots.resize(passed < slots.size() ? passed : slots.size());
     std::vector<Signal> own =
         run(i, node.AppliedReg(reg::kUpoffset) & 0x1F, node.AppliedReg(reg::kLupslots) & 0x3F);
     if (!carries(i, true)) {
       blank(own);
     }
     slots.insert(slots.end(), own.begin(), own.end());
+    if (tunnel && i == tunnelAt) {
+      const size_t at = node.Reg(reg::kDtupoffs) & 0x3F;
+      if (at > slots.size()) {
+        trace.tunnelError = "the far end's DTUPOFFS is past the slots it sends up";
+      } else {
+        for (size_t k = 0; k < tunnelUp; ++k) {
+          slots.insert(slots.begin() + static_cast<std::ptrdiff_t>(at + k),
+                       tunnelSlot(Signal::kTunnelUp, k));
+        }
+      }
+    }
     if (slots.size() > 32) {
       fail("more than 32 upstream slots on a link");
     }
     trace.upSlots[i - 1] = slots.size();
   }
+  if (tunnel) {
+    const size_t at = m_Main->Reg(reg::kDtupoffs) & 0x3F;
+    bool arrived = at + tunnelUp <= slots.size();
+    for (size_t k = 0; arrived && k < tunnelUp; ++k) {
+      arrived = slots[at + k] == tunnelSlot(Signal::kTunnelUp, k);
+    }
+    trace.tunnelUp = arrived;
+    if (arrived) {
+      slots.erase(slots.begin() + static_cast<std::ptrdiff_t>(at),
+                  slots.begin() + static_cast<std::ptrdiff_t>(at + tunnelUp));
+    }
+  }
   const size_t received = m_Main->AppliedReg(reg::kUpslots) & 0x3F;
   if (received > slots.size()) {
     fail("the main node's UPSLOTS is more than the slots it receives");
   }
-  slots.resize(received);
+  slots.resize(received < slots.size() ? received : slots.size());
   if (!carries(0, true)) {
     blank(slots);
   }
   played[0] = slots;
+  for (size_t i = 0; i <= count; ++i) {
+    for (const Signal& signal : played[i]) {
+      if (isTunnel(signal)) {
+        fail("a node plays a tunnel slot");
+      }
+    }
+  }
   // TX crossbars; without one, channel n plays location n. Only the port's channels play.
   for (size_t i = 0; i <= count; ++i) {
     if (played[i].size() > 32) {

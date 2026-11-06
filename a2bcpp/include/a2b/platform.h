@@ -116,6 +116,27 @@ class Platform {
   }
 
   /**
+   * @brief One full-duplex transfer on the SPI port wired to the main node's SPI slave
+   *        port (its SCK, MOSI, MISO, and ADR1 as the slave select), framed by one
+   *        assertion of the slave select: @p len bytes out on MOSI while @p len come in on
+   *        MISO. Used only for the SPI data tunnel to sub-nodes' SPI peripherals; the main
+   *        node is still controlled over I2C (docs/SPI.md).
+   * @param bus Bus index, to pick the SPI port and slave select of that bus's main node.
+   * @param tx Bytes to send, @p len of them.
+   * @param rx Buffer for the bytes received, @p len of them; may be @p tx's buffer.
+   * @param len Number of bytes, 1 to 259 (a command, its two bytes and 256 of data).
+   * @return Result::kOk, Result::kSpiError if the transfer failed, or
+   *         Result::kNotSupported (the default) if the host has no SPI to the main node.
+   */
+  virtual Result SpiTransfer(uint8_t bus, const uint8_t* tx, uint8_t* rx, size_t len) {
+    (void)bus;
+    (void)tx;
+    (void)rx;
+    (void)len;
+    return Result::kNotSupported;
+  }
+
+  /**
    * @brief Writes one log message. The default discards it.
    * @param level Severity.
    * @param text Message without a trailing newline.

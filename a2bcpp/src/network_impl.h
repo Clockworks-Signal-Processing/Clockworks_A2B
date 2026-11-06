@@ -3,8 +3,8 @@
  * @brief Network::Impl, the Network's state and work, shared by the files that implement it:
  *        network.cpp (the public calls, Poll(), events), network_startup.cpp (the main
  *        node's start-up and configuration), network_chain.cpp (probes, upkeep, drops,
- *        rejections, links and node objects) and network_routing.cpp (connections, routing
- *        plans and muting). Internal.
+ *        rejections, links and node objects), network_routing.cpp (connections, routing
+ *        plans and muting) and network_spi.cpp (SPI over A2B). Internal.
  *
  * Copyright 2026 by ClockWorks Signal Processing LLC
  * Licensed under the terms found in CLOCKWORKS_SOFTWARE_LICENSE.txt and included here by reference.
@@ -112,6 +112,18 @@ class Network::Impl {
   uint32_t BitErrorCount(NodeAddr node) const;                  ///< See Network::BitErrorCount().
   void ClearErrors() { m_ClearErrorsDue = true; }               ///< See Network::ClearErrors().
   Result ReadErrorState(NodeAddr node, NodeErrorState& state);  ///< See Network::ReadErrorState().
+  Result SpiReadRegisters(uint8_t reg, uint8_t* data, size_t len);         ///< See Network.
+  Result OpenSpiTunnel(const SpiTunnelConfig& config, RoutingError* why);  ///< See Network.
+  void CloseSpiTunnel();                     ///< See Network::CloseSpiTunnel().
+  bool SpiTunnelReady() const;               ///< See Network::SpiTunnelReady().
+  const SpiTunnelConfig* SpiTunnel() const;  ///< See Network::SpiTunnel().
+  Result SpiFullDuplex(uint8_t select, const uint8_t* tx, uint8_t* rxPrevious, size_t len,
+                       SpiChunk chunk);                 ///< See Network::SpiFullDuplex().
+  Result SpiReadTunnelFifo(uint8_t* data, size_t len);  ///< See Network::SpiReadTunnelFifo().
+  Result SpiBulkWrite(uint8_t select, const uint8_t* data, size_t len,
+                      SpiChunk chunk);                     ///< See Network::SpiBulkWrite().
+  Result SpiAbort();                                       ///< See Network::SpiAbort().
+  SpiStatus LastSpiStatus() const { return m_SpiStatus; }  ///< See Network::LastSpiStatus().
 
  private:
   /** Steps of kStarting and kConfiguring. */
@@ -222,6 +234,23 @@ class Network::Impl {
   ModuleInfoSource& Source();                            ///< The app's source, or the EEPROMs.
   bool IsReachable(NodeAddr node) const;  ///< The main node, or a sub-node in the bus or joining.
   const ChipCaps* CapsOf(NodeAddr node) const;  ///< A reachable node's chip, if known.
+  bool MainHasSpi() const;                      ///< The board's main node has an SPI port.
+  Result SpiExchange(const uint8_t* tx, uint8_t* rx, size_t len);  ///< One host SPI transfer.
+  Result SpiWaitIdle();  ///< Waits for SPISTAT.SPIBUSY to clear.
+  Result SpiTransaction(const uint8_t* tx, uint8_t* rx, size_t len);  ///< One, checked.
+  Result SpiAtomic(NodeAddr node, uint8_t select, const uint8_t* writeData, size_t writeLen,
+                   uint8_t* readData, size_t readLen);  ///< An SPI peripheral's access.
+  Result TunnelSelect(NodeAddr node, uint8_t select,
+                      uint8_t& nodeSelect);  ///< The node/SS byte, if the tunnel is ready.
+  Result ClearTunnelPath();                  ///< Ends a probe that would stop the tunnel, or kBusy.
+  bool TunnelPending() const;                ///< The tunnel's plan is due or being written.
+  bool TunnelHoldsProbes();     ///< No probes: the tunnel ends at the last node, with audio.
+  NodeAddr TunnelNode() const;  ///< Where the tunnel's module is in the bus, or kNoNode.
+  RoutingError TunnelInput(RoutingPlanner::Input& input, NodeAddr& node) const;  ///< In a plan.
+  uint8_t ModuleReg(NodeAddr position, uint16_t reg, uint8_t otherwise) const;   ///< Its setting.
+  bool TunnelGpioSel(NodeAddr position) const;         ///< Needs GPIOSEL 2 for CLKOUT2 (18000047).
+  Result WriteTunnel();                                ///< The tunnel's registers of the plan.
+  void TunnelEvents(NodeAddr before, NodeAddr after);  ///< Its opened and closed events.
 
   Network& m_Owner;
   Platform& m_Platform;
@@ -305,6 +334,18 @@ class Network::Impl {
   uint8_t m_SavedMainIntmsk0 = 0;                ///< The main node's INTMSK0 before the watch.
   uint32_t m_BecntSum[kMaxSubNodes + 1] = {};    ///< Each node's BECNT, summed while watching.
   ErrorReport m_Report;                          ///< The last report.
+  SpiStatus m_SpiStatus;                         ///< The last SPI transaction's end.
+  uint32_t m_LastSpiMs = 0;                      ///< When the last SPI transaction ran.
+  bool m_SpiUsed = false;                        ///< m_LastSpiMs is set.
+  bool m_ProbesHeld = false;                     ///< TunnelHoldsProbes() said so last.
+  SpiTunnelConfig m_Tunnel;                      ///< The tunnel asked for (OpenSpiTunnel()).
+  bool m_TunnelWanted = false;                   ///< A tunnel is asked for.
+  uint8_t m_TunnelChipId[6] = {};                ///< Its module, by chip ID.
+  /** Where the tunnel's registers were written on a sub-node (kNoNode: none), and that
+      node's chip ID then: they are taken off it when the tunnel moves or closes. */
+  NodeAddr m_TunnelAt = kNoNode;
+  uint8_t m_TunnelAtChipId[6] = {};
+  bool m_TunnelOnMain = false;  ///< The main node's tunnel registers are written.
 };
 
 }  // namespace a2b

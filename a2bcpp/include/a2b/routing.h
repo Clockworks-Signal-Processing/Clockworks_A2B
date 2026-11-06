@@ -64,6 +64,13 @@ enum class RoutingError : uint8_t {
       TX channels play the slots it takes in bus order, from channel 0 on with no gap, so a
       sink's channels must follow the slots' order on the bus (cookbook, "Routing"). */
   kChannelOrder,
+  /** The SPI data tunnel's slots don't suit the bus's slot size (2 to 12 each way, at least
+      6 bytes: 3 slots of 16 or 20 bits; none of 8, 12 or 28 bits; AD2437 TRM, "SPI Data
+      Tunnels"). Network::OpenSpiTunnel(). */
+  kTunnelSlots,
+  /** The SPI data tunnel's far end can't be one: the main node or that sub-node has no SPI
+      port (an AD242x). */
+  kTunnelNode,
 };
 
 /** @brief An audio stream for Network::SetAudioRoutes(): one source RX group sent to
@@ -228,6 +235,21 @@ struct NodeRouting {
   uint8_t txXbar[32] = {};
 };
 
+/**
+ * @brief Where an SPI data tunnel's slots are (Network::OpenSpiTunnel()): DTSLOTS on both
+ *        ends, DTDNOFFS and DTUPOFFS on each. Between the ends its slots pass as any others,
+ *        and they count in each link's slots.
+ */
+struct TunnelPlan {
+  NodeAddr node = kNoNode;   ///< The sub-node at the far end; kNoNode for no tunnel.
+  uint8_t dnSlots = 0;       ///< DTSLOTS.DTDNSLOTS: slots down, from the main node.
+  uint8_t upSlots = 0;       ///< DTSLOTS.DTUPSLOTS: slots up, to the main node.
+  uint8_t mainDnOffset = 0;  ///< The main node's DTDNOFFS: before its own slots.
+  uint8_t mainUpOffset = 0;  ///< The main node's DTUPOFFS: the slots received before them.
+  uint8_t nodeDnOffset = 0;  ///< The far end's DTDNOFFS: where they arrive on its A side.
+  uint8_t nodeUpOffset = 0;  ///< The far end's DTUPOFFS: after the slots it passes up.
+};
+
 /** @brief The routing a Network wrote last: each node's registers and each link's slots. */
 struct RoutingPlan {
   bool valid = false;             ///< It was written; the fields below hold it.
@@ -241,6 +263,7 @@ struct RoutingPlan {
   uint8_t linkUpSlots[kMaxSubNodes] = {};
   ResponseCycles respCycles;  ///< The response cycles, and their window.
   BandwidthUsage bandwidth;   ///< How full the bus is with these slots.
+  TunnelPlan tunnel;          ///< The SPI data tunnel's slots, if there is one.
 };
 
 }  // namespace a2b

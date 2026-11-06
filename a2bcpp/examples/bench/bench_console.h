@@ -4,7 +4,7 @@
  *        start and stop the bus, show its status, set link profiles, ignore the EEPROMs,
  *        read, write and check sub-nodes' EEPROMs, trace the I2C, read and write registers
  *        and peripherals, pause discovery, reject a node, connect channel groups and route
- *        them.
+ *        them, and SPI over A2B (bench_console_spi.cpp).
  *
  * A2B_BENCH_FILES (1 unless the build sets it) gives the commands that need a file system
  * (bench_console_files.cpp). Built with A2B_BENCH_FILES 0 (the RP2040 console), there are no
@@ -33,6 +33,7 @@
 #include "a2b/routing.h"
 #include "clockworks_boards.h"
 #include "sigma_xml.h"
+#include "spi_job.h"
 #include "ss_plus_import.h"
 
 #ifndef A2B_BENCH_FILES
@@ -75,13 +76,11 @@ class BenchConsole : public a2b::NetworkListener {
   bool Execute(const char* line);  ///< Runs one command line; false after `quit`.
   void Poll();                     ///< Polls the bus once (and an EEPROM job's next step).
   std::string TakeOutput();        ///< What the console printed since the last call.
-#if !A2B_BENCH_FILES
-  bool Busy() const { return false; }  ///< No `eeprom` jobs without files.
-#else
-  /// An `eeprom` job is running: the host waits for it before the next command it queued.
-  bool Busy() const { return m_EepromJob.Running(); }
-#endif
-  /// The host runs @p line at once even while Busy(): `eeprom abort` and `quit`.
+  /// A job runs (`eeprom`, a long `spi` or `spiflash` one) or `wait` holds: the host waits for
+  /// it before the next command it queued.
+  bool Busy() const;
+  int ExitCode() const { return m_ExitCode; }  ///< 1 after a failed check (`wait`, `spiflash id`).
+  /// The host runs @p line at once even while Busy(): the `abort`s and `quit`.
   static bool RunsWhileBusy(const char* line);
 
   const a2b::Network& Bus() const { return m_Network; }     ///< The bus.
@@ -117,8 +116,22 @@ class BenchConsole : public a2b::NetworkListener {
   void EepromFinished();                             ///< Reports a job that has ended.
   void Trace(const std::vector<std::string>& args);  ///< `i2cTrace`.
 #endif
-  void Interrupts(const std::vector<std::string>& args);                       ///< `interrupts`.
-  void Errors(const std::vector<std::string>& args);                           ///< `errors`.
+  void Spi(const std::vector<std::string>& args);            ///< `spi` (bench_console_spi.cpp).
+  void SpiShowStatus();                                      ///< `spi`.
+  void SpiCheck();                                           ///< `spi check`.
+  std::string SpiWhy(a2b::Result result) const;              ///< Why an SPI call failed.
+  static std::string SpiBits(const a2b::SpiStatus& status);  ///< Its error bits by name.
+  void SpiOpen(const std::vector<std::string>& args);        ///< `spi open`.
+  void SpiRaw(const std::vector<std::string>& args);         ///< `spi write|read|fd|bulk`.
+  void SpiFile(const std::vector<std::string>& args);        ///< `spi dump|send`.
+  void SpiFlash(const std::vector<std::string>& args);       ///< `spiflash`.
+  void SpiFlashId(const std::vector<std::string>& args);     ///< `spiflash id`.
+  bool SpiTarget(a2b::NodeAddr& node, uint8_t& select);      ///< The tunnel's far end.
+  void SpiJobFinished();                                     ///< Reports a job that ended.
+  void Wait(const std::vector<std::string>& args);           ///< `wait`.
+  void PollWait();                                           ///< Ends a `wait` that is met.
+  void Interrupts(const std::vector<std::string>& args);     ///< `interrupts`.
+  void Errors(const std::vector<std::string>& args);         ///< `errors`.
   void PrintErrorState(a2b::NodeAddr node, const a2b::NodeErrorState& state);  ///< One node.
   void PrintErrorReport();                                     ///< The error watch's last report.
   void ReadRegisters(const std::vector<std::string>& args);    ///< `rdm`, `rds`.
@@ -194,7 +207,15 @@ class BenchConsole : public a2b::NetworkListener {
   std::string m_EepromFile;      ///< `eeprom read`: where the bytes go.
   bool m_EepromInfo = false;     ///< The read is `eeprom info`'s.
 #endif
-  std::string m_Output;  ///< Printed, not yet taken.
+  SpiJob m_SpiJob;        ///< The `spi dump|send` or `spiflash` job, running or last run.
+  std::string m_SpiFile;  ///< Where a job's read goes (`spi dump`, `spiflash read`).
+  /** `wait`: what it waits for ('n' a node, 's' the SPI tunnel, 'r' the bus running, 't'
+      time only), or 0 for no wait. */
+  char m_WaitFor = 0;
+  a2b::NodeAddr m_WaitNode = 0;  ///< `wait node N`: N.
+  uint32_t m_WaitUntil = 0;      ///< The wait's deadline.
+  int m_ExitCode = 0;            ///< See ExitCode().
+  std::string m_Output;          ///< Printed, not yet taken.
 };
 
 #endif  // A2BCPP_EXAMPLES_BENCH_BENCH_CONSOLE_H_

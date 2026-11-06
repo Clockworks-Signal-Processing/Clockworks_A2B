@@ -111,6 +111,8 @@ class Discovery {
   void Abandon();                       ///< After a failure: tidies up what it can.
   void Cancel();                        ///< Abandons the probe; nothing more is sent.
   bool Settling(uint32_t nowMs) const;  ///< In the NEWSTRCT settle: no bus access.
+  bool Searching() const;               ///< Under way, nothing found yet (first step).
+  bool AwaitingDscdone() const { return m_Step == Step::kWaitDscdone; }  ///< DISCVRY is out.
   bool TakeInterrupt(InterruptPoller::Interrupt& irq);  ///< Another interrupt it read.
 
   RejectReason Rejection() const { return m_Rejection; }  ///< Why the node was rejected.

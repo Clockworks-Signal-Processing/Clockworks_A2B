@@ -20,10 +20,10 @@ namespace {
 A2B_TEST(EveryEnumValueHasText) {
   A2B_CHECK(std::strcmp(ToString(Result::kOk), "ok") == 0);
   A2B_CHECK(std::strcmp(ToString(NetworkState::kRunning), "running") == 0);
-  for (uint8_t v = 0; v <= static_cast<uint8_t>(Result::kInvalidData); ++v) {
+  for (uint8_t v = 0; v <= static_cast<uint8_t>(Result::kBusy); ++v) {
     A2B_CHECK(std::strcmp(ToString(static_cast<Result>(v)), "?") != 0);
   }
-  for (uint8_t v = 0; v <= static_cast<uint8_t>(RoutingError::kChannelOrder); ++v) {
+  for (uint8_t v = 0; v <= static_cast<uint8_t>(RoutingError::kTunnelNode); ++v) {
     A2B_CHECK(std::strcmp(ToString(static_cast<RoutingError>(v)), "?") != 0);
   }
   for (uint8_t v = 0; v <= static_cast<uint8_t>(EventType::kRoutingFailed); ++v) {

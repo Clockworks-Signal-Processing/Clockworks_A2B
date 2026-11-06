@@ -31,6 +31,10 @@ const char* ToString(Result result) {
       return "no space";
     case Result::kInvalidData:
       return "invalid data";
+    case Result::kSpiError:
+      return "SPI error";
+    case Result::kBusy:
+      return "busy";
   }
   return "?";
 }
@@ -152,6 +156,10 @@ const char* ToString(EventType type) {
       return "routing failed";
     case EventType::kErrorReport:
       return "error report";
+    case EventType::kSpiTunnelOpened:
+      return "SPI tunnel opened";
+    case EventType::kSpiTunnelClosed:
+      return "SPI tunnel closed";
   }
   return "?";
 }
@@ -181,6 +189,10 @@ const char* ToString(RoutingError error) {
       return "a connection uses a channel its node's I2S/TDM port doesn't give";
     case RoutingError::kChannelOrder:
       return "a node without a crossbar (AD242x) can't play its channels in that order";
+    case RoutingError::kTunnelSlots:
+      return "the SPI data tunnel's slots don't suit the bus's slot size";
+    case RoutingError::kTunnelNode:
+      return "the SPI data tunnel's far end has no SPI port";
   }
   return "?";
 }

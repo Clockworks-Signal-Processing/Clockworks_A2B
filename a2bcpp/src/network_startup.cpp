@@ -197,11 +197,17 @@ void Network::Impl::BeginStart(bool resetLine) {
   m_CheckNow = false;
   m_Links[0] = m_MainLink;
   m_Settings.respCycles = m_ImageRespCycles;  // The main node's registers are reset.
+  if (m_Plan.valid && m_Plan.tunnel.node != kNoNode) {
+    TunnelEvents(m_Plan.tunnel.node, kNoNode);  // Opened again once its plan is written.
+  }
+  m_TunnelAt = kNoNode;
+  m_TunnelOnMain = false;
+  m_ProbesHeld = false;
   RoutingPlanner::Clear(m_Plan);
   m_XbarKnown = 0;
   m_Bandwidth = BandwidthUsage();
-  m_RoutingDue = m_RoutingOn;  // Routed again once the chain is up.
-  m_MuteDue = false;           // The image is written with DATCTL muted if the app muted.
+  m_RoutingDue = m_RoutingOn || m_TunnelWanted;  // Routed again once the chain is up.
+  m_MuteDue = false;  // The image is written with DATCTL muted if the app muted.
   m_RouteMute = false;
   m_Settling = false;
   SetState(NetworkState::kStarting);

@@ -27,7 +27,7 @@ the design are in [decisions.md](decisions.md); what the hardware taught us is i
     '-- Transport         every register and peripheral access; caches NODEADR, CHIP, MMRPAGE
           |
           v
-  Platform (a2b/platform.h) ............................ the host: I2C, clock, GPIO, log, lock
+  Platform (a2b/platform.h) ............................ the host: I2C, SPI, clock, GPIO, log, lock
 ```
 
 | What the app sees (`a2bcpp/include/a2b/`) | What it is |
@@ -347,6 +347,7 @@ app's to place. [RAM on the RP2040](ram.md) has the figures.
 | `src/network_startup.cpp` | Start-up, configuration, restarts |
 | `src/network_chain.cpp` | The probe loop, chain checks, drops, rejections, links, the sub-nodes' objects |
 | `src/network_routing.cpp` | Connections, routing plans, mutes, response cycles |
+| `src/network_spi.cpp`, `src/spi_protocol.h` | SPI over A2B: the data tunnel and its transactions ([SPI](../../docs/SPI.md)) |
 | `src/strings.cpp` | The enums as text (`a2b/strings.h`) |
 | `src/discovery.cpp` | One probe, up to the node's identification |
 | `src/node_setup.cpp`, `src/module_script.cpp` | A found node's settings, peripheral scripts and operations |

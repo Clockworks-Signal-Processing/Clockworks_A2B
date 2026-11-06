@@ -19,13 +19,16 @@ namespace a2b {
 
 /**
  * @brief True for the routing registers, which the routing plan writes: the
- *        slot registers BCDNSLOTS to UPSLOTS, UPMASK0-3, UPOFFSET, DNMASK0-3, DNOFFSET, and
- *        the AD243x crossbars RXMASK0-7 and TXXBAR0-31. RESPCYCS is the stack's too.
+ *        slot registers BCDNSLOTS to UPSLOTS, UPMASK0-3, UPOFFSET, DNMASK0-3, DNOFFSET, the
+ *        AD243x crossbars RXMASK0-7 and TXXBAR0-31, and the AD243x SPI data tunnel's DTCFG,
+ *        DTSLOTS, DTDNOFFS and DTUPOFFS (its slots are the plan's). RESPCYCS is the stack's
+ *        too.
  */
 inline bool IsRoutingRegister(uint16_t reg) {
   return (reg >= reg::kBcdnslots && reg <= reg::kUpslots) ||
          (reg >= reg::kUpmask0 && reg <= reg::kDnoffset) ||
-         (reg >= reg::kRxmask0 && reg < reg::kTxxbar0 + 32);
+         (reg >= reg::kRxmask0 && reg < reg::kTxxbar0 + 32) ||
+         (reg >= reg::kDtcfg && reg <= reg::kDtupoffs);
 }
 
 /**

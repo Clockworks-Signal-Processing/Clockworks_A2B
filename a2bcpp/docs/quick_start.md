@@ -415,4 +415,5 @@ with the same export, and is part of the test suite
   IO7.
 - [Design decisions](decisions.md): requirements, rationale, policies, and the designs not
   built yet.
+- [SPI over A2B](../../docs/SPI.md): the data tunnel to sub-nodes' SPI devices.
 - [Testing](testing.md) and [RAM](ram.md): the tests, the simulator, and the RP2040 figures.

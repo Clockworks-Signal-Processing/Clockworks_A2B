@@ -57,6 +57,14 @@ struct BoardTimings {
   /** A rejected node to the next probe of its position, which finds a different module
       plugged in there. The same node found again is switched off without a new event. */
   uint32_t rejectedProbeMs = 2000;
+  /** An SPI transaction to the main node's SPISTAT.SPIBUSY clearing: longer is a failed
+      transaction (Result::kSpiError). The longest, 256 bytes through a 2-slot tunnel and
+      back, takes a few milliseconds (docs/SPI.md). */
+  uint32_t spiTimeoutMs = 50;
+  /** While an SPI tunnel is open, no probe for a new node starts within this long of the
+      last SPI transaction: a probe behind the tunnel's far end stops the tunnel
+      (docs/SPI.md). Hot-plug detection resumes once SPI has been idle this long. */
+  uint32_t spiProbeHoldMs = 1000;
 };
 
 /**

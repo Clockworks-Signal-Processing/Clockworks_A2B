@@ -318,11 +318,17 @@ void Network::Impl::HandleInterrupt(const InterruptPoller::Interrupt& irq) {
 bool Network::Impl::BeginProbe(uint32_t nowMs) {
   const NodeAddr position = static_cast<NodeAddr>(m_SubNodeCount);
   const bool rejectedHere = m_HasRejected && m_RejectedAt == position;
-  if (m_Paused || m_SubNodeCount >= m_MaxSubNodes || (rejectedHere && m_RejectedStuck)) {
+  if (m_Paused || m_SubNodeCount >= m_MaxSubNodes || (rejectedHere && m_RejectedStuck) ||
+      TunnelHoldsProbes()) {
     SetState(NetworkState::kRunning);
     return false;
   }
   if (!TimeReached(nowMs, m_Deadline)) {
+    return false;
+  }
+  // A probe stops an open SPI tunnel: none while SPI is in use (docs/SPI.md).
+  if (m_TunnelWanted && m_SpiUsed &&
+      ElapsedMs(nowMs, m_LastSpiMs) < m_Board.timings.spiProbeHoldMs) {
     return false;
   }
   ApplyLink(position);

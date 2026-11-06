@@ -231,6 +231,14 @@ bool Discovery::Settling(uint32_t nowMs) const {
 }
 
 /**
+ * True while a probe is under way and nothing has answered it yet: its first step, before
+ * DSCDONE. Abandoning it then (Abandon()) loses nothing; it is as if it found nothing.
+ */
+bool Discovery::Searching() const {
+  return m_Step != Step::kIdle && m_Step != Step::kCheckVoltage && !m_Found && !m_SecondStep;
+}
+
+/**
  * Gives an interrupt the probe's last check read that wasn't its DSCDONE (a sub-node's,
  * say), once, for Network to handle as any other: reading INTTYPE cleared it, so it would
  * be lost otherwise.

@@ -21,6 +21,7 @@
 #include "a2b/network_listener.h"
 #include "a2b/platform.h"
 #include "a2b/routing.h"
+#include "a2b/spi_tunnel.h"
 #include "a2b/sub_node.h"
 #include "a2b/types.h"
 
@@ -72,6 +73,21 @@ class Network {
                        size_t len);  ///< Reads a node's registers (raw access).
   Result WriteRegisters(NodeAddr node, uint16_t reg, const uint8_t* data,
                         size_t len);  ///< Writes a node's registers, at the app's risk.
+
+  Result SpiReadRegisters(uint8_t reg, uint8_t* data,
+                          size_t len);  ///< Reads main-node registers over SPI.
+  Result OpenSpiTunnel(const SpiTunnelConfig& config,
+                       RoutingError* why = nullptr);  ///< The SPI data tunnel to a sub-node.
+  void CloseSpiTunnel();                              ///< Takes the tunnel off the bus.
+  bool SpiTunnelReady() const;                        ///< The tunnel's transactions can run.
+  const SpiTunnelConfig* SpiTunnel() const;           ///< The tunnel asked for, or nullptr.
+  Result SpiFullDuplex(uint8_t select, const uint8_t* tx, uint8_t* rxPrevious, size_t len,
+                       SpiChunk chunk = SpiChunk::kLast);  ///< A full-duplex transaction.
+  Result SpiReadTunnelFifo(uint8_t* data, size_t len);     ///< The last read's data again.
+  Result SpiBulkWrite(uint8_t select, const uint8_t* data, size_t len,
+                      SpiChunk chunk = SpiChunk::kLast);  ///< A bulk write.
+  Result SpiAbort();                                      ///< Ends a transaction, flushes.
+  SpiStatus LastSpiStatus() const;  ///< What the last SPI transaction ended with.
 
   void SetErrorWatch(bool on);                  ///< Counts and reports the errors the nodes see.
   bool ErrorWatch() const;                      ///< SetErrorWatch(true) is in force.

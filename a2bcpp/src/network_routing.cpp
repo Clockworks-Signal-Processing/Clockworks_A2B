@@ -391,7 +391,7 @@ bool Network::Impl::CrossbarChanges(size_t index) const {
  */
 bool Network::Impl::LeavesSilence(size_t index) const {
   const NodeRouting& now = RegsOf(m_Pending, index);
-  size_t played = 0;
+  size_t played = ((now.ldnSlots & reg::kLdnslotsDnmasken) == 0) ? now.ldnSlots : 0;
   for (uint32_t mask = now.dnMask | now.upMask; mask != 0; mask &= mask - 1) {
     ++played;
   }
@@ -411,15 +411,19 @@ bool Network::Impl::LeavesSilence(size_t index) const {
  */
 void Network::Impl::MarkStaleSlots(bool* stale) const {
   const size_t nodes = m_Pending.subNodeCount + 1;
-  size_t len = 0;
+  const TunnelPlan& tunnel = m_Pending.tunnel;
+  const size_t far = (tunnel.node == kNoNode) ? 0 : static_cast<size_t>(tunnel.node) + 1;
+  size_t len = (far != 0) ? tunnel.dnSlots : 0;  // The tunnel's slots first: no channel.
   uint32_t changed = AddSlots(0, 0, m_Pending.main.dnSlots, 0, len);
   for (size_t k = 1; k < nodes; ++k) {
     const NodeRouting& regs = m_Pending.sub[k - 1];
-    stale[k] = stale[k] || (changed & regs.dnMask) != 0;
+    const bool masks = (regs.ldnSlots & reg::kLdnslotsDnmasken) != 0;
+    // Without DNMASKEN (the tunnel's far end as the last node) it plays every slot.
+    stale[k] = stale[k] || (changed & (masks ? regs.dnMask : FirstSlots(len))) != 0;
     len = (regs.dnSlots < len) ? regs.dnSlots : len;
-    changed =
-        AddSlots(k, regs.dnOffset, regs.ldnSlots & static_cast<uint8_t>(~reg::kLdnslotsDnmasken),
-                 changed & FirstSlots(len), len);
+    changed = AddSlots(k, regs.dnOffset,
+                       masks ? (regs.ldnSlots & static_cast<uint8_t>(~reg::kLdnslotsDnmasken)) : 0,
+                       changed & FirstSlots(len), len);
   }
   len = 0;
   changed = 0;
@@ -427,7 +431,16 @@ void Network::Impl::MarkStaleSlots(bool* stale) const {
     const NodeRouting& regs = m_Pending.sub[k - 1];
     stale[k] = stale[k] || (changed & regs.upMask) != 0;
     len = (regs.upSlots < len) ? regs.upSlots : len;
+    if (k == far) {
+      len += tunnel.upSlots;  // Unmarked: they carry no channel.
+    }
     changed = AddSlots(k, regs.upOffset, regs.lupSlots, changed & FirstSlots(len), len);
+  }
+  if (far != 0) {
+    // The main node takes its slots but the tunnel's: take those out of the marks.
+    const uint32_t low = changed & FirstSlots(tunnel.mainUpOffset);
+    changed = low | ((changed >> (tunnel.mainUpOffset + tunnel.upSlots)) << tunnel.mainUpOffset);
+    len = (len > tunnel.upSlots) ? len - tunnel.upSlots : 0;
   }
   const NodeRouting& main = m_Pending.main;
   len = (main.upSlots < len) ? main.upSlots : len;
@@ -482,11 +495,13 @@ bool Network::Impl::SlotChanges(size_t index, size_t location) const {
 
 /**
  * The plan is written: it becomes the plan written last, the app is told it can unmute
- * (OnAudioUnmute(), if it was told to mute), and EventType::kRoutingApplied is queued.
+ * (OnAudioUnmute(), if it was told to mute), and EventType::kRoutingApplied is queued, then
+ * the SPI data tunnel's events if it opened, closed or moved.
  */
 void Network::Impl::FinishRouting() {
   m_Phase = Phase::kIdle;
   m_RouteMute = false;
+  const NodeAddr tunnelBefore = m_Plan.valid ? m_Plan.tunnel.node : kNoNode;
   m_Plan = m_Pending;
   m_Plan.valid = true;
   m_XbarKnown = m_Plan.subNodeCount;
@@ -505,6 +520,7 @@ void Network::Impl::FinishRouting() {
   Event event;
   event.type = EventType::kRoutingApplied;
   Queue(event);
+  TunnelEvents(tunnelBefore, m_Plan.tunnel.node);
 }
 
 /**
@@ -563,7 +579,8 @@ void Network::Impl::StepMute(uint32_t nowMs) {
 
 /**
  * Writes each sub-node's slot registers (BCDNSLOTS to RESPCYCS; UPMASK0 to DNOFFSET), the
- * main node's (DNSLOTS, UPSLOTS, RESPCYCS), then CONTROL.NEWSTRCT, and starts the settle.
+ * main node's (DNSLOTS, UPSLOTS, RESPCYCS), the SPI data tunnel's (WriteTunnel()), then
+ * CONTROL.NEWSTRCT, and starts the settle.
  */
 Result Network::Impl::WriteSlots(uint32_t nowMs) {
   for (size_t i = 0; i < m_Pending.subNodeCount; ++i) {
@@ -596,6 +613,9 @@ Result Network::Impl::WriteSlots(uint32_t nowMs) {
   const NodeRouting& main = m_Pending.main;
   const uint8_t slots[] = {main.dnSlots, main.upSlots, main.respCycles};
   Result result = m_Transport.WriteRegs(kMainNode, reg::kDnslots, slots, sizeof(slots));
+  if (result == Result::kOk) {
+    result = WriteTunnel();  // The SPI data tunnel's registers, with its slots.
+  }
   // SLOTFMT, DATCTL and I2SRRATE are auto-broadcast: a main-node write reaches only the
   // sub-nodes discovered by then (AD2437 TRM, their register descriptions), so the image's
   // values, written at start-up, never reached them. Written again with each plan, as
@@ -673,9 +693,10 @@ void Network::Impl::RoutingFailed(RoutingError error, NodeAddr node) {
 }
 
 /**
- * Builds a plan for the chain as it is: each node's channel map and the connections whose
- * nodes are in the bus, the planner's registers, then the response cycles (the board's
- * policy, or the default), which must fit.
+ * Builds a plan for the chain as it is: each node's channel map and, once the app routes
+ * (ApplyRouting()), the connections whose nodes are in the bus; the SPI data tunnel's slots
+ * if one is open and its module is in the bus (TunnelInput()); the planner's registers, then
+ * the response cycles (the board's policy, or the default), which must fit.
  * @param plan Filled with the plan (not valid: not written yet).
  * @param node Set to the node at fault on failure.
  * @return RoutingError::kNone, or why there is no plan.
@@ -694,7 +715,7 @@ RoutingError Network::Impl::BuildPlan(RoutingPlan& plan, NodeAddr& node) {
     input.groups[i] = (i == 0) ? &m_Board.routing.groups : &m_SubNodes[i - 1].moduleInfo.groups;
   }
   input.routeCount = 0;
-  for (size_t i = 0; i < m_Connections.Count(); ++i) {
+  for (size_t i = 0; m_RoutingOn && i < m_Connections.Count(); ++i) {
     const NodeAddr source = m_Connections.SourceNode(i, chain);
     const NodeAddr sink = m_Connections.SinkNode(i, chain);
     if (source == kNoNode || sink == kNoNode) {
@@ -706,7 +727,11 @@ RoutingError Network::Impl::BuildPlan(RoutingPlan& plan, NodeAddr& node) {
     route.sink = static_cast<uint8_t>(sink + 1);
     route.sinkGroup = m_Connections.At(i).sink.group;
   }
-  RoutingError error = m_Planner.Build(input, plan, node);
+  RoutingError error = TunnelInput(input, node);
+  if (error != RoutingError::kNone) {
+    return error;
+  }
+  error = m_Planner.Build(input, plan, node);
   if (error != RoutingError::kNone) {
     return error;
   }
@@ -801,9 +826,12 @@ uint8_t Network::Impl::DiscoveryRespCycles(NodeAddr position) const {
   return policy.RespCycles(input).sub[position];
 }
 
-/** The chain changed: if the app routes the bus, a plan is due at the next idle poll. */
+/**
+ * The chain changed: if the app routes the bus, or an SPI data tunnel is open or was written,
+ * a plan is due at the next idle poll.
+ */
 void Network::Impl::RoutingChanged() {
-  if (m_RoutingOn) {
+  if (m_RoutingOn || m_TunnelWanted || m_TunnelOnMain) {
     m_RoutingDue = true;
   }
 }

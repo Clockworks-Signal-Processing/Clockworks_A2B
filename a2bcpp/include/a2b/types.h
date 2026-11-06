@@ -23,6 +23,13 @@ enum class Result : uint8_t {
   kNotSupported,     ///< The platform or chip does not have this feature.
   kNoSpace,          ///< A fixed-size table or buffer is full.
   kInvalidData,      ///< Data read or given is malformed (e.g. a module-info image).
+  /** An SPI transaction failed: the host's SPI transfer, the main node busy past its
+      timeout, or an error the main node reported (SPIINT, SPISTAT; docs/SPI.md). */
+  kSpiError,
+  /** Not now: the stack is busy with something that can't be interrupted (a node joining
+      behind the SPI tunnel's far end, or the tunnel being planned or written). Try again at
+      a later poll. */
+  kBusy,
 };
 
 /** @brief Address of a node on one bus: #kMainNode or a sub-node position. */
@@ -38,23 +45,38 @@ inline constexpr int kMaxSubNodes = 16;
 inline constexpr bool IsSubNode(NodeAddr node) { return node >= 0 && node < kMaxSubNodes; }
 
 /**
- * @brief How a peripheral of a node is reached: a 7-bit I2C address now. The SPI form
- *        (native slave select, or node GPIO lines) is reserved; SPI is not supported yet.
+ * @brief How a peripheral of a node is reached: a 7-bit I2C address on the node's I2C port,
+ *        or a slave select of the node's SPI port, through the SPI data tunnel
+ *        (Network::OpenSpiTunnel(); docs/SPI.md). An SPI peripheral on node GPIO lines is
+ *        not supported.
  */
 struct PeripheralAddress {
   /** @brief The peripheral's interface. */
   enum class Kind : uint8_t {
     kI2c,  ///< On the node's I2C port, at #i2cAddr.
-    kSpi,  ///< On the node's SPI port (not supported yet): calls return Result::kNotSupported.
+    /** On the node's SPI port, at slave select #spiSelect: the tunnel's atomic transactions
+        (AD2433 and AD2437 only). */
+    kSpi,
   };
 
   Kind kind = Kind::kI2c;  ///< Its interface.
   uint8_t i2cAddr = 0;     ///< Kind::kI2c: its 7-bit I2C address.
+  /** Kind::kSpi: the node's slave select, 0 (SPISSEL0, the ADR1 pin), 1 (SPISSEL1, SIO2) or
+      2 (SPISSEL2, ADR2). */
+  uint8_t spiSelect = 0;
 
   /** @brief An I2C peripheral at 7-bit address @p addr. */
   static constexpr PeripheralAddress I2c(uint8_t addr) {
     PeripheralAddress address;
     address.i2cAddr = addr;
+    return address;
+  }
+
+  /** @brief An SPI peripheral on slave select @p select (0-2) of the node's SPI port. */
+  static constexpr PeripheralAddress Spi(uint8_t select) {
+    PeripheralAddress address;
+    address.kind = Kind::kSpi;
+    address.spiSelect = select;
     return address;
   }
 };
